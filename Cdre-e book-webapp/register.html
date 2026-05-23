@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CADRE - Initialize Profile</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* --- Preview Overlay Shield Extensions --- */
+        .preview-backdrop-shield {
+            display: none; /* Controlled via state logic toggle */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 10, 16, 0.95);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 5000;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .preview-window-box {
+            width: 100%;
+            max-width: 400px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-precision);
+            border-radius: var(--radius-sharp);
+            padding: 24px 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        }
+
+        .preview-alert-banner {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--hud-amber);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-precision);
+            padding-bottom: 10px;
+        }
+
+        .preview-actions-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-preview-cancel {
+            background: transparent;
+            border: 1px solid var(--text-dim);
+            color: var(--text-dim);
+            padding: 12px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            border-radius: var(--radius-sharp);
+            cursor: pointer;
+        }
+
+        .btn-preview-confirm {
+            background: var(--hud-amber);
+            color: var(--bg-deep);
+            border: none;
+            padding: 12px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            border-radius: var(--radius-sharp);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <main class="gateway-wrapper">
+        
+        <div class="gateway-card">
+            <div class="gateway-title-block">
+                <img src="Cadre logo png.jpg" alt="CADRE Emblem" class="gateway-emblem">
+                <h1 class="gateway-h1">Profile Setup</h1>
+                <p class="gateway-p">Initialize Personnel Records</p>
+            </div>
+
+            <form onsubmit="interceptAndPreview(event)">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="reg-name" class="form-field" placeholder="e.g. Officer John Doe" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Assigned Rank</label>
+                    <input type="text" id="reg-rank" class="form-field" placeholder="e.g. Inspector / Specialist" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number (Primary Link)</label>
+                    <input type="tel" id="reg-phone" class="form-field" placeholder="e.g. 08123456789" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Create Security Access Code</label>
+                    <input type="password" id="reg-password" class="form-field" placeholder="••••••••" minlength="4" required>
+                </div>
+
+                <button type="submit" class="btn-auth-action">Generate System Preview</button>
+            </form>
+
+            <div class="gateway-footer-link">
+                <span style="color: var(--text-dim);">Already Registered?</span> 
+                <a href="index.html">Access System</a>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="preview-gate-shield" class="preview-backdrop-shield">
+        <div class="preview-window-box">
+            <div class="preview-alert-banner">🚨 Review System Assignment Pass</div>
+            
+            <div class="terminal-data-card" style="margin-bottom: 0;">
+                <div class="data-row-entry">
+                    <label>Name</label>
+                    <span id="preview-target-name">—</span>
+                </div>
+                <div class="data-row-entry">
+                    <label>Rank</label>
+                    <span id="preview-target-rank" style="color: var(--hud-amber);">—</span>
+                </div>
+                <div class="data-row-entry">
+                    <label>Phone</label>
+                    <span id="preview-target-phone">—</span>
+                </div>
+            </div>
+
+            <div class="preview-actions-row">
+                <button type="button" class="btn-preview-cancel" onclick="closePreviewGate()">Edit Data</button>
+                <button type="button" class="btn-preview-confirm" onclick="commitPersonnelRecord()">Confirm & Deploy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Global temporary object holding structural staging variables
+    let stagedPersonnelRecord = null;
+
+    function interceptAndPreview(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById("reg-name").value.trim();
+        const rank = document.getElementById("reg-rank").value.trim();
+        
+        // FIX: Strips out hidden trailing spaces, mobile formatting dashes, or brackets
+        const phone = document.getElementById("reg-phone").value.replace(/[\s\-\(\)]+/g, '');
+        const password = document.getElementById("reg-password").value;
+
+        const dbUserKey = `user_${phone}`;
+        
+        if (localStorage.getItem(dbUserKey)) {
+            alert("REGISTRATION FAILURE: Phone coordinates already registered to an active profile.");
+            return;
+        }
+
+        // Assemble clean properties into object stage array
+        stagedPersonnelRecord = {
+            name: name,
+            rank: rank,
+            phone: phone,
+            password: password,
+            pfp: ""
+        };
+
+        // Inject clean data options into preview card text areas
+        document.getElementById("preview-target-name").textContent = name;
+        document.getElementById("preview-target-rank").textContent = rank;
+        document.getElementById("preview-target-phone").textContent = phone;
+
+        // Reveal the fixed layout overlay gate window
+        document.getElementById("preview-gate-shield").style.display = "flex";
+    }
+
+    function closePreviewGate() {
+        // Dismiss screen layout overlay shield to allow modifications
+        document.getElementById("preview-gate-shield").style.display = "none";
+        stagedPersonnelRecord = null;
+    }
+
+    function commitPersonnelRecord() {
+        if (!stagedPersonnelRecord) return;
+
+        // Double-check the registration value mapping is flawlessly formatted
+        const cleanPhoneKey = stagedPersonnelRecord.phone.replace(/[\s\-\(\)]+/g, '');
+        const dbUserKey = `user_${cleanPhoneKey}`;
+        
+        // Write staging variables down into persistent client memory storage
+        localStorage.setItem(dbUserKey, JSON.stringify(stagedPersonnelRecord));
+        
+        alert("SUCCESS: Profile record built. Forwarding to validation gate.");
+        window.location.href = "index.html";
+    }
+</script>
+</body>
+</html>
