@@ -115,7 +115,7 @@
 
             <div class="gateway-footer-link">
                 <span style="color: var(--text-dim);">Already Registered?</span> 
-                <a href="index.html">Access System</a>
+                <a href="login.html">Access System</a>
             </div>
         </div>
 
@@ -149,7 +149,6 @@
 </div>
 
 <script>
-    // Global temporary object holding structural staging variables
     let stagedPersonnelRecord = null;
 
     function interceptAndPreview(e) {
@@ -157,8 +156,6 @@
         
         const name = document.getElementById("reg-name").value.trim();
         const rank = document.getElementById("reg-rank").value.trim();
-        
-        // FIX: Strips out hidden trailing spaces, mobile formatting dashes, or brackets
         const phone = document.getElementById("reg-phone").value.replace(/[\s\-\(\)]+/g, '');
         const password = document.getElementById("reg-password").value;
 
@@ -169,7 +166,6 @@
             return;
         }
 
-        // Assemble clean properties into object stage array
         stagedPersonnelRecord = {
             name: name,
             rank: rank,
@@ -178,17 +174,14 @@
             pfp: ""
         };
 
-        // Inject clean data options into preview card text areas
         document.getElementById("preview-target-name").textContent = name;
         document.getElementById("preview-target-rank").textContent = rank;
         document.getElementById("preview-target-phone").textContent = phone;
 
-        // Reveal the fixed layout overlay gate window
         document.getElementById("preview-gate-shield").style.display = "flex";
     }
 
     function closePreviewGate() {
-        // Dismiss screen layout overlay shield to allow modifications
         document.getElementById("preview-gate-shield").style.display = "none";
         stagedPersonnelRecord = null;
     }
@@ -196,15 +189,15 @@
     function commitPersonnelRecord() {
         if (!stagedPersonnelRecord) return;
 
-        // Double-check the registration value mapping is flawlessly formatted
         const cleanPhoneKey = stagedPersonnelRecord.phone.replace(/[\s\-\(\)]+/g, '');
         const dbUserKey = `user_${cleanPhoneKey}`;
         
-        // Write staging variables down into persistent client memory storage
         localStorage.setItem(dbUserKey, JSON.stringify(stagedPersonnelRecord));
         
         alert("SUCCESS: Profile record built. Forwarding to validation gate.");
-        window.location.href = "index.html";
+        
+        /* FIXED: Routes the validated personnel record straight to the login screen */
+        window.location.href = "login.html";
     }
 </script>
 </body>
