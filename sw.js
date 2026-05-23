@@ -1,7 +1,7 @@
 const cacheName = 'officer-v1';
 const staticAssets = [
   './',
-  './register.html',
+  './index.html',
   './manifest.json'
 ];
 
