@@ -207,10 +207,10 @@
         }
         .alert-active .audio-wave-sim div {
             background-color: var(--hud-crimson);
-            animation: wave-bounce 0.6s infinite alternate;
+            animation: wave-bounce 0.15s infinite alternate;
         }
-        .alert-active .audio-wave-sim div:nth-child(2n) { animation-delay: 0.2s; }
-        .alert-active .audio-wave-sim div:nth-child(3n) { animation-delay: 0.4s; }
+        .alert-active .audio-wave-sim div:nth-child(2n) { animation-delay: 0.05s; }
+        .alert-active .audio-wave-sim div:nth-child(3n) { animation-delay: 0.1s; }
 
         /* Units Grid Dynamic Fleet Roster Arrays styling */
         .units-roster {
@@ -505,20 +505,22 @@
 
     let activeEmergencySignals = {};
     let audioCtx = null;
-    let sirenInterval = null;
+    let mainOscillator = null;
+    let modulationOscillator = null;
+    let mainGainNode = null;
 
     window.addEventListener('DOMContentLoaded', () => {
         initiateAdminRosterGrid();
         listenToDistressSignalsCollection();
 
+        // Initialize Audio context on first click interaction to pass browser security policies
         window.addEventListener('click', () => {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
         }, { once: true });
     });
 
-    /**
-     * Real-time listener for the active emergency channel collection
-     */
     function listenToDistressSignalsCollection() {
         const banner = document.getElementById("master-status-banner");
         const title = document.getElementById("master-status-title");
@@ -538,41 +540,45 @@
                 interactiveSidebar.classList.add("alert-active");
                 title.textContent = "CRITICAL DISTRESS SIGNAL INTERCEPTED";
                 
+                // 🚨 Trigger tactical synthetic sound engine
                 triggerTacticalSirenAudio(true);
                 
                 vibrationBox.textContent = "🚨 ALARM RELAY ACTIVE - PAYLOAD INBOUND";
                 vibrationBox.style.color = "var(--hud-crimson)";
                 vibrationBox.style.backgroundColor = "rgba(255, 51, 51, 0.1)";
                 vibrationBox.style.borderColor = "var(--hud-crimson)";
-                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                if (navigator.vibrate) navigator.vibrate([150, 75, 150]);
 
                 snapshot.docChanges().forEach((change) => {
                     const data = change.doc.data();
                     const phone = change.doc.id;
 
                     if (change.type === "added" || change.type === "modified") {
-                        desc.textContent = `Active alert vector triggered by operator: ${data.officerName || 'Unknown Agent'} (${phone})`;
+                        desc.textContent = `Active alert vector triggered by operator: ${data.officerName || data.name || 'Unknown Agent'} (${phone})`;
                         
-                        // Dynamically look up and colorize specific operator badge red
                         const badgeNode = document.getElementById(`badge-unit-${phone}`);
                         if (badgeNode) badgeNode.classList.add("active-distress");
 
-                        // Update console with live GPS coordinates if present
-                        if (data.coordinates) {
-                            addTerminalLog(`[LAT: ${data.coordinates.latitude} | LNG: ${data.coordinates.longitude}] -> UPLINK REFRESH FOR ${data.officerName}`, "crit");
+                        // Fallback checking to support versatile payloads safely without breaking scripts
+                        if (data.latitude || (data.coordinates && data.coordinates.latitude)) {
+                            const lat = data.latitude || data.coordinates.latitude;
+                            const lng = data.longitude || data.coordinates.longitude;
+                            addTerminalLog(`[LAT: ${lat} | LNG: ${lng}] -> POSITION DATA TRACKED FOR ${data.officerName || 'Agent'}`, "crit");
                         } else {
-                            addTerminalLog(`SOS ACTIVATION BY ${data.officerName || 'Agent'} (${phone})`, "crit");
+                            addTerminalLog(`SOS BEACON UPLINK RECEIVED FROM: ${data.officerName || 'Agent'} (${phone})`, "crit");
                         }
 
-                        // Hot swap sound stream buffers natively
-                        if (data.audioPayload && activeEmergencySignals[phone]?.lastAudioTimestamp !== data.lastAudioTimestamp) {
-                            addTerminalLog(`AUDIO FEED UPDATE RECEIVED FROM OPERATOR: ${data.officerName}`, "ok");
-                            document.getElementById("audio-status-tag").textContent = "HOT_LINK_ON_AIR";
-                            document.getElementById("audio-status-tag").style.color = "var(--hud-crimson)";
-                            
-                            player.src = data.audioPayload;
-                            placeholder.style.display = "none";
-                            player.style.display = "block";
+                        if (data.audioUrl || data.audioPayload) {
+                            const targetAudio = data.audioUrl || data.audioPayload;
+                            if (!activeEmergencySignals[phone] || activeEmergencySignals[phone].audioUrl !== targetAudio) {
+                                addTerminalLog(`LIVE AUDIO STREAM BUFFER CONNECTED FOR ${data.officerName || 'Agent'}`, "ok");
+                                document.getElementById("audio-status-tag").textContent = "HOT_LINK_ON_AIR";
+                                document.getElementById("audio-status-tag").style.color = "var(--hud-crimson)";
+                                
+                                player.src = targetAudio;
+                                placeholder.style.display = "none";
+                                player.style.display = "block";
+                            }
                         }
 
                         activeEmergencySignals[phone] = data;
@@ -580,11 +586,10 @@
                 });
 
             } else {
-                // Clear state once array goes back down to zero
                 banner.className = "status-banner full-width-panel alert-secure";
                 audioContainer.classList.remove("alert-active");
                 interactiveSidebar.classList.remove("alert-active");
-                title.textContent = "SYSTEMS NOMINAL";
+                title.textContent = "SYSTEMS STATUS: NOMINAL";
                 desc.textContent = "All operational field fleet trackers displaying nominal telemetry data configurations.";
                 
                 triggerTacticalSirenAudio(false);
@@ -599,12 +604,10 @@
                 player.style.display = "none";
                 placeholder.style.display = "block";
 
-                // Turn off any red operator badges
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "removed") {
                         const phone = change.doc.id;
-                        const oldData = activeEmergencySignals[phone];
-                        addTerminalLog(`DEACTIVATION VERIFIED: Operator ${oldData?.officerName || 'Agent'} cleared emergency beacon`, "ok");
+                        addTerminalLog(`STANDDOWN CONFIRMED: Beacon source code neutralized on device channel (${phone})`, "ok");
                         
                         const badgeNode = document.getElementById(`badge-unit-${phone}`);
                         if (badgeNode) badgeNode.classList.remove("active-distress");
@@ -616,9 +619,6 @@
         });
     }
 
-    /**
-     * Real-Time Active Roster Array Sync
-     */
     function initiateAdminRosterGrid() {
         const rosterGrid = document.getElementById("roster-grid");
         const countTag = document.getElementById("unit-count-tag");
@@ -640,7 +640,6 @@
                 badge.className = "unit-badge";
                 badge.id = `badge-unit-${phone}`;
                 
-                // Keep badge red if this operator already has an open distress call running
                 if (activeEmergencySignals[phone]) {
                     badge.className = "unit-badge active-distress";
                 }
@@ -654,44 +653,63 @@
     }
 
     /**
-     * Advanced Modern Web Audio API Synth Engine for Browser Independence
+     * 🔊 ADVANCED SYNTH ENGINE: Realistic high-intensity tactical warning alarm
      */
     function triggerTacticalSirenAudio(start) {
-        if (!audioCtx) {
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            } catch(e) { return; }
-        }
-        
         if (!start) {
-            if (sirenInterval) {
-                clearInterval(sirenInterval);
-                sirenInterval = null;
+            // Instantly shut down synth audio streams clean
+            if (mainOscillator) {
+                try { mainOscillator.stop(); } catch(e){}
+                mainOscillator = null;
+            }
+            if (modulationOscillator) {
+                try { modulationOscillator.stop(); } catch(e){}
+                modulationOscillator = null;
             }
             return;
         }
-        
-        if (sirenInterval) return; 
-        
-        sirenInterval = setInterval(() => {
-            if (!audioCtx || audioCtx.state === 'suspended') return;
-            
-            let osc = audioCtx.createOscillator();
-            let gain = audioCtx.createGain();
-            
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.4);
-            
-            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
-        }, 600);
+
+        if (mainOscillator) return; // Audio synth is already playing loops
+
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            // 1. Create Nodes
+            mainOscillator = audioCtx.createOscillator();
+            modulationOscillator = audioCtx.createOscillator();
+            const modulationGain = audioCtx.createGain();
+            mainGainNode = audioCtx.createGain();
+
+            // 2. Configure Carrier Wave (The heavy background siren)
+            mainOscillator.type = 'sawtooth'; 
+            mainOscillator.frequency.value = 650; // Piercing mid-high frequency foundational tone
+
+            // 3. Configure Modulation (The rapid realistic warbling oscillation effect)
+            modulationOscillator.type = 'sine';
+            modulationOscillator.frequency.value = 4; // Cycles per second (Hz)
+            modulationGain.gain.value = 250; // Modulation depth parameter bounds (sweeps pitch by +/- 250Hz)
+
+            // 4. Set Master Alert Output Volumes safely
+            mainGainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
+
+            // 5. Connect Signal Map Arrays
+            modulationOscillator.connect(modulationGain);
+            modulationGain.connect(mainOscillator.frequency); // Frequency modulation configuration path routing
+            mainOscillator.connect(mainGainNode);
+            mainGainNode.connect(audioCtx.destination);
+
+            // 6. Fire System Engine Tones Simultaneously
+            modulationOscillator.start();
+            mainOscillator.start();
+
+        } catch (error) {
+            console.error("Audio engine context trace exception thrown:", error);
+        }
     }
 
     function addTerminalLog(message, type = 'info') {
