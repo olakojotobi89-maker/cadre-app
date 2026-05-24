@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CADRE - C2 COMBAT MATRIX</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* ==========================================================================
+           MAD TACTICAL MILITARY HUD ENGINE (COMBINED ARCHITECTURE)
+           ========================================================================== */
+        :root {
+            --hud-neon-cyan: #00f3ff;
+            --hud-neon-amber: #ffaa00;
+            --hud-neon-crimson: #ff2233;
+            --hud-matrix-green: #00ff66;
+            --hud-bg-solid: #030609;
+            --hud-panel-alpha: rgba(4, 9, 15, 0.85);
+            --hud-font: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: var(--hud-bg-solid) !important;
+            font-family: var(--hud-font) !important;
+        }
+
+        /* --- Master Combat Matrix Screen --- */
+        .combat-screen-wrapper {
+            background: var(--hud-bg-solid);
+            border: 2px solid #0d1f2d;
+            position: relative;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-sizing: border-box;
+        }
+
+        /* --- Tactical Bracket Corners --- */
+        .combat-screen-wrapper::before, .combat-screen-wrapper::after,
+        .tactical-display-core::before, .tactical-display-core::after {
+            content: ""; position: absolute; width: 16px; height: 16px; border: 2px solid var(--hud-neon-cyan); z-index: 100; pointer-events: none;
+        }
+        .combat-screen-wrapper::before { top: 2px; left: 2px; border-right: 0; border-bottom: 0; }
+        .combat-screen-wrapper::after { top: 2px; right: 2px; border-left: 0; border-bottom: 0; }
+        
+        /* --- Core Split Pane Grid System --- */
+        .tactical-display-core {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            border: 1px solid rgba(0, 243, 255, 0.15);
+            background: rgba(0, 10, 20, 0.4);
+            padding: 5px;
+        }
+        @media(min-width: 768px) {
+            .tactical-display-core { grid-template-columns: 3fr 1fr; }
+        }
+
+        /* --- High-Tech Map Canvas Viewport --- */
+        .map-viewport-frame {
+            height: 480px;
+            position: relative;
+            border: 1px solid var(--hud-neon-cyan);
+            box-shadow: inset 0 0 20px rgba(0, 243, 255, 0.2);
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        /* Inverting Map Textures to Severe Monochromatic Glow */
+        .leaflet-layer {
+            filter: invert(100%) hue-rotate(190deg) brightness(85%) contrast(140%) saturate(150%);
+        }
+
+        /* --- CRT Scanline Glitch Overlays --- */
+        .scanline-crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+            background-size: 100% 4px; z-index: 99; pointer-events: none; opacity: 0.7;
+        }
+
+        /* --- Right-Side Telemetry Command Terminal --- */
+        .hud-telemetry-terminal {
+            background: var(--hud-panel-alpha);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .terminal-readout-header {
+            font-size: 0.7rem; color: var(--hud-neon-amber);
+            border-bottom: 1px dashed var(--hud-neon-amber);
+            padding-bottom: 4px; letter-spacing: 1px; font-weight: bold;
+        }
+
+        .terminal-log-box {
+            font-size: 0.65rem; color: var(--hud-matrix-green);
+            height: 120px; overflow-y: auto; line-height: 1.3;
+        }
+
+        .log-line { border-left: 2px solid var(--hud-matrix-green); padding-left: 5px; margin-bottom: 4px; }
+        .log-line.alert { border-color: var(--hud-neon-crimson); color: var(--hud-neon-crimson); }
+
+        /* --- Severe Interfacial Command Buttons --- */
+        .c2-action-matrix {
+            display: grid; grid-template-columns: 1fr; gap: 6px;
+        }
+
+        .c2-btn {
+            background: rgba(0, 243, 255, 0.03);
+            border: 1px solid var(--hud-neon-cyan);
+            color: var(--hud-neon-cyan);
+            font-family: var(--hud-font); font-size: 0.7rem; font-weight: bold;
+            padding: 10px; text-transform: uppercase; cursor: pointer;
+            letter-spacing: 1px; transition: all 0.15s ease-in-out;
+            text-align: left; position: relative;
+        }
+        .c2-btn::after { content: ">>"; position: absolute; right: 10px; color: rgba(0,243,255,0.4); }
+        .c2-btn:hover {
+            background: rgba(0, 243, 255, 0.15);
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.4);
+            text-shadow: 0 0 4px #fff;
+        }
+
+        .c2-btn-mad-alert {
+            border-color: var(--hud-neon-crimson); color: var(--hud-neon-crimson);
+            background: rgba(255, 34, 51, 0.03);
+        }
+        .c2-btn-mad-alert:hover {
+            background: rgba(255, 34, 51, 0.2);
+            box-shadow: 0 0 12px var(--hud-neon-crimson);
+        }
+
+        /* --- Custom Kinetic CSS Pulsing Map Blip --- */
+        .mad-tactical-pulse-blip {
+            width: 14px; height: 14px; background: var(--hud-neon-crimson);
+            border-radius: 50%; box-shadow: 0 0 12px var(--hud-neon-crimson);
+        }
+        .mad-tactical-pulse-blip::before {
+            content: ""; position: absolute; top: -13px; left: -13px; width: 36px; height: 36px;
+            border: 2px solid var(--hud-neon-crimson); border-radius: 50%;
+            animation: vector-pulse 1.8s infinite ease-out; opacity: 0;
+        }
+
+        @keyframes vector-pulse {
+            0% { transform: scale(0.2); opacity: 0; }
+            10% { opacity: 1; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+
+        /* Leaflet Content Correction Styles */
+        .leaflet-popup-content-wrapper {
+            background: #04090f !important; border: 1px solid var(--hud-neon-cyan) !important;
+            border-radius: 0px !important; color: #fff !important; font-family: var(--hud-font);
+        }
+        .leaflet-popup-tip { background: var(--hud-neon-cyan) !important; }
+
+        /* --- New Integration: Objective Search Matrix Styles --- */
+        .search-objective-tray {
+            display: flex;
+            gap: 5px;
+            position: relative;
+        }
+        .objective-input {
+            flex: 1;
+            background: rgba(0, 15, 25, 0.8);
+            border: 1px solid var(--hud-neon-cyan);
+            color: #fff;
+            padding: 8px;
+            font-family: var(--hud-font);
+            font-size: 0.75rem;
+        }
+        .objective-dropdown {
+            position: absolute;
+            top: 100%; left: 0; right: 0;
+            background: #050e14;
+            border: 1px solid var(--hud-neon-cyan);
+            z-index: 1000;
+            max-height: 150px;
+            overflow-y: auto;
+            display: none;
+        }
+        .objective-row {
+            padding: 8px;
+            font-size: 0.7rem;
+            color: var(--hud-neon-cyan);
+            border-bottom: 1px dashed rgba(0, 243, 255, 0.2);
+            cursor: pointer;
+        }
+        .objective-row:hover {
+            background: rgba(0, 243, 255, 0.15);
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <header class="app-header" style="border-bottom: 2px solid var(--hud-neon-cyan);">
+        <div class="brand-wrapper">
+            <a href="home.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+                <img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo" style="border: 1px solid var(--hud-neon-cyan);">
+                <span class="brand-text" style="color: var(--hud-neon-cyan); text-shadow: 0 0 8px rgba(0,243,255,0.6);">TACTICAL C2 MATRIX</span>
+            </a>
+        </div>
+        <div id="zulu-clock" class="header-badge" style="font-family: var(--hud-font); color: var(--hud-neon-amber); border-color: var(--hud-neon-amber);">ZULU [00:00:00]</div>
+    </header>
+
+    <main class="feed-content" style="padding: 12px;">
+        <div class="combat-screen-wrapper">
+            
+            <div class="search-objective-tray">
+                <input type="text" id="objective-search-field" class="objective-input" placeholder="ENTER OBJECTIVE AREA / DESTINATION LOCATION..." oninput="searchTargetLocations(this.value)">
+                <div id="objective-results" class="objective-dropdown"></div>
+            </div>
+
+            <div class="tactical-display-core">
+                <div class="map-viewport-frame" id="combat-map-canvas">
+                    <div class="scanline-crt-overlay"></div>
+                </div>
+
+                <div class="hud-telemetry-terminal">
+                    <div>
+                        <div class="terminal-readout-header">SYSTEM TRACE LOGS</div>
+                        <div class="terminal-log-box" id="terminal-log-stream">
+                            <div class="log-line">> CORRELATING GEO-CHANNELS...</div>
+                            <div class="log-line">> VECTOR MATRIX ONLINE.</div>
+                            <div class="log-line" id="velocity-hud-node" style="color: var(--hud-neon-amber); font-weight: bold;">> VELOCITY: STATIC</div>
+                        </div>
+                    </div>
+
+                    <div class="c2-action-matrix">
+                        <div class="terminal-readout-header" style="border-bottom:none; margin-bottom: 2px;">INTERCEPT TARGETS</div>
+                        <button class="c2-btn" onclick="toggleActiveTracking()">TRACK MOVEMENT</button>
+                        <button class="c2-btn" onclick="forceRadarSweep()">SCAN SECTOR</button>
+                        <button class="c2-btn c2-btn-mad-alert" onclick="resetTrackingMatrix()">HARD RESET</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <nav class="app-bottom-dock" style="border-top: 1px solid rgba(0, 243, 255, 0.3);">
+        <a href="home.html" class="dock-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
+        <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
+        <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+        <a href="admin.html" class="dock-node"><span class="dock-node-glyph">⚙️</span><span>Admin</span></a>
+        <a href="emergency.html" class="dock-node dock-node-emergency"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
+    </nav>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    let mapInstance;
+    let operationMarker;
+    let destinationMarker;
+    let routingVectorLine;
+    let motionTrackingWatcherId = null;
+    
+    // Cached internal core setup baseline coordinates
+    let currentAgentLat = 7.3775;
+    let currentAgentLng = 3.9470;
+
+    window.onload = function() {
+        initializeZuluClock();
+        
+        // Initialize mapping matrix framework
+        mapInstance = L.map('combat-map-canvas', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([currentAgentLat, currentAgentLng], 14);
+
+        // Inject deep ultra-dark tile mapping architecture
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19
+        }).addTo(mapInstance);
+
+        dropTacticalMarkerNode(currentAgentLat, currentAgentLng, "PRIMARY OPERATIONAL HQ");
+        autoTriggerDeviceTracking();
+    };
+
+    function dropTacticalMarkerNode(lat, lng, descriptor) {
+        if (operationMarker) mapInstance.removeLayer(operationMarker);
+
+        const customBlipIcon = L.divIcon({
+            className: 'mad-tactical-pulse-blip',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+
+        operationMarker = L.marker([lat, lng], { icon: customBlipIcon }).addTo(mapInstance)
+            .bindPopup(`<div style="font-size:0.7rem; font-weight:bold; color:var(--hud-neon-cyan); font-family:monospace;">[CRITICAL NODE]<br>${descriptor}</div>`);
+    }
+
+    /* --- Dynamic Destination Routing Subsystem --- */
+    function searchTargetLocations(query) {
+        const dropdown = document.getElementById("objective-results");
+        if (query.trim().length < 3) {
+            dropdown.style.display = "none";
+            return;
+        }
+
+        // OpenStreetMap Free Public Vector Geocoding Engine
+        const requestUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=4`;
+        
+        fetch(requestUrl)
+            .then(res => res.json())
+            .then(data => {
+                dropdown.innerHTML = "";
+                if (data.length === 0) {
+                    dropdown.style.display = "none";
+                    return;
+                }
+                
+                data.forEach(target => {
+                    const cell = document.createElement("div");
+                    cell.className = "objective-row";
+                    cell.textContent = target.display_name.toUpperCase();
+                    cell.onclick = () => selectObjectiveTarget(target.lat, target.lon, target.display_name);
+                    dropdown.appendChild(cell);
+                });
+                dropdown.style.display = "block";
+            })
+            .catch(() => console.log("Network latency error on telemetry fetch link."));
+    }
+
+    function selectObjectiveTarget(lat, lon, label) {
+        document.getElementById("objective-results").style.display = "none";
+        document.getElementById("objective-search-field").value = label;
+        
+        const targetLat = parseFloat(lat);
+        const targetLng = parseFloat(lon);
+
+        pushTerminalLog(`TARGET LOCKED: PIPELINE DIRECTION COORD SET`, false);
+
+        // Remove old destination entities if existing
+        if (destinationMarker) mapInstance.removeLayer(destinationMarker);
+        if (routingVectorLine) mapInstance.removeLayer(routingVectorLine);
+
+        // Drop Destination Node Marker
+        const targetBlipIcon = L.divIcon({
+            className: 'mad-tactical-pulse-blip',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+        
+        destinationMarker = L.marker([targetLat, targetLng], { icon: targetBlipIcon }).addTo(mapInstance)
+            .bindPopup(`<div style="font-size:0.7rem; color:var(--hud-neon-amber); font-family:monospace;">[OBJECTIVE AREA]<br>${label.substring(0, 30)}...</div>`);
+
+        // Draw direct Tactical Vector Path connecting Agent to Destination
+        routingVectorLine = L.polyline([
+            [currentAgentLat, currentAgentLng],
+            [targetLat, targetLng]
+        ], {
+            color: '#ff2233',
+            weight: 3,
+            dashArray: '5, 10',
+            opacity: 0.85
+        }).addTo(mapInstance);
+
+        // Fit display viewport to encompass overall route geometry
+        mapInstance.fitBounds(routingVectorLine.getBounds(), { padding: [40, 40] });
+    }
+
+    /* --- Advanced Velocity Vector Motion Watcher --- */
+    function autoTriggerDeviceTracking() {
+        if (navigator.geolocation) {
+            motionTrackingWatcherId = navigator.geolocation.watchPosition(
+                (pos) => {
+                    currentAgentLat = pos.coords.latitude;
+                    currentAgentLng = pos.coords.longitude;
+                    
+                    // Drop internal coordinate marker update
+                    dropTacticalMarkerNode(currentAgentLat, currentAgentLng, "OPERATIVE LIVE LOCATION");
+                    
+                    // Parse live physical acceleration metrics
+                    const speedMeterSec = pos.coords.speed; // Returns velocity in meters per second
+                    const velocityIndicator = document.getElementById("velocity-hud-node");
+
+                    if (speedMeterSec === null || speedMeterSec <= 0.3) {
+                        velocityIndicator.textContent = "> VELOCITY: STATIC (NOT MOVING)";
+                        velocityIndicator.style.color = "var(--hud-neon-amber)";
+                    } else if (speedMeterSec > 0.3 && speedMeterSec <= 4.5) {
+                        velocityIndicator.textContent = `> VELOCITY: PATROL (SLOW - ${(speedMeterSec * 3.6).toFixed(1)} KM/H)`;
+                        velocityIndicator.style.color = "var(--hud-matrix-green)";
+                    } else {
+                        velocityIndicator.textContent = `> VELOCITY: INTERCEPT (FAST - ${(speedMeterSec * 3.6).toFixed(1)} KM/H)`;
+                        velocityIndicator.style.color = "var(--hud-neon-crimson)";
+                    }
+
+                    // Dynamically update line if tracking is running active
+                    if (routingVectorLine) {
+                        routingVectorLine.setLatLngs([
+                            [currentAgentLat, currentAgentLng],
+                            destinationMarker.getLatLng()
+                        ]);
+                    }
+                },
+                () => {
+                    pushTerminalLog("GEO-INTERCEPT TIMEOUT: ENFORCING STANDBY MODE.", true);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+    }
+
+    function toggleActiveTracking() {
+        pushTerminalLog("RE-CALIBRATING SYSTEM VELOCITY COUNTERS...", false);
+        if(motionTrackingWatcherId !== null) {
+            navigator.geolocation.clearWatch(motionTrackingWatcherId);
+        }
+        autoTriggerDeviceTracking();
+    }
+
+    function forceRadarSweep() {
+        pushTerminalLog("SWEEPING SECTOR RADAR ARRAYS...", false);
+        setTimeout(() => {
+            pushTerminalLog("SWEEP CLEAN. 0 COUNTER-SIGNATURES DETECTED.", false);
+        }, 900);
+    }
+
+    function resetTrackingMatrix() {
+        pushTerminalLog("REBOOTING GUIDANCE SUBSYSTEMS...", true);
+        if (destinationMarker) mapInstance.removeLayer(destinationMarker);
+        if (routingVectorLine) mapInstance.removeLayer(routingVectorLine);
+        document.getElementById("objective-search-field").value = "";
+        
+        currentAgentLat = 7.3775;
+        currentAgentLng = 3.9470;
+        mapInstance.setView([currentAgentLat, currentAgentLng], 14);
+        dropTacticalMarkerNode(currentAgentLat, currentAgentLng, "PRIMARY OPERATIONAL HQ");
+    }
+
+    function pushTerminalLog(message, isAlert) {
+        const stream = document.getElementById("terminal-log-stream");
+        const entry = document.createElement("div");
+        entry.className = isAlert ? "log-line alert" : "log-line";
+        entry.textContent = `> ${message}`;
+        stream.appendChild(entry);
+        stream.scrollTop = stream.scrollHeight;
+    }
+
+    function initializeZuluClock() {
+        setInterval(() => {
+            const timeStr = new Date().toTimeString().split(' ')[0];
+            document.getElementById("zulu-clock").textContent = `ZULU [${timeStr}]`;
+        }, 1000);
+    }
+</script>
+</body>
+</html>
