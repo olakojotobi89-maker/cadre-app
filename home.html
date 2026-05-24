@@ -9,7 +9,7 @@
         /* --- Tactical Navigation Extensions --- */
         .app-bottom-dock {
             display: grid !important;
-            grid-template-columns: repeat(4, 1fr) !important; /* Reconfigured dock grid for 4 elements */
+            grid-template-columns: repeat(5, 1fr) !important; /* Reconfigured dock grid for 5 elements */
         }
         
         .dock-node-emergency {
@@ -66,6 +66,7 @@
         <a href="home.html" class="dock-node active-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
         <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
         <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+        <a href="#" class="dock-node" onclick="checkAdminAccess(event)"><span class="dock-node-glyph">⚙️</span><span>Admin</span></a>
         <a href="emergency.html" class="dock-node dock-node-emergency"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
     </nav>
 </div>
@@ -90,6 +91,28 @@
 
         renderInstagramFeed();
     };
+
+    /* --- Secure Admin Gateway Interceptor --- */
+    function checkAdminAccess(event) {
+        event.preventDefault();
+        
+        if (!currentSessionOfficer) return;
+
+        // Condition 1: Automatic bypass if logged into the core "Cadre" administrative account
+        if (currentSessionOfficer.name === "Cadre") {
+            window.location.href = "admin.html";
+            return;
+        }
+
+        // Condition 2: Request terminal validation code for subordinate officers
+        const accessPasskey = prompt("ENTER MASTER CRYPTO-KEY FOR ADMINISTRATIVE CLEARANCE:");
+        
+        if (accessPasskey === "CDR123") {
+            window.location.href = "admin.html";
+        } else if (accessPasskey !== null) {
+            alert("ACCESS DENIED: INVALID SECURE NODE AUTHENTICATION TOKEN.");
+        }
+    }
 
     function previewSelectedImage(input) {
         if (input.files && input.files[0]) {
