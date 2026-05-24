@@ -231,7 +231,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
 
-    // Your verified web app's Firebase configuration coordinates
     const firebaseConfig = {
         apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
         authDomain: "cadre-c2.firebaseapp.com",
@@ -252,16 +251,35 @@
     let audioChunks = [];
     let micIntervalId = null;
 
-    // Expose interaction loops to structural window event nodes
     window.handleSosInteraction = handleSosInteraction;
 
-    window.addEventListener('DOMContentLoaded', () => {
-        const sessionData = localStorage.getItem("session_user");
-        if (!sessionData) {
+    window.addEventListener('DOMContentLoaded', async () => {
+        // Read directly from the phone identity key saved during account registration/login
+        const savedPhone = localStorage.getItem("cached_operator_phone");
+        if (!savedPhone) {
             window.location.href = "login.html";
             return;
         }
-        currentSessionOfficer = JSON.parse(sessionData);
+        
+        logToConsole("CONNECTING SECURE IDENT NODE...", "status-active");
+        
+        try {
+            const docRef = doc(db, "users", savedPhone);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+                currentSessionOfficer = docSnap.data();
+                logToConsole(`OPERATOR IDENTIFIED: ${currentSessionOfficer.name.toUpperCase()}`, "status-resolved");
+            } else {
+                logToConsole("ROSTER RECORD NOT FOUND. RE-LOG REQUIRED.", "status-critical");
+                window.location.href = "login.html";
+            }
+        } catch (err) {
+            console.error("Failed to load operator matrix profile: ", err);
+            logToConsole("OFFLINE OPERATION MODE STATUS ACTIVE", "status-active");
+            // Fallback object to keep the application stable if network drops out
+            currentSessionOfficer = { phone: savedPhone, name: "Operator", rank: "Field Agent" };
+        }
     });
 
     function logToConsole(message, statusClass = '') {
@@ -273,8 +291,11 @@
         consoleBox.scrollTop = consoleBox.scrollHeight;
     }
 
-    // Direct Switch Controller
     function handleSosInteraction() {
+        if (!currentSessionOfficer) {
+            alert("STANDBY: Validating cryptographic profile signatures...");
+            return;
+        }
         if (!isAlertActive) {
             initiateDistressProtocol();
         } else {
@@ -286,13 +307,11 @@
     function initiateDistressProtocol() {
         isAlertActive = true;
         
-        // UI Updates
         document.getElementById("sos-container").classList.add("active-alert");
         document.getElementById("action-btn").textContent = "STAND DOWN";
         
         logToConsole("SOS SIGNAL INITIATED", "status-critical");
 
-        // Run Core Tactical Capture Pipelines
         trackLiveLocation();
         startMicrophoneCapture();
         broadcastCommandCenterPayload(true);
@@ -306,7 +325,6 @@
         logToConsole("VALIDATING SECURITY RECOVERY PATH...", "status-active");
 
         try {
-            // Verify code directly against user doc file in Cloud Firestore
             const userDocRef = doc(db, "users", currentSessionOfficer.phone);
             const userSnap = await getDoc(userDocRef);
 
@@ -322,16 +340,13 @@
             return;
         }
 
-        // Executing stand-down protocol sequences cleanly
         isAlertActive = false;
         
-        // Stop Location Watch Stream
         if (watchId !== null) {
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
         }
 
-        // Stop Audio Capture Engine Completely
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
@@ -341,7 +356,6 @@
             micIntervalId = null;
         }
 
-        // UI Reset Updates
         document.getElementById("sos-container").classList.remove("active-alert");
         document.getElementById("panic-panel").classList.add("status-safe");
         document.getElementById("action-btn").textContent = "SECURED";
@@ -352,11 +366,10 @@
         logToConsole("ALL CAPTURE PIPELINES DISCONNECTED", "status-resolved");
         logToConsole("BEACON TRANSMISSION TERMINATED CLEANLY", "status-resolved");
 
-        // Clear active telemetry signal state directly from Firestore array
         broadcastCommandCenterPayload(false);
     }
 
-    // FEATURE 1: Continuous Geo-location Tracking Engine with Cloud Firestore Updates
+    // FEATURE 1: Geo-location Tracking Engine
     function trackLiveLocation() {
         if (!navigator.geolocation) {
             logToConsole("GPS MODULE UNSUPPORTED", "status-critical");
@@ -378,32 +391,8 @@
             },
             (error) => {
                 logToConsole(`GPS FAULT: ${error.message}`, "status-critical");
-                
-                if (error.code === error.TIMEOUT) {
-                    logToConsole("RETRYING IN STANDARD PRECISION MODE...", "status-active");
-                    navigator.geolocation.getCurrentPosition(
-                        async (pos) => {
-                            const lat = pos.coords.latitude.toFixed(5);
-                            const lng = pos.coords.longitude.toFixed(5);
-                            logToConsole(`LOC LOCK (FALLBACK): LAT ${lat} | LNG ${lng}`, "status-active");
-                            
-                            await updateDistressPayload({
-                                coordinates: { latitude: lat, longitude: lng },
-                                lastTelemetryTimestamp: Date.now()
-                            });
-                        },
-                        (fallbackErr) => {
-                            logToConsole(`FALLBACK FAULT: ${fallbackErr.message}`, "status-critical");
-                        },
-                        { enableHighAccuracy: false, timeout: 15000 }
-                    );
-                }
             },
-            { 
-                enableHighAccuracy: true, 
-                timeout: 15000,        
-                maximumAge: 5000        
-            }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
         );
     }
 
@@ -429,7 +418,6 @@
                 reader.readAsDataURL(audioBlob);
                 reader.onloadend = async () => {
                     const base64Audio = reader.result;
-                    
                     await updateDistressPayload({
                         audioPayload: base64Audio,
                         lastAudioTimestamp: Date.now()
@@ -444,7 +432,7 @@
             micIntervalId = setInterval(() => {
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
-                    audioChunks = []; // Clean workspace buffer for fresh capture packet
+                    audioChunks = []; 
                     mediaRecorder.start();
                 }
             }, 7000);
@@ -473,7 +461,6 @@
                     initiatedAt: Date.now()
                 }, { merge: true });
             } else {
-                // Remove trace log structural document entirely once cleared securely
                 await deleteDoc(distressDocRef);
                 logToConsole("COMMAND DASHBOARD ARRAY CLEARED SUCCESS", "status-resolved");
             }
