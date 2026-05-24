@@ -19,8 +19,9 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 85vh;
+            min-height: 80vh;
             padding: 16px;
+            margin-bottom: 60px; /* Leaves space for the bottom dock */
         }
 
         .panic-card {
@@ -167,6 +168,26 @@
         @keyframes blink {
             50% { opacity: 0; }
         }
+
+        /* --- Tactical Navigation Extensions --- */
+        .app-bottom-dock {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important; /* Reconfigured dock grid for 4 elements */
+        }
+        
+        .dock-node-emergency.active-node {
+            color: #ff3333 !important; /* Active crimson highlight override */
+            border-top: 2px solid #ff3333 !important;
+        }
+        
+        .dock-node-emergency .dock-node-glyph {
+            animation: beacon-pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes beacon-pulse {
+            0%, 100% { opacity: 0.7; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.15); }
+        }
     </style>
 </head>
 <body>
@@ -192,11 +213,18 @@
             </div>
 
             <div class="back-nav">
-                <a href="index.html" style="color: var(--text-dim); text-decoration: none;">← Abort & Return to Entryway</a>
+                <a href="home.html" style="color: var(--text-dim); text-decoration: none;">← Abort & Return to Feed</a>
             </div>
         </div>
 
     </main>
+
+    <nav class="app-bottom-dock">
+        <a href="home.html" class="dock-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
+        <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
+        <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+        <a href="emergency.html" class="dock-node dock-node-emergency active-node"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
+    </nav>
 </div>
 
 <script>
