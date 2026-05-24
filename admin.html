@@ -6,172 +6,278 @@
     <title>CADRE - Tactical Command Center</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* --- Tactical Command Center Dashboard System Styles --- */
+        /* --- Advanced Modern Tactical HUD Matrix --- */
         :root {
             --hud-crimson: #ff3333;
-            --hud-crimson-glow: rgba(255, 51, 51, 0.2);
-            --hud-emerald: #4caf50;
-            --hud-emerald-glow: rgba(76, 175, 80, 0.2);
-            --hud-amber: #ffb300;
-            --bg-dark-surface: #0b111a;
+            --hud-crimson-glow: rgba(255, 51, 51, 0.25);
+            --hud-emerald: #00ff66;
+            --hud-emerald-glow: rgba(0, 255, 102, 0.2);
+            --hud-cyan: #00f0ff;
+            --hud-cyan-glow: rgba(0, 240, 255, 0.15);
+            --hud-amber: #ffaa00;
+            --bg-dark-surface: #060b13;
             --border-precision: #1e293b;
+            --tech-font: 'Courier New', Courier, monospace;
         }
 
         body {
-            background-color: #030712;
+            background-color: #020408;
+            background-image: 
+                linear-gradient(rgba(18, 24, 38, 0.4) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(18, 24, 38, 0.4) 1px, transparent 1px);
+            background-size: 20px 20px;
             color: var(--text-main);
+            font-family: system-ui, -apple-system, sans-serif;
+            position: relative;
+        }
+
+        /* Ambient scanline HUD effect overlay */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.04));
+            z-index: 99999;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
         }
 
         .admin-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 16px;
+            gap: 20px;
             padding: 16px;
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
         }
 
-        @media (min-width: 768px) {
+        /* Highly fluid multi-tier layout structure array grid controllers */
+        @media (min-width: 992px) {
             .admin-grid {
                 grid-template-columns: 2fr 1fr;
             }
             .full-width-panel {
                 grid-column: span 2;
             }
+            .split-column-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                grid-column: span 2;
+            }
         }
 
-        /* Global Status Banner Matrix */
+        /* High-tech status banner matrices layout panels styling controllers */
         .status-banner {
-            background: var(--bg-surface);
-            border: 2px solid var(--border-precision);
-            border-radius: var(--radius-sharp);
-            padding: 20px;
-            text-align: center;
-            transition: all 0.5s ease;
+            background: linear-gradient(180deg, #09111c 0%, #050a12 100%);
+            border-left: 5px solid var(--hud-emerald);
+            border-right: 1px solid var(--border-precision);
+            border-top: 1px solid var(--border-precision);
+            border-bottom: 1px solid var(--border-precision);
+            padding: 24px;
+            text-align: left;
             position: relative;
-            overflow: hidden;
+            clip-path: polygon(0 0, 98% 0, 100% 30%, 100% 100%, 2% 100%, 0 70%);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .status-banner.alert-active {
-            border-color: var(--hud-crimson);
-            box-shadow: 0 0 20px var(--hud-crimson-glow);
-            background: linear-gradient(145deg, #1a080c, var(--bg-surface));
+            border-left-color: var(--hud-crimson);
+            box-shadow: 0 0 30px var(--hud-crimson-glow);
+            background: linear-gradient(90deg, #1f0b0f 0%, #09111c 100%);
+            animation: warning-pulse 2s infinite alternate;
         }
 
         .status-banner.alert-active h2 {
             color: var(--hud-crimson);
-            animation: tactical-blink 1s infinite;
-        }
-
-        .status-banner.alert-secure {
-            border-color: var(--hud-emerald);
-            box-shadow: 0 0 20px var(--hud-emerald-glow);
+            text-shadow: 0 0 10px var(--hud-crimson);
         }
 
         .status-banner.alert-secure h2 {
             color: var(--hud-emerald);
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.4);
         }
 
-        /* Card Panels Layout */
+        /* Tactical Precision Dashboard Framework Panels */
         .dashboard-panel {
-            background: var(--bg-surface);
+            background: rgba(9, 17, 28, 0.7);
             border: 1px solid var(--border-precision);
-            border-radius: var(--radius-sharp);
-            padding: 16px;
+            backdrop-filter: blur(8px);
+            padding: 20px;
             display: flex;
             flex-direction: column;
+            position: relative;
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+        }
+
+        /* Tech frame corner ticks markers design overrides */
+        .dashboard-panel::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 10px; height: 10px;
+            border-top: 2px solid var(--hud-cyan);
+            border-right: 2px solid var(--hud-cyan);
         }
 
         .panel-header {
-            font-size: 0.85rem;
-            font-weight: 800;
-            letter-spacing: 1.5px;
+            font-family: var(--tech-font);
+            font-size: clamp(0.75rem, 2.5vw, 0.9rem);
+            font-weight: bold;
+            letter-spacing: 2px;
             text-transform: uppercase;
-            border-bottom: 1px solid var(--border-precision);
-            padding-bottom: 8px;
-            margin-bottom: 12px;
-            color: var(--text-dim);
+            border-bottom: 2px solid #142238;
+            padding-bottom: 10px;
+            margin-bottom: 16px;
+            color: #748ba7;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        /* Telemetry Stream Console Terminal */
+        /* Telemetry Stream Console Terminal System Logs UI Layout */
         .admin-terminal {
             background: var(--bg-dark-surface);
-            border: 1px solid #1e293b;
-            border-radius: 4px;
-            padding: 12px;
-            font-family: monospace;
-            font-size: 0.8rem;
-            color: #94a3b8;
-            height: 250px;
+            border: 1px solid #14213d;
+            border-radius: 2px;
+            padding: 14px;
+            font-family: var(--tech-font);
+            font-size: 0.85rem;
+            color: #38bdf8;
+            height: 280px;
             overflow-y: auto;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.6);
         }
 
         .terminal-row {
-            margin-bottom: 6px;
-            line-height: 1.4;
-            border-left: 2px solid var(--border-precision);
-            padding-left: 8px;
+            margin-bottom: 8px;
+            line-height: 1.5;
+            border-left: 3px solid #1e293b;
+            padding-left: 10px;
+            animation: append-row 0.25s ease-out;
         }
 
         .terminal-row.crit {
             border-left-color: var(--hud-crimson);
-            color: #fca5a5;
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.05);
         }
 
         .terminal-row.ok {
             border-left-color: var(--hud-emerald);
-            color: #a7f3d0;
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.05);
         }
 
-        /* Audio Control Player Layout Override */
+        /* Audio Hardware Surveillance Receivers Node Wrapper styling controller UI modules */
         .audio-intercept-container {
-            background: var(--bg-dark-surface);
-            border: 1px dashed var(--border-precision);
+            background: #04080f;
+            border: 1px dashed #243b61;
             border-radius: 4px;
-            padding: 16px;
+            padding: 24px;
             text-align: center;
             margin-top: 10px;
+            position: relative;
         }
 
         audio {
             width: 100%;
-            margin-top: 10px;
-            filter: invert(1) hue-rotate(180deg); /* Style matching layout filter hook native controls */
+            margin-top: 14px;
+            filter: invert(0.9) hue-rotate(140deg) brightness(1.2);
         }
 
-        /* Units Grid Roster */
+        /* Micro Telemetry Graphic Bar Elements inside components */
+        .audio-wave-sim {
+            display: flex;
+            justify-content: center;
+            gap: 3px;
+            height: 20px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .audio-wave-sim div {
+            width: 3px;
+            height: 100%;
+            background-color: var(--border-precision);
+            transition: all 0.3s ease;
+        }
+        .alert-active .audio-wave-sim div {
+            background-color: var(--hud-crimson);
+            animation: wave-bounce 0.6s infinite alternate;
+        }
+        .alert-active .audio-wave-sim div:nth-child(2n) { animation-delay: 0.2s; }
+        .alert-active .audio-wave-sim div:nth-child(3n) { animation-delay: 0.4s; }
+
+        /* Units Grid Dynamic Fleet Roster Arrays styling */
         .units-roster {
             display: grid;
-            grid-template-columns: repeat(auto-fill, min-minmax(120px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
             margin-top: 10px;
         }
 
         .unit-badge {
-            background: var(--bg-dark-surface);
+            background: #08101c;
             border: 1px solid var(--border-precision);
-            padding: 10px;
-            border-radius: 4px;
+            border-top: 3px solid #334155;
+            padding: 14px 10px;
             text-align: center;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
+            font-family: var(--tech-font);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .unit-badge strong {
+            color: var(--hud-cyan);
+            letter-spacing: 1px;
         }
 
         .unit-badge.active-distress {
             border-color: var(--hud-crimson);
-            background: rgba(255, 51, 51, 0.05);
-            animation: pulse-badge 2s infinite alternate;
+            border-top-color: var(--hud-crimson);
+            background: rgba(255, 51, 51, 0.08);
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.2);
+            animation: flash-badge 1s infinite alternate;
         }
 
-        @keyframes tactical-blink {
-            50% { opacity: 0.4; }
+        /* Core Global Level Animations Declarations Keyframes rules */
+        @keyframes warning-pulse {
+            0% { box-shadow: 0 0 15px rgba(255, 51, 51, 0.1); }
+            100% { box-shadow: 0 0 35px rgba(255, 51, 51, 0.4); }
         }
 
-        @keyframes pulse-badge {
-            0% { box-shadow: inset 0 0 5px rgba(255, 51, 51, 0.1); }
-            100% { box-shadow: inset 0 0 15px rgba(255, 51, 51, 0.3); }
+        @keyframes flash-badge {
+            0% { opacity: 0.7; transform: scale(0.98); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes wave-bounce {
+            0% { height: 20%; }
+            100% { height: 100%; }
+        }
+
+        @keyframes append-row {
+            from { opacity: 0; transform: translateX(-5px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.3); opacity: 1; }
+        }
+
+        .pulse-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--hud-emerald);
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .alert-active .pulse-dot {
+            background-color: var(--hud-crimson);
+            animation: heartbeat 0.8s infinite ease-in-out;
         }
     </style>
 </head>
@@ -179,55 +285,63 @@
 
 <div class="app-container" style="padding-bottom: 0;">
     
-    <header class="app-header">
+    <header class="app-header" style="border-bottom: 1px solid #142238;">
         <div class="brand-wrapper">
             <img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo">
-            <span class="brand-text">CADRE COMMAND</span>
+            <span class="brand-text" style="font-family: var(--tech-font); letter-spacing: 3px;">CADRE NEST_NODE</span>
         </div>
-        <div class="header-badge" style="background: var(--hud-crimson); color: white;">HQ ADMIN</div>
+        <div class="header-badge" style="background: linear-gradient(90deg, var(--hud-crimson) 0%, #b91c1c 100%); font-family: var(--tech-font); font-weight: bold; border-radius: 0; letter-spacing: 1px;">HQ_TACTICAL_ADMIN</div>
     </header>
 
     <main class="admin-grid">
         
         <div class="status-banner full-width-panel alert-secure" id="master-status-banner">
-            <h2 id="master-status-title" style="margin: 0; font-size: 1.4rem; letter-spacing: 2px;">SYSTEMS STATUS: NOMINAL</h2>
-            <p id="master-status-desc" style="margin: 5px 0 0 0; font-size: 0.8rem; color: var(--text-dim);">All field units registering secure profiles.</p>
+            <div style="font-family: var(--tech-font); font-size: 0.75rem; color: var(--hud-cyan); margin-bottom: 4px;">SYS_SAFETY_OVERVIEW // MATRIX_ONLINE</div>
+            <h2 id="master-status-title" style="margin: 0; font-size: clamp(1.1rem, 4vw, 1.6rem); letter-spacing: 3px; font-weight: 900;">SYSTEMS STATUS: NOMINAL</h2>
+            <p id="master-status-desc" style="margin: 6px 0 0 0; font-size: 0.85rem; color: #64748b;">All operational field fleet trackers displaying nominal telemetry data configurations.</p>
         </div>
 
-        <section class="dashboard-panel">
-            <div class="panel-header">
-                <span>Intercepted Telemetry Stream Feed</span>
-                <span style="color: var(--hud-amber);" id="stream-ticker">● LIVE</span>
-            </div>
-            <div class="admin-terminal" id="terminal-feed">
-                <div class="terminal-row ok">[INFO] Command center server pipeline established. Awaiting tactical data packets...</div>
-            </div>
-        </section>
-
-        <section class="dashboard-panel">
-            <div class="panel-header">
-                <span>Surveillance Audio Wire</span>
-                <span id="audio-status-tag" style="color: var(--text-dim);">VACANT</span>
-            </div>
-            <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0;">Automated 7-second audio loop buffers dispatch automatically upon field activation streams.</p>
+        <div class="split-column-row">
             
-            <div class="audio-intercept-container">
-                <span id="audio-placeholder" style="font-size: 0.8rem; color: var(--text-dim);">No Active Intercept Stream Payload</span>
-                <audio id="surveillance-player" controls style="display: none;"></audio>
-            </div>
+            <section class="dashboard-panel">
+                <div class="panel-header">
+                    <span><span class="pulse-dot" id="ticker-dot"></span>Intercepted Telemetry Stream Feed</span>
+                    <span style="color: var(--hud-cyan);" id="stream-ticker">SYS_LIVE // PING:OK</span>
+                </div>
+                <div class="admin-terminal" id="terminal-feed">
+                    <div class="terminal-row ok">[INFO] Main server command cluster initialized. Establishing pipeline trace vectors...</div>
+                </div>
+            </section>
 
-            <div class="panel-header" style="margin-top: 20px; border-bottom: 1px solid var(--border-precision);">
-                <span>Simulated Haptic Relay</span>
-            </div>
-            <div id="vibration-relay-box" style="text-align: center; padding: 12px; font-size: 0.8rem; color: var(--text-dim); background: var(--bg-dark-surface); border-radius: 4px;">
-                Vibration Module Standby
-            </div>
-        </section>
+            <section class="dashboard-panel">
+                <div class="panel-header">
+                    <span>Surveillance Audio Wire Intercept</span>
+                    <span id="audio-status-tag" style="color: #64748b; font-family: var(--tech-font);">STANDBY_DISPATCH</span>
+                </div>
+                <p style="font-size: 0.8rem; color: #64748b; margin-top: 0; line-height: 1.4;">Automated 7-second audio data loops route directly here upon emergency beacon triggers.</p>
+                
+                <div class="audio-intercept-container" id="audio-container-wrapper">
+                    <div class="audio-wave-sim">
+                        <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+                    </div>
+                    <span id="audio-placeholder" style="font-size: 0.8rem; color: #475569; font-family: var(--tech-font);">AWAITING_STREAM_PAYLOAD_BUFFER</span>
+                    <audio id="surveillance-player" controls style="display: none;"></audio>
+                </div>
+
+                <div class="panel-header" style="margin-top: 24px; padding-bottom: 6px; border-bottom: 1px dashed #1e293b;">
+                    <span>Haptic Relay Standby Tracker</span>
+                </div>
+                <div id="vibration-relay-box" style="text-align: center; padding: 14px; font-family: var(--tech-font); font-size: 0.8rem; color: #475569; background: #04080f; border: 1px solid #14213d;">
+                    VIBRATION_MODULE: IDLE
+                </div>
+            </section>
+            
+        </div>
 
         <section class="dashboard-panel full-width-panel">
             <div class="panel-header">
-                <span>Field Fleet Units Roster Status Array Matrix</span>
-                <span id="unit-count-tag">0 ACTIVE</span>
+                <span>Field Fleet Units Active Roster Array Matrix</span>
+                <span id="unit-count-tag" style="color: var(--hud-cyan);">0 UNITS CACHED</span>
             </div>
             <div class="units-roster" id="roster-grid">
                 </div>
@@ -242,7 +356,6 @@
 
     window.onload = function() {
         initiateAdminRosterGrid();
-        // Polling framework processing loops running checks on state changes every single second 
         setInterval(pollTacticalCommandPipeline, 1000);
     };
 
@@ -261,7 +374,6 @@
         rosterGrid.innerHTML = "";
         let count = 0;
 
-        // Count active officers inside system profiles array pipeline
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key.startsWith("user_")) {
@@ -270,11 +382,11 @@
                 const badge = document.createElement("div");
                 badge.className = "unit-badge";
                 badge.id = `badge-unit-${user.phone}`;
-                badge.innerHTML = `<strong>${escapeHTML(user.rank)}</strong><br>${escapeHTML(user.name)}`;
+                badge.innerHTML = `<strong>${escapeHTML(user.rank)}</strong><br><span style="color:#94a3b8">${escapeHTML(user.name)}</span>`;
                 rosterGrid.appendChild(badge);
             }
         }
-        document.getElementById("unit-count-tag").textContent = `${count} PACKETS REGISTERED`;
+        document.getElementById("unit-count-tag").textContent = `${count} PACKETS REGISTERED ON NODE`;
     }
 
     function pollTacticalCommandPipeline() {
@@ -282,6 +394,7 @@
         const title = document.getElementById("master-status-title");
         const desc = document.getElementById("master-status-desc");
         const vibrationBox = document.getElementById("vibration-relay-box");
+        const audioContainer = document.getElementById("audio-container-wrapper");
 
         // 1. Evaluate State Triggers
         const panicStateRaw = localStorage.getItem("admin_panic_state_trigger");
@@ -289,38 +402,38 @@
             const panicState = JSON.parse(panicStateRaw);
             
             if (panicState.active && panicState.alertTime !== lastKnownPanicTimestamp) {
-                // Change UI system metrics to Critical Mode
                 lastKnownPanicTimestamp = panicState.alertTime;
                 
                 banner.className = "status-banner full-width-panel alert-active";
-                title.textContent = "CRITICAL DISTRESS ALERT TRIGGERED";
-                desc.textContent = `Emergency beacon ping received from target operational area.`;
+                audioContainer.classList.add("alert-active");
+                title.textContent = "CRITICAL DISTRESS SIGNAL INTERCEPTED";
+                desc.textContent = `High priority broadcast telemetry packet trace detected originating within target operational fields array areas.`;
                 
-                addTerminalLog("ALERT RECEIPT: HIGH-PRIORITY BEACON FLAGGED DETECTED AT HQ", "crit");
+                addTerminalLog("ALERT RECEIPT: CRITICAL BEACON TRACE DETECTED AT HQ NODE GATE", "crit");
                 
-                // Fire dashboard browser haptic vibration warnings
-                vibrationBox.textContent = "🚨 DETONATING VIBRATION ALARM PULSE RELAY ACTIVATED";
+                vibrationBox.textContent = "🚨 DETONATING VIBRATION ALARM PULSE RELAY SECTOR_9_ON";
                 vibrationBox.style.color = "var(--hud-crimson)";
                 vibrationBox.style.backgroundColor = "rgba(255, 51, 51, 0.1)";
+                vibrationBox.style.borderColor = "var(--hud-crimson)";
                 if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 300]);
 
-                // Highlight rosters elements dynamically
                 markAllBadgesNominal();
                 highlightDistressBadges(true);
             } 
             else if (!panicState.active && lastKnownPanicTimestamp !== "RESOLVED") {
-                // Change UI system metrics back cleanly to Secured Mode
                 lastKnownPanicTimestamp = "RESOLVED";
                 
                 banner.className = "status-banner full-width-panel alert-secure";
-                title.textContent = "SYSTEMS NOMINAL - SITUATION RESOLVED";
-                desc.textContent = "All alarms stood down via secure security code authorization clear.";
+                audioContainer.classList.remove("alert-active");
+                title.textContent = "SYSTEMS NOMINAL - CODES REVERSED";
+                desc.textContent = "All open tracking alert channels stepped down via localized authorization security code confirmations.";
                 
-                addTerminalLog("STAND DOWN DETECTED: Master tactical operations restored safely.", "ok");
+                addTerminalLog("STAND DOWN DETECTED: Tactical grid normalization procedures verified successfully.", "ok");
                 
-                vibrationBox.textContent = "Vibration Module Standby";
-                vibrationBox.style.color = "var(--text-dim)";
-                vibrationBox.style.backgroundColor = "var(--bg-dark-surface)";
+                vibrationBox.textContent = "VIBRATION_MODULE: IDLE";
+                vibrationBox.style.color = "#475569";
+                vibrationBox.style.backgroundColor = "#04080f";
+                vibrationBox.style.borderColor = "#14213d";
                 
                 markAllBadgesNominal();
             }
@@ -331,9 +444,9 @@
         if (coordsRaw && lastKnownPanicTimestamp !== "RESOLVED") {
             const data = JSON.parse(coordsRaw);
             if (data && data.coordinates) {
-                const logMsg = `TELEMETRY BEACON PIN -> LAT: ${data.coordinates.latitude} | LNG: ${data.coordinates.longitude}`;
-                // Avoid flooding logs duplicates
-                const lastLine = document.getElementById("terminal-feed").lastChild.textContent;
+                const logMsg = `TELEMETRY LOCK ACTIVE -> LAT: ${data.coordinates.latitude} | LNG: ${data.coordinates.longitude}`;
+                const feed = document.getElementById("terminal-feed");
+                const lastLine = feed.lastChild ? feed.lastChild.textContent : "";
                 if (!lastLine.includes(data.coordinates.latitude)) {
                     addTerminalLog(logMsg, "crit");
                 }
@@ -345,8 +458,8 @@
         if (audioPayload && audioPayload !== lastKnownAudioPayload) {
             lastKnownAudioPayload = audioPayload;
             
-            addTerminalLog("SURVEILLANCE INCOMING: Audio data stream payload packet bound captured.", "ok");
-            document.getElementById("audio-status-tag").textContent = "HOT LINK ON AIR";
+            addTerminalLog("SURVEILLANCE INCOMING: Core raw audio data stream payload bound captured.", "ok");
+            document.getElementById("audio-status-tag").textContent = "HOT_LINK_STREAM_ON_AIR";
             document.getElementById("audio-status-tag").style.color = "var(--hud-crimson)";
             
             const player = document.getElementById("surveillance-player");
