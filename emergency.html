@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CADRE - Tactical Distress Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* --- Tactical Emergency System Overrides --- */
+        :root {
+            --hud-crimson: #ff3333;
+            --hud-crimson-glow: rgba(255, 51, 51, 0.4);
+            --bg-dark-surface: #0b111a;
+            --hud-emerald: #4caf50;
+        }
+
+        .emergency-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 85vh;
+            padding: 16px;
+        }
+
+        .panic-card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--bg-surface);
+            border: 2px solid var(--hud-crimson);
+            border-radius: var(--radius-sharp);
+            padding: 24px 20px;
+            box-shadow: 0 0 30px var(--hud-crimson-glow);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.5s ease;
+        }
+
+        /* Changes theme dynamically when cleared */
+        .panic-card.status-safe {
+            border-color: var(--hud-emerald);
+            box-shadow: 0 0 30px rgba(76, 175, 80, 0.3);
+        }
+
+        .panic-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--hud-crimson);
+            animation: pulse-border 1.5s infinite;
+        }
+
+        .panic-card.status-safe::before {
+            background: var(--hud-emerald);
+            animation: none;
+        }
+
+        /* Massive Distress Trigger */
+        .sos-trigger-container {
+            margin: 40px auto;
+            position: relative;
+            width: 160px;
+            height: 160px;
+        }
+
+        .btn-sos-trigger {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ff1a1a 0%, #990000 100%);
+            border: 4px solid #fff;
+            color: #fff;
+            font-size: 1.8rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            outline: none;
+            position: relative;
+            z-index: 5;
+            transition: all 0.3s ease;
+        }
+
+        /* Visual indicator for active button status */
+        .active-alert .btn-sos-trigger {
+            background: radial-gradient(circle, #330000 0%, #ff1a1a 100%);
+            box-shadow: 0 0 25px var(--hud-crimson);
+        }
+
+        /* Pulsing Radar Waves */
+        .sos-pulse-wave {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: var(--hud-crimson);
+            opacity: 0.6;
+            z-index: 1;
+        }
+
+        .active-alert .sos-pulse-wave-1 {
+            animation: pulse-wave 2s infinite linear;
+        }
+        .active-alert .sos-pulse-wave-2 {
+            animation: pulse-wave 2s infinite linear 1s;
+        }
+
+        /* Telemetry Status Monitor */
+        .telemetry-console {
+            background: var(--bg-dark-surface);
+            border: 1px solid var(--border-precision);
+            border-radius: 4px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            text-align: left;
+            color: var(--text-dim);
+            max-height: 140px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .telemetry-line {
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .telemetry-line span.status-active {
+            color: var(--hud-amber);
+            font-weight: bold;
+        }
+
+        .telemetry-line span.status-critical {
+            color: var(--hud-crimson);
+            font-weight: bold;
+            animation: blink 1s infinite;
+        }
+
+        .telemetry-line span.status-resolved {
+            color: var(--hud-emerald);
+            font-weight: bold;
+        }
+
+        /* Navigation Link */
+        .back-nav {
+            margin-top: 15px;
+            font-size: 0.85rem;
+        }
+
+        @keyframes pulse-wave {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <main class="emergency-wrapper">
+        
+        <div class="panic-card" id="panic-panel">
+            <div class="gateway-title-block">
+                <h1 class="gateway-h1" id="beacon-headline" style="color: var(--hud-crimson);">DISTRESS TRANSMITTER</h1>
+                <p class="gateway-p" id="beacon-subline">Emergency Command Beacon Network</p>
+            </div>
+
+            <div class="sos-trigger-container" id="sos-container">
+                <div class="sos-pulse-wave sos-pulse-wave-1"></div>
+                <div class="sos-pulse-wave sos-pulse-wave-2"></div>
+                <button type="button" class="btn-sos-trigger" id="action-btn" onclick="handleSosInteraction()">SOS</button>
+            </div>
+
+            <div class="telemetry-console" id="console-logs">
+                <div class="telemetry-line"><span>> BEACON STATUS:</span><span style="color: var(--hud-emerald);">STANDBY</span></div>
+                <div class="telemetry-line"><span>> LOCAL TELEMETRY:</span><span>COORD LOCK VACANT</span></div>
+            </div>
+
+            <div class="back-nav">
+                <a href="index.html" style="color: var(--text-dim); text-decoration: none;">← Abort & Return to Entryway</a>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+    let isAlertActive = false;
+    let watchId = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let micIntervalId = null;
+
+    function logToConsole(message, statusClass = '') {
+        const consoleBox = document.getElementById("console-logs");
+        const line = document.createElement("div");
+        line.className = "telemetry-line";
+        line.innerHTML = `<span>> ${message}</span><span class="${statusClass}">${statusClass ? statusClass.replace('status-', '').toUpperCase() : ''}</span>`;
+        consoleBox.appendChild(line);
+        consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    // Direct Switch Controller
+    function handleSosInteraction() {
+        if (!isAlertActive) {
+            initiateDistressProtocol();
+        } else {
+            requestSecureDeactivation();
+        }
+    }
+
+    // --- ACTIVATION MODULE ---
+    function initiateDistressProtocol() {
+        isAlertActive = true;
+        
+        // UI Updates
+        document.getElementById("sos-container").classList.add("active-alert");
+        document.getElementById("action-btn").textContent = "STAND DOWN";
+        
+        logToConsole("SOS SIGNAL INITIATED", "status-critical");
+
+        // 1. Run Core Tactical Capture Pipelines
+        trackLiveLocation();
+        startMicrophoneCapture();
+        broadcastCommandCenterPayload();
+    }
+
+    // --- DEACTIVATION MODULE ---
+    function requestSecureDeactivation() {
+        // Prompts officer for safety security gate override pin 
+        const enteredCode = prompt("SECURE SYSTEM COMMAND:\nEnter your Security Access Code to stand down distress beacon:");
+        
+        if (enteredCode === null) return; // User canceled operation
+
+        // Attempt to verify code from local storage user files
+        let isCodeValid = false;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith("user_")) {
+                    const profileData = JSON.parse(localStorage.getItem(key));
+                    if (profileData && profileData.password === enteredCode.trim()) {
+                        isCodeValid = true;
+                        break;
+                    }
+                }
+            }
+        } catch(e) {
+            console.error("Local records parse exception", e);
+        }
+
+        // If validation fails, drop a warning alert logs
+        if (!isCodeValid) {
+            alert("ACCESS DENIED: Invalid System Security Access Code. Surveillance pipeline continues.");
+            logToConsole("UNAUTHORIZED DEACTIVATION ATTEMPT INTERCEPTED", "status-critical");
+            return;
+        }
+
+        // Executing stand-down protocol sequences cleanly
+        isAlertActive = false;
+        
+        // Stop Location Watch Stream
+        if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+        }
+
+        // Stop Audio Capture Engine Completely
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+            // Stop mic media tracks to release hardware light
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+        if (micIntervalId) {
+            clearInterval(micIntervalId);
+            micIntervalId = null;
+        }
+
+        // UI Reset Updates
+        document.getElementById("sos-container").classList.remove("active-alert");
+        document.getElementById("panic-panel").classList.add("status-safe");
+        document.getElementById("action-btn").textContent = "SECURED";
+        document.getElementById("action-btn").style.background = "radial-gradient(circle, #2e7d32 0%, #1b5e20 100%)";
+        document.getElementById("beacon-headline").textContent = "SITUATION SECURED";
+        document.getElementById("beacon-headline").style.color = "var(--hud-emerald)";
+        
+        logToConsole("ALL CAPTURE PIPELINES DISCONNECTED", "status-resolved");
+        logToConsole("BEACON TRANSMISSION TERMINATED CLEANLY", "status-resolved");
+
+        // Broadcast resolution down to Admin Dashboard
+        localStorage.setItem("admin_panic_state_trigger", JSON.stringify({
+            active: false,
+            resolvedTime: new Date().toISOString()
+        }));
+    }
+
+    // FEATURE 1: Continuous Geo-location Tracking Engine
+    function trackLiveLocation() {
+        if (!navigator.geolocation) {
+            logToConsole("GPS MODULE UNSUPPORTED", "status-critical");
+            return;
+        }
+
+        logToConsole("ACQUIRING TELEMETRY LOCK...", "status-active");
+
+        watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const lat = position.coords.latitude.toFixed(5);
+                const lng = position.coords.longitude.toFixed(5);
+                logToConsole(`LOC LOCK: LAT ${lat} | LNG ${lng}`, "status-active");
+
+                const transmissionPacket = {
+                    event: "CRITICAL_DISTRESS_TELEMETRY",
+                    timestamp: new Date().toISOString(),
+                    coordinates: { latitude: lat, longitude: lng }
+                };
+
+                localStorage.setItem("last_distress_coordinates", JSON.stringify(transmissionPacket));
+            },
+            (error) => {
+                logToConsole(`GPS FAULT: ${error.message}`, "status-critical");
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    }
+
+    // FEATURE 2: Background Audio Surveillance Capture Engine
+    async function startMicrophoneCapture() {
+        try {
+            logToConsole("ACCESSING MICROPHONE PIPELINE...", "status-active");
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                if (audioChunks.length === 0) return;
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                logToConsole("AUDIO BUNDLED. DISPATCHING BATCH...", "status-active");
+
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = () => {
+                    const base64Audio = reader.result;
+                    localStorage.setItem("distress_audio_payload", base64Audio);
+                    logToConsole("PAYLOAD SHIPPED TO DASHBOARD", "status-active");
+                };
+            };
+
+            mediaRecorder.start();
+            logToConsole("RECORDING LIVE SURVEILLANCE BUFFER", "status-critical");
+
+            // Segment loop controller
+            micIntervalId = setInterval(() => {
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                    mediaRecorder.start();
+                }
+            }, 7000);
+
+        } catch (err) {
+            logToConsole(`MIC ATTACH FAULT: ${err.name}`, "status-critical");
+        }
+    }
+
+    // FEATURE 3: Inter-unit Alert, Mobile Haptic Vibrations, Dashboard Broadcast Execution
+    function broadcastCommandCenterPayload() {
+        if (navigator.vibrate) {
+            navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
+        }
+
+        logToConsole("ALERTS BLOWN TO NEARBY UNITS", "status-critical");
+        logToConsole("COMMAND CENTER VIBRATION SIGNAL PIPED", "status-critical");
+
+        localStorage.setItem("admin_panic_state_trigger", JSON.stringify({
+            active: true,
+            alertTime: new Date().toISOString()
+        }));
+    }
+</script>
+</body>
+</html>
