@@ -395,9 +395,66 @@
             background-color: var(--hud-crimson);
             animation: heartbeat 0.8s infinite ease-in-out;
         }
+
+        /* --- SOUND ENGINE SECURITY OVERLAY --- */
+        #audio-lock-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(2, 4, 8, 0.98);
+            z-index: 100000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .lock-container {
+            border: 1px solid var(--border-precision);
+            background: #060b13;
+            padding: 30px;
+            text-align: center;
+            max-width: 450px;
+            width: 85%;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.05);
+            position: relative;
+        }
+        .lock-container::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 15px; height: 15px;
+            border-top: 3px solid var(--hud-cyan);
+            border-right: 3px solid var(--hud-cyan);
+        }
+        #initialize-audio-btn {
+            background: rgba(0, 240, 255, 0.05);
+            border: 1px solid var(--hud-cyan);
+            color: #fff;
+            font-family: var(--tech-font);
+            padding: 14px 28px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            letter-spacing: 2px;
+            transition: all 0.25s ease;
+        }
+        #initialize-audio-btn:hover {
+            background: var(--hud-cyan);
+            color: #000;
+            box-shadow: 0 0 20px var(--hud-cyan-glow);
+        }
     </style>
 </head>
 <body>
+
+<div id="audio-lock-overlay">
+    <div class="lock-container">
+        <div style="font-family: var(--tech-font); color: var(--hud-cyan); font-size: 0.75rem; margin-bottom: 5px;">[SECURITY REQUISITION NODE]</div>
+        <h2 style="font-family: var(--tech-font); color: #fff; letter-spacing: 2px; font-size: 1.1rem; margin: 0 0 10px 0;">TACTICAL AUDIO MATRIX LOCKED</h2>
+        <p style="color: #64748b; font-size: 0.8rem; line-height: 1.5; margin: 0 0 20px 0;">Browser policies require explicit system authentication to grant immediate broadcast runtime initialization privileges.</p>
+        <button id="initialize-audio-btn">INITIALIZE AUDIO MATRIX</button>
+    </div>
+</div>
 
 <div class="app-container" style="padding-bottom: 0;">
     
@@ -513,12 +570,22 @@
         initiateAdminRosterGrid();
         listenToDistressSignalsCollection();
 
-        // Initialize Audio context on first click interaction to pass browser security policies
-        window.addEventListener('click', () => {
-            if (!audioCtx) {
+        // Overlay Intercept Button Handler to unlock the audio channel manually
+        const audioOverlay = document.getElementById('audio-lock-overlay');
+        const initBtn = document.getElementById('initialize-audio-btn');
+
+        initBtn.addEventListener('click', () => {
+            try {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                audioOverlay.style.display = 'none';
+                addTerminalLog("[SYS] Sound frequency synthesis arrays safely initialized and armed.", "ok");
+            } catch (e) {
+                console.error("Audio Context Init failure:", e);
             }
-        }, { once: true });
+        });
     });
 
     function listenToDistressSignalsCollection() {
@@ -540,7 +607,7 @@
                 interactiveSidebar.classList.add("alert-active");
                 title.textContent = "CRITICAL DISTRESS SIGNAL INTERCEPTED";
                 
-                // 🚨 Trigger tactical synthetic sound engine
+                // 🚨 Trigger sound synthesis engine
                 triggerTacticalSirenAudio(true);
                 
                 vibrationBox.textContent = "🚨 ALARM RELAY ACTIVE - PAYLOAD INBOUND";
@@ -559,7 +626,6 @@
                         const badgeNode = document.getElementById(`badge-unit-${phone}`);
                         if (badgeNode) badgeNode.classList.add("active-distress");
 
-                        // Fallback checking to support versatile payloads safely without breaking scripts
                         if (data.latitude || (data.coordinates && data.coordinates.latitude)) {
                             const lat = data.latitude || data.coordinates.latitude;
                             const lng = data.longitude || data.coordinates.longitude;
@@ -657,7 +723,6 @@
      */
     function triggerTacticalSirenAudio(start) {
         if (!start) {
-            // Instantly shut down synth audio streams clean
             if (mainOscillator) {
                 try { mainOscillator.stop(); } catch(e){}
                 mainOscillator = null;
@@ -669,7 +734,7 @@
             return;
         }
 
-        if (mainOscillator) return; // Audio synth is already playing loops
+        if (mainOscillator) return; 
 
         try {
             if (!audioCtx) {
@@ -679,36 +744,34 @@
                 audioCtx.resume();
             }
 
-            // 1. Create Nodes
+            // 1. Nodes setup
             mainOscillator = audioCtx.createOscillator();
             modulationOscillator = audioCtx.createOscillator();
             const modulationGain = audioCtx.createGain();
             mainGainNode = audioCtx.createGain();
 
-            // 2. Configure Carrier Wave (The heavy background siren)
+            // 2. High-intensity piercing Sawtooth tone
             mainOscillator.type = 'sawtooth'; 
-            mainOscillator.frequency.value = 650; // Piercing mid-high frequency foundational tone
+            mainOscillator.frequency.value = 650; 
 
-            // 3. Configure Modulation (The rapid realistic warbling oscillation effect)
+            // 3. Constant sweeping warble (Sine wave oscillator)
             modulationOscillator.type = 'sine';
-            modulationOscillator.frequency.value = 4; // Cycles per second (Hz)
-            modulationGain.gain.value = 250; // Modulation depth parameter bounds (sweeps pitch by +/- 250Hz)
+            modulationOscillator.frequency.value = 4; // 4 sweeps a second
+            modulationGain.gain.value = 250; // Sweeps pitch across a wide high/low frequency span
 
-            // 4. Set Master Alert Output Volumes safely
             mainGainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
 
-            // 5. Connect Signal Map Arrays
+            // 4. Connect pathways
             modulationOscillator.connect(modulationGain);
-            modulationGain.connect(mainOscillator.frequency); // Frequency modulation configuration path routing
+            modulationGain.connect(mainOscillator.frequency); 
             mainOscillator.connect(mainGainNode);
             mainGainNode.connect(audioCtx.destination);
 
-            // 6. Fire System Engine Tones Simultaneously
             modulationOscillator.start();
             mainOscillator.start();
 
         } catch (error) {
-            console.error("Audio engine context trace exception thrown:", error);
+            console.error("Audio Engine setup track exception:", error);
         }
     }
 
