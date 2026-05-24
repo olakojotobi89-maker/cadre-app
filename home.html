@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CADRE - Communications Feed</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* --- Tactical Navigation Extensions --- */
+        .app-bottom-dock {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important; /* Reconfigured dock grid for 4 elements */
+        }
+        
+        .dock-node-emergency {
+            color: #ff3333 !important; /* Vivid Crimson Highlight color */
+            font-weight: 700;
+        }
+        
+        .dock-node-emergency .dock-node-glyph {
+            animation: beacon-pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes beacon-pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.15); }
+        }
+    </style>
 </head>
 <body>
 
@@ -45,6 +66,7 @@
         <a href="home.html" class="dock-node active-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
         <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
         <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+        <a href="emergency.html" class="dock-node dock-node-emergency"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
     </nav>
 </div>
 
