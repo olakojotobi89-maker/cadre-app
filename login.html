@@ -20,8 +20,8 @@
 
             <form onsubmit="handlePortalLogin(event)">
                 <div class="form-group">
-                    <label>Registered Phone Number</label>
-                    <input type="tel" id="login-phone" class="form-field" placeholder="e.g. 08123456789" required>
+                    <label>Registered Phone Number / Admin ID</label>
+                    <input type="text" id="login-phone" class="form-field" placeholder="e.g. 08123456789" required>
                 </div>
                 
                 <div class="form-group">
@@ -34,7 +34,7 @@
 
             <div class="gateway-footer-link">
                 <span style="color: var(--text-dim);">New Personnel?</span> 
-                <a href="register.html">Initialize Profile</a>
+                <a href="index.html">Initialize Profile</a>
             </div>
         </div>
 
@@ -47,11 +47,24 @@
         const phone = document.getElementById("login-phone").value.trim();
         const password = document.getElementById("login-password").value;
 
+        // --- COMMAND CENTER ADMIN BYPASS INTERCEPT ---
+        if (phone === "Cadre" && password === "CDR123") {
+            const adminSession = {
+                name: "Command Center Admin",
+                rank: "HQ_TACTICAL_ADMIN",
+                phone: "ADMIN_NODE"
+            };
+            localStorage.setItem("session_user", JSON.stringify(adminSession));
+            window.location.href = "admin.html";
+            return; // Terminate execution block here to bypass regular user lookup
+        }
+
+        // --- STANDARD PERSONNEL AUTHENTICATION PIPELINE ---
         const dbUserKey = `user_${phone}`;
         const localUserRecord = localStorage.getItem(dbUserKey);
 
         if (!localUserRecord) {
-            alert("ACCESS DENIED: Phone coordinates not recognized.");
+            alert("ACCESS DENIED: Credentials or Admin ID not recognized.");
             return;
         }
 

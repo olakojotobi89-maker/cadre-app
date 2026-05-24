@@ -29,6 +29,8 @@
             color: var(--text-main);
             font-family: system-ui, -apple-system, sans-serif;
             position: relative;
+            margin: 0;
+            padding: 0;
         }
 
         /* Ambient scanline HUD effect overlay */
@@ -82,16 +84,17 @@
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
+        /* Extreme Emergency Glitch-Shake Matrix Trigger Animation Hook */
         .status-banner.alert-active {
             border-left-color: var(--hud-crimson);
-            box-shadow: 0 0 30px var(--hud-crimson-glow);
-            background: linear-gradient(90deg, #1f0b0f 0%, #09111c 100%);
-            animation: warning-pulse 2s infinite alternate;
+            box-shadow: 0 0 35px var(--hud-crimson-glow);
+            background: linear-gradient(90deg, #2a080d 0%, #0d0507 100%);
+            animation: warning-pulse 1s infinite alternate, glitch-alert-shake 0.35s infinite;
         }
 
         .status-banner.alert-active h2 {
             color: var(--hud-crimson);
-            text-shadow: 0 0 10px var(--hud-crimson);
+            text-shadow: 0 0 15px var(--hud-crimson);
         }
 
         .status-banner.alert-secure h2 {
@@ -241,10 +244,57 @@
             animation: flash-badge 1s infinite alternate;
         }
 
+        /* --- EXTREME MOBILE OPTIMIZATIONS LAYER TRACE --- */
+        @media (max-width: 768px) {
+            .admin-grid {
+                padding: 10px;
+                gap: 14px;
+            }
+            .status-banner {
+                padding: 16px;
+                clip-path: polygon(0 0, 95% 0, 100% 20%, 100% 100%, 5% 100%, 0 80%);
+            }
+            .status-banner h2 {
+                font-size: 1.15rem !important;
+                letter-spacing: 1px !important;
+            }
+            .dashboard-panel {
+                padding: 14px;
+            }
+            .admin-terminal {
+                height: 220px;
+                font-size: 0.78rem;
+                padding: 10px;
+            }
+            .split-column-row {
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+            .units-roster {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            .unit-badge {
+                padding: 10px 6px;
+                font-size: 0.75rem;
+            }
+        }
+
         /* Core Global Level Animations Declarations Keyframes rules */
         @keyframes warning-pulse {
-            0% { box-shadow: 0 0 15px rgba(255, 51, 51, 0.1); }
-            100% { box-shadow: 0 0 35px rgba(255, 51, 51, 0.4); }
+            0% { box-shadow: 0 0 15px rgba(255, 51, 51, 0.1); border-left-color: #990000; }
+            100% { box-shadow: 0 0 35px rgba(255, 51, 51, 0.5); border-left-color: #ff3333; }
+        }
+
+        /* Glitch Intercept Vibration Sequence Modulators */
+        @keyframes glitch-alert-shake {
+            0% { transform: translate(0, 0) skewX(0deg); }
+            20% { transform: translate(-1.5px, 1px) skewX(-1deg); background: rgba(42, 8, 13, 0.95); }
+            40% { transform: translate(1px, -1px) skewX(1deg); }
+            60% { transform: translate(-1px, -1px) skewX(0deg); background: #1f0508; }
+            80% { transform: translate(1.5px, 1px) skewX(0deg); }
+            100% { transform: translate(0, 0) skewX(0deg); }
         }
 
         @keyframes flash-badge {
@@ -353,11 +403,58 @@
 <script>
     let lastKnownPanicTimestamp = null;
     let lastKnownAudioPayload = null;
+    let audioCtx = null;
+    let sirenInterval = null;
 
     window.onload = function() {
         initiateAdminRosterGrid();
         setInterval(pollTacticalCommandPipeline, 1000);
+        
+        // Mobile fallback browser initialization hook listener triggers layout audio context
+        window.addEventListener('click', () => {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }, { once: true });
     };
+
+    // Advanced Modern Web Audio API Synth Engine for Browser Independence
+    function triggerTacticalSirenAudio(start) {
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch(e) { return; }
+        }
+        
+        if (!start) {
+            if (sirenInterval) {
+                clearInterval(sirenInterval);
+                sirenInterval = null;
+            }
+            return;
+        }
+        
+        if (sirenInterval) return; // System already firing audio loops
+        
+        sirenInterval = setInterval(() => {
+            if (!audioCtx || audioCtx.state === 'suspended') return;
+            
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            // Alternating tactical alarm sweep frequency array markers
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.4);
+            
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }, 600);
+    }
 
     function addTerminalLog(message, type = 'info') {
         const terminal = document.getElementById("terminal-feed");
@@ -411,6 +508,9 @@
                 
                 addTerminalLog("ALERT RECEIPT: CRITICAL BEACON TRACE DETECTED AT HQ NODE GATE", "crit");
                 
+                // Audio Engine initialization block 
+                triggerTacticalSirenAudio(true);
+                
                 vibrationBox.textContent = "🚨 DETONATING VIBRATION ALARM PULSE RELAY SECTOR_9_ON";
                 vibrationBox.style.color = "var(--hud-crimson)";
                 vibrationBox.style.backgroundColor = "rgba(255, 51, 51, 0.1)";
@@ -429,6 +529,9 @@
                 desc.textContent = "All open tracking alert channels stepped down via localized authorization security code confirmations.";
                 
                 addTerminalLog("STAND DOWN DETECTED: Tactical grid normalization procedures verified successfully.", "ok");
+                
+                // Stand down siren loops cleanly
+                triggerTacticalSirenAudio(false);
                 
                 vibrationBox.textContent = "VIBRATION_MODULE: IDLE";
                 vibrationBox.style.color = "#475569";
