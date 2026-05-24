@@ -487,23 +487,165 @@
     </main>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, doc, collection, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Your verified web app's Firebase configuration coordinates
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
+    };
+
+    // Initialize Connection Nodes
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Global pipeline tracking parameters
     let lastKnownPanicTimestamp = null;
     let lastKnownAudioPayload = null;
     let audioCtx = null;
     let sirenInterval = null;
 
-    window.onload = function() {
+    window.addEventListener('DOMContentLoaded', () => {
+        // Build interface triggers and real-time streams
         initiateAdminRosterGrid();
-        setInterval(pollTacticalCommandPipeline, 1000);
-        
+        listenToPanicStateTrigger();
+
         // Mobile fallback browser initialization hook listener triggers layout audio context
         window.addEventListener('click', () => {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }, { once: true });
-    };
+    });
 
-    // Advanced Modern Web Audio API Synth Engine for Browser Independence
+    /**
+     * Listen to Central System State and Distress Signal Logs in Real Time
+     */
+    function listenToPanicStateTrigger() {
+        const banner = document.getElementById("master-status-banner");
+        const title = document.getElementById("master-status-title");
+        const desc = document.getElementById("master-status-desc");
+        const vibrationBox = document.getElementById("vibration-relay-box");
+        const audioContainer = document.getElementById("audio-container-wrapper");
+        const interactiveSidebar = document.getElementById("sidebar-interactive-panel");
+
+        onSnapshot(doc(db, "system_state", "panic_trigger"), (docSnap) => {
+            if (!docSnap.exists()) return;
+
+            const panicState = docSnap.data();
+
+            // Evaluate Alert Activity State
+            if (panicState.active && panicState.alertTime !== lastKnownPanicTimestamp) {
+                lastKnownPanicTimestamp = panicState.alertTime;
+                
+                banner.className = "status-banner full-width-panel alert-active";
+                audioContainer.classList.add("alert-active");
+                interactiveSidebar.classList.add("alert-active");
+                title.textContent = "CRITICAL DISTRESS SIGNAL INTERCEPTED";
+                desc.textContent = `High priority broadcast telemetry packet trace detected originating within target operational fields array areas.`;
+                
+                addTerminalLog("ALERT RECEIPT: CRITICAL BEACON TRACE DETECTED AT HQ NODE GATE", "crit");
+                
+                // Audio Engine initialization block 
+                triggerTacticalSirenAudio(true);
+                
+                vibrationBox.textContent = "🚨 DETONATING VIBRATION ALARM PULSE RELAY SECTOR_9_ON";
+                vibrationBox.style.color = "var(--hud-crimson)";
+                vibrationBox.style.backgroundColor = "rgba(255, 51, 51, 0.1)";
+                vibrationBox.style.borderColor = "var(--hud-crimson)";
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 300]);
+
+                highlightDistressBadges(true);
+            } 
+            else if (!panicState.active && lastKnownPanicTimestamp !== "RESOLVED") {
+                lastKnownPanicTimestamp = "RESOLVED";
+                
+                banner.className = "status-banner full-width-panel alert-secure";
+                audioContainer.classList.remove("alert-active");
+                interactiveSidebar.classList.remove("alert-active");
+                title.textContent = "SYSTEMS NOMINAL - CODES REVERSED";
+                desc.textContent = "All open tracking alert channels stepped down via localized authorization security code confirmations.";
+                
+                addTerminalLog("STAND DOWN DETECTED: Tactical grid normalization procedures verified successfully.", "ok");
+                
+                // Stand down siren loops cleanly
+                triggerTacticalSirenAudio(false);
+                
+                vibrationBox.textContent = "VIBRATION_MODULE: IDLE";
+                vibrationBox.style.color = "#475569";
+                vibrationBox.style.backgroundColor = "#04080f";
+                vibrationBox.style.borderColor = "#14213d";
+                
+                highlightDistressBadges(false);
+            }
+
+            // Sync Coordinates Dynamic Stream Logs
+            if (panicState.active && panicState.latitude && panicState.longitude) {
+                const logMsg = `TELEMETRY LOCK ACTIVE -> LAT: ${panicState.latitude} | LNG: ${panicState.longitude}`;
+                const feed = document.getElementById("terminal-feed");
+                const lastLine = feed.lastChild ? feed.lastChild.textContent : "";
+                if (!lastLine.includes(panicState.latitude)) {
+                    addTerminalLog(logMsg, "crit");
+                }
+            }
+
+            // Sync Audio Storage Stream Payloads
+            if (panicState.active && panicState.audioUrl && panicState.audioUrl !== lastKnownAudioPayload) {
+                lastKnownAudioPayload = panicState.audioUrl;
+                
+                addTerminalLog("SURVEILLANCE INCOMING: Core raw audio data stream payload bound captured.", "ok");
+                document.getElementById("audio-status-tag").textContent = "HOT_LINK_STREAM_ON_AIR";
+                document.getElementById("audio-status-tag").style.color = "var(--hud-crimson)";
+                
+                const player = document.getElementById("surveillance-player");
+                const placeholder = document.getElementById("audio-placeholder");
+                
+                player.src = panicState.audioUrl;
+                placeholder.style.display = "none";
+                player.style.display = "block";
+            }
+        });
+    }
+
+    /**
+     * Real-Time Active Roster Array Sync
+     */
+    function initiateAdminRosterGrid() {
+        const rosterGrid = document.getElementById("roster-grid");
+        const countTag = document.getElementById("unit-count-tag");
+        
+        // Query users collection for active operators
+        const usersQuery = query(collection(db, "users"), where("role", "==", "operator"));
+
+        onSnapshot(usersQuery, (snapshot) => {
+            rosterGrid.innerHTML = "";
+            let count = 0;
+
+            snapshot.forEach((doc) => {
+                count++;
+                const user = doc.data();
+                const rank = user.rank ? user.rank : "FIELD_UNIT";
+                const name = user.name ? user.name : "UNREGISTERED_ID";
+                const phone = user.phone ? user.phone : doc.id;
+
+                const badge = document.createElement("div");
+                badge.className = "unit-badge";
+                badge.id = `badge-unit-${phone}`;
+                badge.innerHTML = `<strong>${escapeHTML(rank.toUpperCase())}</strong><br><span style="color:#94a3b8">${escapeHTML(name)}</span>`;
+                rosterGrid.appendChild(badge);
+            });
+
+            countTag.textContent = `${count} PACKETS REGISTERED ON NODE`;
+        });
+    }
+
+    /**
+     * Advanced Modern Web Audio API Synth Engine for Browser Independence
+     */
     function triggerTacticalSirenAudio(start) {
         if (!audioCtx) {
             try {
@@ -547,121 +689,11 @@
         const terminal = document.getElementById("terminal-feed");
         const timestamp = new Date().toLocaleTimeString();
         const row = document.createElement("div");
-        row.className = `terminal-row ${type === 'crit' ? 'crit' : type === 'ok' ? 'ok' : ''}`;
+        const cleanType = type === 'crit' ? 'crit' : type === 'ok' ? 'ok' : '';
+        row.className = `terminal-row ${cleanType}`;
         row.innerHTML = `[${timestamp}] ${message}`;
         terminal.appendChild(row);
         terminal.scrollTop = terminal.scrollHeight;
-    }
-
-    function initiateAdminRosterGrid() {
-        const rosterGrid = document.getElementById("roster-grid");
-        rosterGrid.innerHTML = "";
-        let count = 0;
-
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith("user_")) {
-                count++;
-                const user = JSON.parse(localStorage.getItem(key));
-                const badge = document.createElement("div");
-                badge.className = "unit-badge";
-                badge.id = `badge-unit-${user.phone}`;
-                badge.innerHTML = `<strong>${escapeHTML(user.rank)}</strong><br><span style="color:#94a3b8">${escapeHTML(user.name)}</span>`;
-                rosterGrid.appendChild(badge);
-            }
-        }
-        document.getElementById("unit-count-tag").textContent = `${count} PACKETS REGISTERED ON NODE`;
-    }
-
-    function pollTacticalCommandPipeline() {
-        const banner = document.getElementById("master-status-banner");
-        const title = document.getElementById("master-status-title");
-        const desc = document.getElementById("master-status-desc");
-        const vibrationBox = document.getElementById("vibration-relay-box");
-        const audioContainer = document.getElementById("audio-container-wrapper");
-        const interactiveSidebar = document.getElementById("sidebar-interactive-panel");
-
-        // 1. Evaluate State Triggers
-        const panicStateRaw = localStorage.getItem("admin_panic_state_trigger");
-        if (panicStateRaw) {
-            const panicState = JSON.parse(panicStateRaw);
-            
-            if (panicState.active && panicState.alertTime !== lastKnownPanicTimestamp) {
-                lastKnownPanicTimestamp = panicState.alertTime;
-                
-                banner.className = "status-banner full-width-panel alert-active";
-                audioContainer.classList.add("alert-active");
-                interactiveSidebar.classList.add("alert-active");
-                title.textContent = "CRITICAL DISTRESS SIGNAL INTERCEPTED";
-                desc.textContent = `High priority broadcast telemetry packet trace detected originating within target operational fields array areas.`;
-                
-                addTerminalLog("ALERT RECEIPT: CRITICAL BEACON TRACE DETECTED AT HQ NODE GATE", "crit");
-                
-                // Audio Engine initialization block 
-                triggerTacticalSirenAudio(true);
-                
-                vibrationBox.textContent = "🚨 DETONATING VIBRATION ALARM PULSE RELAY SECTOR_9_ON";
-                vibrationBox.style.color = "var(--hud-crimson)";
-                vibrationBox.style.backgroundColor = "rgba(255, 51, 51, 0.1)";
-                vibrationBox.style.borderColor = "var(--hud-crimson)";
-                if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 300]);
-
-                markAllBadgesNominal();
-                highlightDistressBadges(true);
-            } 
-            else if (!panicState.active && lastKnownPanicTimestamp !== "RESOLVED") {
-                lastKnownPanicTimestamp = "RESOLVED";
-                
-                banner.className = "status-banner full-width-panel alert-secure";
-                audioContainer.classList.remove("alert-active");
-                interactiveSidebar.classList.remove("alert-active");
-                title.textContent = "SYSTEMS NOMINAL - CODES REVERSED";
-                desc.textContent = "All open tracking alert channels stepped down via localized authorization security code confirmations.";
-                
-                addTerminalLog("STAND DOWN DETECTED: Tactical grid normalization procedures verified successfully.", "ok");
-                
-                // Stand down siren loops cleanly
-                triggerTacticalSirenAudio(false);
-                
-                vibrationBox.textContent = "VIBRATION_MODULE: IDLE";
-                vibrationBox.style.color = "#475569";
-                vibrationBox.style.backgroundColor = "#04080f";
-                vibrationBox.style.borderColor = "#14213d";
-                
-                markAllBadgesNominal();
-            }
-        }
-
-        // 2. Poll Coordinate Updates
-        const coordsRaw = localStorage.getItem("last_distress_coordinates");
-        if (coordsRaw && lastKnownPanicTimestamp !== "RESOLVED") {
-            const data = JSON.parse(coordsRaw);
-            if (data && data.coordinates) {
-                const logMsg = `TELEMETRY LOCK ACTIVE -> LAT: ${data.coordinates.latitude} | LNG: ${data.coordinates.longitude}`;
-                const feed = document.getElementById("terminal-feed");
-                const lastLine = feed.lastChild ? feed.lastChild.textContent : "";
-                if (!lastLine.includes(data.coordinates.latitude)) {
-                    addTerminalLog(logMsg, "crit");
-                }
-            }
-        }
-
-        // 3. Poll Audio Stream Surveillance Packets Array
-        const audioPayload = localStorage.getItem("distress_audio_payload");
-        if (audioPayload && audioPayload !== lastKnownAudioPayload) {
-            lastKnownAudioPayload = audioPayload;
-            
-            addTerminalLog("SURVEILLANCE INCOMING: Core raw audio data stream payload bound captured.", "ok");
-            document.getElementById("audio-status-tag").textContent = "HOT_LINK_STREAM_ON_AIR";
-            document.getElementById("audio-status-tag").style.color = "var(--hud-crimson)";
-            
-            const player = document.getElementById("surveillance-player");
-            const placeholder = document.getElementById("audio-placeholder");
-            
-            player.src = audioPayload;
-            placeholder.style.display = "none";
-            player.style.display = "block";
-        }
     }
 
     function highlightDistressBadges(isDistress) {
@@ -669,14 +701,9 @@
         badges.forEach(b => {
             if (isDistress) {
                 b.classList.add("active-distress");
+            } else {
+                b.classList.remove("active-distress");
             }
-        });
-    }
-
-    function markAllBadgesNominal() {
-        const badges = document.querySelectorAll(".unit-badge");
-        badges.forEach(b => {
-            b.classList.remove("active-distress");
         });
     }
 

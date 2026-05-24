@@ -89,7 +89,7 @@
                 <p class="gateway-p">Initialize Personnel Records</p>
             </div>
 
-            <form onsubmit="interceptAndPreview(event)">
+            <form id="profile-registration-form">
                 <div class="form-group">
                     <label>Full Name</label>
                     <input type="text" id="reg-name" class="form-field" placeholder="e.g. Officer John Doe" required>
@@ -142,16 +142,40 @@
 
             <div class="preview-actions-row">
                 <button type="button" class="btn-preview-cancel" onclick="closePreviewGate()">Edit Data</button>
-                <button type="button" class="btn-preview-confirm" onclick="commitPersonnelRecord()">Confirm & Deploy</button>
+                <button type="button" class="btn-preview-confirm" id="confirm-deploy-btn">Confirm & Deploy</button>
             </div>
         </div>
     </div>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Your verified web app's Firebase configuration coordinates
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
+    };
+
+    // Initialize Connection Nodes
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     let stagedPersonnelRecord = null;
 
-    function interceptAndPreview(e) {
+    // Attach form execution interceptor
+    document.getElementById("profile-registration-form").addEventListener("submit", interceptAndPreview);
+    document.getElementById("confirm-deploy-btn").addEventListener("click", commitPersonnelRecord);
+
+    // Make window close callback accessible to layout markers
+    window.closePreviewGate = closePreviewGate;
+
+    async function interceptAndPreview(e) {
         e.preventDefault();
         
         const name = document.getElementById("reg-name").value.trim();
@@ -159,26 +183,34 @@
         const phone = document.getElementById("reg-phone").value.replace(/[\s\-\(\)]+/g, '');
         const password = document.getElementById("reg-password").value;
 
-        const dbUserKey = `user_${phone}`;
-        
-        if (localStorage.getItem(dbUserKey)) {
-            alert("REGISTRATION FAILURE: Phone coordinates already registered to an active profile.");
-            return;
+        try {
+            // Check global cloud registry for duplication signatures
+            const userDocRef = doc(db, "users", phone);
+            const userSnapshot = await getDoc(userDocRef);
+            
+            if (userSnapshot.exists()) {
+                alert("REGISTRATION FAILURE: Phone coordinates already registered to an active cloud profile.");
+                return;
+            }
+
+            stagedPersonnelRecord = {
+                name: name,
+                rank: rank,
+                phone: phone,
+                password: password,
+                pfp: ""
+            };
+
+            document.getElementById("preview-target-name").textContent = name;
+            document.getElementById("preview-target-rank").textContent = rank;
+            document.getElementById("preview-target-phone").textContent = phone;
+
+            document.getElementById("preview-gate-shield").style.display = "flex";
+
+        } catch (error) {
+            console.error("Cloud validation error context: ", error);
+            alert("UPLINK FAULT: Unable to verify cloud roster availability.");
         }
-
-        stagedPersonnelRecord = {
-            name: name,
-            rank: rank,
-            phone: phone,
-            password: password,
-            pfp: ""
-        };
-
-        document.getElementById("preview-target-name").textContent = name;
-        document.getElementById("preview-target-rank").textContent = rank;
-        document.getElementById("preview-target-phone").textContent = phone;
-
-        document.getElementById("preview-gate-shield").style.display = "flex";
     }
 
     function closePreviewGate() {
@@ -186,18 +218,21 @@
         stagedPersonnelRecord = null;
     }
 
-    function commitPersonnelRecord() {
+    async function commitPersonnelRecord() {
         if (!stagedPersonnelRecord) return;
 
-        const cleanPhoneKey = stagedPersonnelRecord.phone.replace(/[\s\-\(\)]+/g, '');
-        const dbUserKey = `user_${cleanPhoneKey}`;
-        
-        localStorage.setItem(dbUserKey, JSON.stringify(stagedPersonnelRecord));
-        
-        alert("SUCCESS: Profile record built. Forwarding to validation gate.");
-        
-        /* FIXED: Routes the validated personnel record straight to the login screen */
-        window.location.href = "login.html";
+        try {
+            // Write to shared cloud collection with phone as explicit doc structural ID
+            const targetDocRef = doc(db, "users", stagedPersonnelRecord.phone);
+            await setDoc(targetDocRef, stagedPersonnelRecord);
+            
+            alert("SUCCESS: Profile record built on cloud array. Forwarding to validation gate.");
+            window.location.href = "login.html";
+            
+        } catch (error) {
+            console.error("Data push runtime error: ", error);
+            alert("DEPLOYMENT CRASH: Intercepted an uplink connection timeout. Record not saved.");
+        }
     }
 </script>
 </body>

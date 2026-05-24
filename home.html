@@ -72,11 +72,36 @@
     </nav>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, collection, addDoc, setDoc, onSnapshot, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Your verified web app's Firebase configuration coordinates
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
+    };
+
+    // Initialize Connection Nodes
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     let currentSessionOfficer = null;
     let base64ImageString = "";
 
-    window.onload = function() {
+    // Expose tactical features to layout action buttons
+    window.checkAdminAccess = checkAdminAccess;
+    window.previewSelectedImage = previewSelectedImage;
+    window.submitInstagramPost = submitInstagramPost;
+    window.toggleLike = toggleLike;
+    window.submitComment = submitComment;
+    window.searchPersonnel = searchPersonnel;
+
+    window.addEventListener('DOMContentLoaded', async () => {
         const sessionData = localStorage.getItem("session_user");
         if (!sessionData) {
             window.location.href = "login.html";
@@ -85,29 +110,32 @@
         currentSessionOfficer = JSON.parse(sessionData);
         document.getElementById("officer-header-tag").textContent = currentSessionOfficer.rank;
 
-        const dbUser = JSON.parse(localStorage.getItem(`user_${currentSessionOfficer.phone}`));
-        if (dbUser && dbUser.pfp) {
-            document.getElementById("composer-avatar").src = dbUser.pfp;
+        // Pull active user profile avatar signature from Firestore
+        try {
+            const userDocRef = doc(db, "users", currentSessionOfficer.phone);
+            const userSnap = await getDoc(userDocRef);
+            if (userSnap.exists() && userSnap.data().pfp) {
+                document.getElementById("composer-avatar").src = userSnap.data().pfp;
+            }
+        } catch (err) {
+            console.error("Avatar streaming error: ", err);
         }
 
-        renderInstagramFeed();
-    };
+        // Establish real-time listener link for active feeds
+        listenToLiveBroadcastFeed();
+    });
 
     /* --- Secure Admin Gateway Interceptor --- */
     function checkAdminAccess(event) {
         event.preventDefault();
-        
         if (!currentSessionOfficer) return;
 
-        // Condition 1: Automatic bypass if logged into the core "Cadre" administrative account
-        if (currentSessionOfficer.name === "Cadre") {
+        if (currentSessionOfficer.phone === "ADMIN_NODE" || currentSessionOfficer.name === "Cadre") {
             window.location.href = "admin.html";
             return;
         }
 
-        // Condition 2: Request terminal validation code for subordinate officers
         const accessPasskey = prompt("ENTER MASTER CRYPTO-KEY FOR ADMINISTRATIVE CLEARANCE:");
-        
         if (accessPasskey === "CDR123") {
             window.location.href = "admin.html";
         } else if (accessPasskey !== null) {
@@ -128,123 +156,157 @@
         }
     }
 
-    function renderInstagramFeed() {
+    /* --- Real-Time Broadcast Stream Synchronization Engine --- */
+    function listenToLiveBroadcastFeed() {
         const container = document.getElementById("instagram-stream");
-        const posts = JSON.parse(localStorage.getItem("ig_feed_posts")) || [];
-        container.innerHTML = "";
+        const feedQuery = query(collection(db, "ig_feed_posts"), orderBy("timestamp", "asc"));
 
-        if (posts.length === 0) {
-            container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;">NO ARCHIVED LOGS AVAILABLE.</div>`;
-            return;
-        }
-
-        posts.slice().reverse().forEach((post, index) => {
-            const pfpSrc = post.pfp ? post.pfp : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
-            const realIndex = posts.length - 1 - index;
-
-            let commentsMarkup = "";
-            if (post.comments && post.comments.length > 0) {
-                post.comments.forEach(c => {
-                    commentsMarkup += `
-                        <div class="comment-row">
-                            <span class="comment-author">${escapeHTML(c.name)}:</span>
-                            <span>${escapeHTML(c.text)}</span>
-                        </div>`;
-                });
+        onSnapshot(feedQuery, (snapshot) => {
+            container.innerHTML = "";
+            
+            if (snapshot.empty) {
+                container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;">NO ARCHIVED LOGS AVAILABLE.</div>`;
+                return;
             }
 
-            const mediaSection = post.image ? `<div class="ig-post-media-frame"><img src="${post.image}" class="ig-post-img"></div>` : '';
+            // Reverse visual stack order natively to show freshest updates at top
+            const documents = [];
+            snapshot.forEach(doc => documents.push({ id: doc.id, ...doc.data() }));
+            
+            documents.reverse().forEach((post) => {
+                const pfpSrc = post.pfp ? post.pfp : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
 
-            const article = document.createElement("article");
-            article.className = "ig-post";
-            article.innerHTML = `
-                <div class="ig-post-header">
-                    <div class="ig-post-profile">
-                        <img src="${pfpSrc}" class="avatar-frame">
-                        <div class="meta-details">
-                            <span class="meta-name">${escapeHTML(post.name)}</span>
-                            <span class="meta-rank">${escapeHTML(post.rank)}</span>
+                let commentsMarkup = "";
+                if (post.comments && post.comments.length > 0) {
+                    post.comments.forEach(c => {
+                        commentsMarkup += `
+                            <div class="comment-row">
+                                <span class="comment-author">${escapeHTML(c.name)}:</span>
+                                <span>${escapeHTML(c.text)}</span>
+                            </div>`;
+                    });
+                }
+
+                const mediaSection = post.image ? `<div class="ig-post-media-frame"><img src="${post.image}" class="ig-post-img"></div>` : '';
+                const hasLiked = post.likes && post.likes.includes(currentSessionOfficer.phone);
+
+                const article = document.createElement("article");
+                article.className = "ig-post";
+                article.innerHTML = `
+                    <div class="ig-post-header">
+                        <div class="ig-post-profile">
+                            <img src="${pfpSrc}" class="avatar-frame">
+                            <div class="meta-details">
+                                <span class="meta-name">${escapeHTML(post.name)}</span>
+                                <span class="meta-rank">${escapeHTML(post.rank)}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-                ${mediaSection}
-                <div class="ig-post-actions">
-                    <button class="action-glyph" onclick="toggleLike(${realIndex})">${post.likes && post.likes.includes(currentSessionOfficer.phone) ? '❤️' : '🤍'}</button>
-                </div>
-                <div class="ig-post-data">
-                    <div class="likes-count">${post.likes ? post.likes.length : 0} CONFIRMATIONS</div>
-                    <div class="caption-block">
-                        <span class="caption-author">${escapeHTML(post.name)}</span>${escapeHTML(post.caption)}
+                    ${mediaSection}
+                    <div class="ig-post-actions">
+                        <button class="action-glyph" onclick="toggleLike('${post.id}')">${hasLiked ? '❤️' : '🤍'}</button>
                     </div>
-                    <div class="comments-box">${commentsMarkup}</div>
-                    <form class="comment-input-form" onsubmit="submitComment(event, ${realIndex})">
-                        <input type="text" class="comment-field" placeholder="Append encryption note..." required>
-                        <button type="submit" class="comment-submit-btn">Send</button>
-                    </form>
-                </div>
-            `;
-            container.appendChild(article);
+                    <div class="ig-post-data">
+                        <div class="likes-count">${post.likes ? post.likes.length : 0} CONFIRMATIONS</div>
+                        <div class="caption-block">
+                            <span class="caption-author">${escapeHTML(post.name)}</span>${escapeHTML(post.caption)}
+                        </div>
+                        <div class="comments-box">${commentsMarkup}</div>
+                        <form class="comment-input-form" onsubmit="submitComment(event, '${post.id}')">
+                            <input type="text" class="comment-field" placeholder="Append encryption note..." required>
+                            <button type="submit" class="comment-submit-btn">Send</button>
+                        </form>
+                    </div>
+                `;
+                container.appendChild(article);
+            });
         });
     }
 
-    function submitInstagramPost() {
+    async function submitInstagramPost() {
         const captionText = document.getElementById("post-input").value.trim();
         if (!captionText && !base64ImageString) return;
 
-        const posts = JSON.parse(localStorage.getItem("ig_feed_posts")) || [];
-        const dbUser = JSON.parse(localStorage.getItem(`user_${currentSessionOfficer.phone}`));
+        try {
+            // Get current user data to ensure avatar link matches newest profile adjustments
+            const userDocRef = doc(db, "users", currentSessionOfficer.phone);
+            const userSnap = await getDoc(userDocRef);
+            const latestPfp = (userSnap.exists() && userSnap.data().pfp) ? userSnap.data().pfp : "";
 
-        const newPost = {
-            name: currentSessionOfficer.name,
-            rank: currentSessionOfficer.rank,
-            phone: currentSessionOfficer.phone,
-            pfp: dbUser && dbUser.pfp ? dbUser.pfp : "",
-            caption: captionText,
-            image: base64ImageString,
-            likes: [],
-            comments: []
-        };
+            const newPost = {
+                name: currentSessionOfficer.name,
+                rank: currentSessionOfficer.rank,
+                phone: currentSessionOfficer.phone,
+                pfp: latestPfp,
+                caption: captionText,
+                image: base64ImageString,
+                likes: [],
+                comments: [],
+                timestamp: Date.now()
+            };
 
-        posts.push(newPost);
-        localStorage.setItem("ig_feed_posts", JSON.stringify(posts));
+            await addDoc(collection(db, "ig_feed_posts"), newPost);
 
-        document.getElementById("post-input").value = "";
-        document.getElementById("post-img-preview").style.display = "none";
-        base64ImageString = "";
-        
-        renderInstagramFeed();
-    }
+            document.getElementById("post-input").value = "";
+            document.getElementById("post-img-preview").style.display = "none";
+            base64ImageString = "";
 
-    function toggleLike(index) {
-        const posts = JSON.parse(localStorage.getItem("ig_feed_posts"));
-        if (!posts[index].likes) posts[index].likes = [];
-        const userIdx = posts[index].likes.indexOf(currentSessionOfficer.phone);
-        if (userIdx > -1) {
-            posts[index].likes.splice(userIdx, 1);
-        } else {
-            posts[index].likes.push(currentSessionOfficer.phone);
+        } catch (error) {
+            console.error("Transmission upload crashed: ", error);
+            alert("BROADCAST ERROR: System uplink interrupted.");
         }
-        localStorage.setItem("ig_feed_posts", JSON.stringify(posts));
-        renderInstagramFeed();
     }
 
-    function submitComment(e, index) {
+    async function toggleLike(postId) {
+        try {
+            const postRef = doc(db, "ig_feed_posts", postId);
+            const postSnap = await getDoc(postRef);
+            if (!postSnap.exists()) return;
+
+            const postData = postSnap.data();
+            let currentLikes = postData.likes || [];
+            const userIdx = currentLikes.indexOf(currentSessionOfficer.phone);
+
+            if (userIdx > -1) {
+                currentLikes.splice(userIdx, 1);
+            } else {
+                currentLikes.push(currentSessionOfficer.phone);
+            }
+
+            await setDoc(postRef, { likes: currentLikes }, { merge: true });
+        } catch (err) {
+            console.error("Like toggle pipeline error: ", err);
+        }
+    }
+
+    async function submitComment(e, postId) {
         e.preventDefault();
         const inputField = e.target.querySelector(".comment-field");
-        const posts = JSON.parse(localStorage.getItem("ig_feed_posts"));
-        if (!posts[index].comments) posts[index].comments = [];
-        posts[index].comments.push({
-            name: currentSessionOfficer.name,
-            text: inputField.value.trim()
-        });
-        localStorage.setItem("ig_feed_posts", JSON.stringify(posts));
-        inputField.value = "";
-        renderInstagramFeed();
+        const textValue = inputField.value.trim();
+        if (!textValue) return;
+
+        try {
+            const postRef = doc(db, "ig_feed_posts", postId);
+            const postSnap = await getDoc(postRef);
+            if (!postSnap.exists()) return;
+
+            let currentComments = postSnap.data().comments || [];
+            currentComments.push({
+                name: currentSessionOfficer.name,
+                text: textValue
+            });
+
+            await setDoc(postRef, { comments: currentComments }, { merge: true });
+            inputField.value = "";
+        } catch (err) {
+            console.error("Comment delivery failed: ", err);
+        }
     }
 
-    function searchPersonnel(query) {
+    /* --- Live Search Registry Engine --- */
+    async function searchPersonnel(queryStr) {
         const dropdown = document.getElementById("search-dropdown");
-        const cleanQuery = query.toLowerCase().trim();
+        const cleanQuery = queryStr.toLowerCase().trim();
         dropdown.innerHTML = "";
 
         if (!cleanQuery) {
@@ -252,14 +314,18 @@
             return;
         }
 
-        let hitsFound = false;
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith("user_")) {
-                const user = JSON.parse(localStorage.getItem(key));
+        try {
+            // Querying the cloud database 'users' collection
+            const usersRef = collection(db, "users");
+            const snapshot = await getDocs(usersRef);
+            let hitsFound = false;
+
+            snapshot.forEach((userDoc) => {
+                const user = userDoc.data();
                 if (user.name && user.name.toLowerCase().includes(cleanQuery)) {
                     hitsFound = true;
                     const pfpSrc = user.pfp ? user.pfp : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
+                    
                     const row = document.createElement("div");
                     row.className = "search-user-row";
                     row.innerHTML = `
@@ -271,9 +337,13 @@
                     `;
                     dropdown.appendChild(row);
                 }
-            }
+            });
+
+            dropdown.style.display = hitsFound ? "block" : "none";
+
+        } catch (err) {
+            console.error("Personnel index query breakdown: ", err);
         }
-        dropdown.style.display = hitsFound ? "block" : "none";
     }
 
     function escapeHTML(str) {

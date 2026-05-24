@@ -25,31 +25,9 @@
         </div>
         
         <div id="library-content-container">
-            
-            <div class="doc-item searchable-module-node" data-keywords="placeholder sample module one template">
-                <div class="doc-header" onclick="toggleLibraryAccordion(this)">
-                    <span>MODULE 01: INITIALIZATION PROTOCOLS</span>
-                    <span class="accordion-arrow-indicator">▼</span>
-                </div>
-                <div class="doc-body">
-                    <div class="article-block">
-                        <p style="color: var(--text-dim); font-style: italic;">Operational text placeholder. No data strings loaded into current sub-array module.</p>
-                    </div>
-                </div>
+            <div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;" id="library-loader">
+                CONNECTING TO OPERATIONS DATA STREAM...
             </div>
-
-            <div class="doc-item searchable-module-node" data-keywords="placeholder sample module two template">
-                <div class="doc-header" onclick="toggleLibraryAccordion(this)">
-                    <span>MODULE 02: TACTICAL FIELD STANDARDS</span>
-                    <span class="accordion-arrow-indicator">▼</span>
-                </div>
-                <div class="doc-body">
-                    <div class="article-block">
-                        <p style="color: var(--text-dim); font-style: italic;">Operational text placeholder. No data strings loaded into current sub-array module.</p>
-                    </div>
-                </div>
-            </div>
-
         </div>
     </main>
 
@@ -60,13 +38,85 @@
     </nav>
 </div>
 
-<script>
-    // Verify session state prior to compiling engine hooks
-    window.onload = function() {
-        if (!localStorage.getItem("session_user")) {
-            window.location.href = "index.html";
-        }
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Your verified web app's Firebase configuration coordinates
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
     };
+
+    // Initialize Connection Nodes
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Expose layout functional tracking pipelines to DOM interaction events
+    window.toggleLibraryAccordion = toggleLibraryAccordion;
+    window.filterLibraryModules = filterLibraryModules;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        // Enforce secure user credential check prior to parsing module logs
+        if (!localStorage.getItem("session_user")) {
+            window.location.href = "login.html";
+            return;
+        }
+
+        // Establish connection to live documentation manifest array
+        streamOperationalManuals();
+    });
+
+    /**
+     * Real-Time Documentation Database Synchronization Engine
+     */
+    function streamOperationalManuals() {
+        const targetContainer = document.getElementById("library-content-container");
+        const modulesQuery = query(collection(db, "ebook_modules"), orderBy("order", "asc"));
+
+        onSnapshot(modulesQuery, (snapshot) => {
+            targetContainer.innerHTML = "";
+
+            if (snapshot.empty) {
+                targetContainer.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;">NO OPERATIONAL MANUALS FOUND IN REGISTRY.</div>`;
+                return;
+            }
+
+            snapshot.forEach((doc) => {
+                const manual = doc.data();
+                
+                // Fallback default clean strings to protect container injection cycles
+                const title = manual.title ? manual.title.toUpperCase() : "UNTITLED OPERATIONAL MANUAL";
+                const content = manual.content ? manual.content : "No documentation details supplied for this segment node.";
+                const keywords = manual.keywords ? manual.keywords.toLowerCase() : "";
+
+                const docItem = document.createElement("div");
+                docItem.className = "doc-item searchable-module-node";
+                docItem.setAttribute("data-keywords", keywords);
+                
+                docItem.innerHTML = `
+                    <div class="doc-header" onclick="toggleLibraryAccordion(this)">
+                        <span>${escapeHTML(title)}</span>
+                        <span class="accordion-arrow-indicator">▼</span>
+                    </div>
+                    <div class="doc-body" style="display: none;">
+                        <div class="article-block">
+                            <p style="white-space: pre-wrap; line-height: 1.5;">${escapeHTML(content)}</p>
+                        </div>
+                    </div>
+                `;
+                
+                targetContainer.appendChild(docItem);
+            });
+        }, (err) => {
+            console.error("Manual registry connection failure: ", err);
+            targetContainer.innerHTML = `<div style="text-align:center; padding:40px; color:var(--hud-crimson); font-size:0.8rem;">LINK ERROR: ABORTED METRIC ACQUISITION.</div>`;
+        });
+    }
 
     /**
      * Toggles the visibility state of library module containers.
@@ -107,6 +157,10 @@
                 node.style.display = "none";
             }
         });
+    }
+
+    function escapeHTML(str) {
+        return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
     }
 </script>
 </body>

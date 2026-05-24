@@ -26,7 +26,6 @@
             font-family: var(--hud-font) !important;
         }
 
-        /* --- Master Combat Matrix Screen --- */
         .combat-screen-wrapper {
             background: var(--hud-bg-solid);
             border: 2px solid #0d1f2d;
@@ -38,7 +37,6 @@
             box-sizing: border-box;
         }
 
-        /* --- Tactical Bracket Corners --- */
         .combat-screen-wrapper::before, .combat-screen-wrapper::after,
         .tactical-display-core::before, .tactical-display-core::after {
             content: ""; position: absolute; width: 16px; height: 16px; border: 2px solid var(--hud-neon-cyan); z-index: 100; pointer-events: none;
@@ -46,7 +44,6 @@
         .combat-screen-wrapper::before { top: 2px; left: 2px; border-right: 0; border-bottom: 0; }
         .combat-screen-wrapper::after { top: 2px; right: 2px; border-left: 0; border-bottom: 0; }
         
-        /* --- Core Split Pane Grid System --- */
         .tactical-display-core {
             position: relative;
             display: grid;
@@ -60,7 +57,6 @@
             .tactical-display-core { grid-template-columns: 3fr 1fr; }
         }
 
-        /* --- High-Tech Map Canvas Viewport --- */
         .map-viewport-frame {
             height: 480px;
             position: relative;
@@ -70,19 +66,16 @@
             z-index: 1;
         }
 
-        /* Inverting Map Textures to Severe Monochromatic Glow */
         .leaflet-layer {
             filter: invert(100%) hue-rotate(190deg) brightness(85%) contrast(140%) saturate(150%);
         }
 
-        /* --- CRT Scanline Glitch Overlays --- */
         .scanline-crt-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
             background-size: 100% 4px; z-index: 99; pointer-events: none; opacity: 0.7;
         }
 
-        /* --- Right-Side Telemetry Command Terminal --- */
         .hud-telemetry-terminal {
             background: var(--hud-panel-alpha);
             border: 1px solid rgba(0, 243, 255, 0.2);
@@ -107,7 +100,6 @@
         .log-line { border-left: 2px solid var(--hud-matrix-green); padding-left: 5px; margin-bottom: 4px; }
         .log-line.alert { border-color: var(--hud-neon-crimson); color: var(--hud-neon-crimson); }
 
-        /* --- Severe Interfacial Command Buttons --- */
         .c2-action-matrix {
             display: grid; grid-template-columns: 1fr; gap: 6px;
         }
@@ -137,7 +129,6 @@
             box-shadow: 0 0 12px var(--hud-neon-crimson);
         }
 
-        /* --- Custom Kinetic CSS Pulsing Map Blip --- */
         .mad-tactical-pulse-blip {
             width: 14px; height: 14px; background: var(--hud-neon-crimson);
             border-radius: 50%; box-shadow: 0 0 12px var(--hud-neon-crimson);
@@ -154,14 +145,12 @@
             100% { transform: scale(1.3); opacity: 0; }
         }
 
-        /* Leaflet Content Correction Styles */
         .leaflet-popup-content-wrapper {
             background: #04090f !important; border: 1px solid var(--hud-neon-cyan) !important;
             border-radius: 0px !important; color: #fff !important; font-family: var(--hud-font);
         }
         .leaflet-popup-tip { background: var(--hud-neon-cyan) !important; }
 
-        /* --- New Integration: Objective Search Matrix Styles --- */
         .search-objective-tray {
             display: flex;
             gap: 5px;
@@ -229,7 +218,7 @@
                     <div>
                         <div class="terminal-readout-header">SYSTEM TRACE LOGS</div>
                         <div class="terminal-log-box" id="terminal-log-stream">
-                            <div class="log-line">> CORRELATING GEO-CHANNELS...</div>
+                            <div class="log-line">> CLOUD SYNC: ONLINE</div>
                             <div class="log-line">> VECTOR MATRIX ONLINE.</div>
                             <div class="log-line" id="velocity-hud-node" style="color: var(--hud-neon-amber); font-weight: bold;">> VELOCITY: STATIC</div>
                         </div>
@@ -250,6 +239,7 @@
     <nav class="app-bottom-dock" style="border-top: 1px solid rgba(0, 243, 255, 0.3);">
         <a href="home.html" class="dock-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
         <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
+        <a href="map.html" class="dock-node"><span class="dock-node-glyph">🗺️</span><span>Map</span></a>
         <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
         <a href="admin.html" class="dock-node"><span class="dock-node-glyph">⚙️</span><span>Admin</span></a>
         <a href="emergency.html" class="dock-node dock-node-emergency"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
@@ -257,34 +247,65 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Your verified web app's Firebase configuration coordinates
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
+    };
+
+    // Initialize Connection Nodes
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     let mapInstance;
     let operationMarker;
     let destinationMarker;
     let routingVectorLine;
     let motionTrackingWatcherId = null;
     
-    // Cached internal core setup baseline coordinates
     let currentAgentLat = 7.3775;
     let currentAgentLng = 3.9470;
+    let currentSessionOfficer = null;
+    let sosMarkersMap = {}; // Tracks active cloud markers from other emergency beacons
 
-    window.onload = function() {
+    // Expose tactical functions to window context for click interaction
+    window.toggleActiveTracking = toggleActiveTracking;
+    window.forceRadarSweep = forceRadarSweep;
+    window.resetTrackingMatrix = resetTrackingMatrix;
+    window.searchTargetLocations = searchTargetLocations;
+
+    // Run Initialization Loop
+    window.addEventListener('DOMContentLoaded', () => {
         initializeZuluClock();
         
-        // Initialize mapping matrix framework
+        const sessionData = localStorage.getItem("session_user");
+        if (sessionData) {
+            currentSessionOfficer = JSON.parse(sessionData);
+        }
+
+        // Map layout instantiation
         mapInstance = L.map('combat-map-canvas', {
             zoomControl: false,
             attributionControl: false
         }).setView([currentAgentLat, currentAgentLng], 14);
 
-        // Inject deep ultra-dark tile mapping architecture
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             maxZoom: 19
         }).addTo(mapInstance);
 
         dropTacticalMarkerNode(currentAgentLat, currentAgentLng, "PRIMARY OPERATIONAL HQ");
         autoTriggerDeviceTracking();
-    };
+        listenToCloudSOSBeacons(); // Listens for incoming real-time cloud SOS alerts
+    });
 
     function dropTacticalMarkerNode(lat, lng, descriptor) {
         if (operationMarker) mapInstance.removeLayer(operationMarker);
@@ -296,10 +317,47 @@
         });
 
         operationMarker = L.marker([lat, lng], { icon: customBlipIcon }).addTo(mapInstance)
-            .bindPopup(`<div style="font-size:0.7rem; font-weight:bold; color:var(--hud-neon-cyan); font-family:monospace;">[CRITICAL NODE]<br>${descriptor}</div>`);
+            .bindPopup(`<div style="font-size:0.7rem; font-weight:bold; color:var(--hud-neon-cyan); font-family:monospace;">[MY SIGNATURE]<br>${descriptor}</div>`);
     }
 
-    /* --- Dynamic Destination Routing Subsystem --- */
+    /* --- Live Global Cloud SOS Broadcast Listener --- */
+    function listenToCloudSOSBeacons() {
+        pushTerminalLog("SYNCHRONIZING INTERCEPT STREAM...", false);
+        
+        // Listens live to the cloud 'sos_alerts' database collection
+        onSnapshot(collection(db, "sos_alerts"), (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                const data = change.doc.data();
+                const docId = change.doc.id;
+
+                // Bypass if the alert is from our own device signature
+                if (currentSessionOfficer && data.phone === currentSessionOfficer.phone) return;
+
+                if (change.type === "added" || change.type === "modified") {
+                    if (data.status === "ACTIVE") {
+                        pushTerminalLog(`⚠️ ALERT: SOS RECEIVED FROM ${data.name.toUpperCase()} (${data.rank})`, true);
+                        
+                        // Drop emergency beacon directly onto our tactical view
+                        if (sosMarkersMap[docId]) mapInstance.removeLayer(sosMarkersMap[docId]);
+
+                        const sosIcon = L.divIcon({
+                            className: 'mad-tactical-pulse-blip',
+                            iconSize: [14, 14],
+                            iconAnchor: [7, 7]
+                        });
+
+                        sosMarkersMap[docId] = L.marker([data.lat, data.lng], { icon: sosIcon }).addTo(mapInstance)
+                            .bindPopup(`<div style="font-size:0.7rem; font-weight:bold; color:var(--hud-neon-crimson); font-family:monospace;">🚨 [SOS INCOMING]<br>${data.name}<br>${data.rank}<br>VELOCITY: ${data.velocity}</div>`);
+                    } else if (data.status === "RESOLVED" && sosMarkersMap[docId]) {
+                        mapInstance.removeLayer(sosMarkersMap[docId]);
+                        delete sosMarkersMap[docId];
+                        pushTerminalLog(`SOS SIGNAL FROM ${data.name.toUpperCase()} CLEARED.`, false);
+                    }
+                }
+            });
+        });
+    }
+
     function searchTargetLocations(query) {
         const dropdown = document.getElementById("objective-results");
         if (query.trim().length < 3) {
@@ -307,7 +365,6 @@
             return;
         }
 
-        // OpenStreetMap Free Public Vector Geocoding Engine
         const requestUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=4`;
         
         fetch(requestUrl)
@@ -328,7 +385,7 @@
                 });
                 dropdown.style.display = "block";
             })
-            .catch(() => console.log("Network latency error on telemetry fetch link."));
+            .catch(() => console.log("Network latency on geocoding stream."));
     }
 
     function selectObjectiveTarget(lat, lon, label) {
@@ -338,13 +395,11 @@
         const targetLat = parseFloat(lat);
         const targetLng = parseFloat(lon);
 
-        pushTerminalLog(`TARGET LOCKED: PIPELINE DIRECTION COORD SET`, false);
+        pushTerminalLog(`TARGET LOCK: CALIBRATING DIRECT ROUTE LINK`, false);
 
-        // Remove old destination entities if existing
         if (destinationMarker) mapInstance.removeLayer(destinationMarker);
         if (routingVectorLine) mapInstance.removeLayer(routingVectorLine);
 
-        // Drop Destination Node Marker
         const targetBlipIcon = L.divIcon({
             className: 'mad-tactical-pulse-blip',
             iconSize: [14, 14],
@@ -354,7 +409,6 @@
         destinationMarker = L.marker([targetLat, targetLng], { icon: targetBlipIcon }).addTo(mapInstance)
             .bindPopup(`<div style="font-size:0.7rem; color:var(--hud-neon-amber); font-family:monospace;">[OBJECTIVE AREA]<br>${label.substring(0, 30)}...</div>`);
 
-        // Draw direct Tactical Vector Path connecting Agent to Destination
         routingVectorLine = L.polyline([
             [currentAgentLat, currentAgentLng],
             [targetLat, targetLng]
@@ -365,37 +419,54 @@
             opacity: 0.85
         }).addTo(mapInstance);
 
-        // Fit display viewport to encompass overall route geometry
         mapInstance.fitBounds(routingVectorLine.getBounds(), { padding: [40, 40] });
     }
 
-    /* --- Advanced Velocity Vector Motion Watcher --- */
     function autoTriggerDeviceTracking() {
         if (navigator.geolocation) {
             motionTrackingWatcherId = navigator.geolocation.watchPosition(
-                (pos) => {
+                async (pos) => {
                     currentAgentLat = pos.coords.latitude;
                     currentAgentLng = pos.coords.longitude;
                     
-                    // Drop internal coordinate marker update
-                    dropTacticalMarkerNode(currentAgentLat, currentAgentLng, "OPERATIVE LIVE LOCATION");
+                    dropTacticalMarkerNode(currentAgentLat, currentAgentLng, "OPERATIVE SIGNATURE RE-LOCKED");
                     
-                    // Parse live physical acceleration metrics
-                    const speedMeterSec = pos.coords.speed; // Returns velocity in meters per second
+                    const speedMeterSec = pos.coords.speed;
                     const velocityIndicator = document.getElementById("velocity-hud-node");
+                    let velocityText = "STATIC";
 
                     if (speedMeterSec === null || speedMeterSec <= 0.3) {
+                        velocityText = "STATIC";
                         velocityIndicator.textContent = "> VELOCITY: STATIC (NOT MOVING)";
                         velocityIndicator.style.color = "var(--hud-neon-amber)";
                     } else if (speedMeterSec > 0.3 && speedMeterSec <= 4.5) {
+                        velocityText = `PATROL (${(speedMeterSec * 3.6).toFixed(1)} KM/H)`;
                         velocityIndicator.textContent = `> VELOCITY: PATROL (SLOW - ${(speedMeterSec * 3.6).toFixed(1)} KM/H)`;
                         velocityIndicator.style.color = "var(--hud-matrix-green)";
                     } else {
+                        velocityText = `INTERCEPT (${(speedMeterSec * 3.6).toFixed(1)} KM/H)`;
                         velocityIndicator.textContent = `> VELOCITY: INTERCEPT (FAST - ${(speedMeterSec * 3.6).toFixed(1)} KM/H)`;
                         velocityIndicator.style.color = "var(--hud-neon-crimson)";
                     }
 
-                    // Dynamically update line if tracking is running active
+                    // Continuous telemetry streaming update loop if the user has an active SOS on the cloud
+                    if (currentSessionOfficer) {
+                        const activeSosRef = doc(db, "sos_alerts", currentSessionOfficer.phone);
+                        // Checks local storage context to evaluate transmission active status
+                        if (localStorage.getItem("active_sos_status") === "ACTIVE") {
+                            await setDoc(activeSosRef, {
+                                name: currentSessionOfficer.name,
+                                rank: currentSessionOfficer.rank,
+                                phone: currentSessionOfficer.phone,
+                                lat: currentAgentLat,
+                                lng: currentAgentLng,
+                                velocity: velocityText,
+                                status: "ACTIVE",
+                                timestamp: Date.now()
+                            }, { merge: true });
+                        }
+                    }
+
                     if (routingVectorLine) {
                         routingVectorLine.setLatLngs([
                             [currentAgentLat, currentAgentLng],
@@ -403,9 +474,7 @@
                         ]);
                     }
                 },
-                () => {
-                    pushTerminalLog("GEO-INTERCEPT TIMEOUT: ENFORCING STANDBY MODE.", true);
-                },
+                () => { console.log("Geolocation tracking interval cycle timeout."); },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         }

@@ -22,10 +22,10 @@
             <div class="radar-ring">
                 <img id="pfp-view-target" class="pfp-display" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>">
             </div>
-            <div class="status-pill-badge">Active</div>
+            <div class="status-pill-badge" id="terminal-status-pill">Offline</div>
         </div>
         
-        <input type="file" id="pfp-file-controller" accept="image/*" style="display: none;" onchange="processProfilePicture(this)">
+        <input type="file" id="pfp-file-controller" accept="image/*" style="display: none;">
 
         <section class="terminal-data-card">
             <div class="data-row-entry"><label>Name</label><span id="id-name">—</span></div>
@@ -38,7 +38,7 @@
             <div class="menu-action-node"><span>🗃️</span><span>View Duty Roster</span></div>
         </section>
 
-        <button class="btn-terminal-logout" onclick="executeDeviceLogout()">
+        <button class="btn-terminal-logout" id="logout-trigger-node">
             <span>Clear Access Session</span><span>🔒</span>
         </button>
     </main>
@@ -50,54 +50,106 @@
     </nav>
 </div>
 
-<script>
-    let sessionOfficer = null;
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+    import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
 
-    window.onload = function() {
-        const localSession = localStorage.getItem("session_user");
-        if (!localSession) {
-            window.location.href = "login.html";
-            return;
-        }
-        sessionOfficer = JSON.parse(localSession);
-        refreshProfileData();
+    // Standard CADRE Firebase configurations initialization matrix
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
     };
 
-    function refreshProfileData() {
-        const dbRecord = localStorage.getItem(`user_${sessionOfficer.phone}`);
-        if (dbRecord) {
-            const currentRecord = JSON.parse(dbRecord);
-            document.getElementById("id-name").textContent = currentRecord.name;
-            document.getElementById("id-rank").textContent = currentRecord.rank;
-            document.getElementById("id-phone").textContent = currentRecord.phone;
-            if (currentRecord.pfp) {
-                document.getElementById("pfp-view-target").src = currentRecord.pfp;
-            }
+    // Spin up operational database endpoints
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let activeUserDocRef = null;
+
+    // Monitor local session gate states
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            // Drop unauthenticated traffic straight to login trace routes
+            window.location.href = "login.html";
+        } else {
+            // Track the real-time status of user state documents via fallback phone UID profiles
+            // Assuming fallback profile metadata uses local storage mappings as fallback keys 
+            const savedPhone = localStorage.getItem("cached_operator_phone") || user.phoneNumber || user.uid;
+            
+            activeUserDocRef = doc(db, "users", savedPhone);
+            
+            // Build real-time stream node connection
+            onSnapshot(activeUserDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const profileData = docSnap.data();
+                    
+                    document.getElementById("id-name").textContent = profileData.name || "UNREGISTERED_OPERATOR";
+                    document.getElementById("id-rank").textContent = profileData.rank || "FIELD_UNIT";
+                    document.getElementById("id-phone").textContent = profileData.phone || savedPhone;
+                    document.getElementById("terminal-status-pill").textContent = "Active";
+                    
+                    if (profileData.pfp) {
+                        document.getElementById("pfp-view-target").src = profileData.pfp;
+                    }
+                }
+            }, (error) => {
+                console.error("C2 Telemetry drop intercepted on document listener: ", error);
+            });
         }
-    }
+    });
 
-    function triggerPfpInput() { document.getElementById("pfp-file-controller").click(); }
+    // Wire Up File Change Inputs
+    const fileController = document.getElementById("pfp-file-controller");
+    fileController.addEventListener("change", (e) => {
+        processProfilePicture(e.target);
+    });
 
+    /**
+     * Process avatar data payloads directly to Firestore user document
+     */
     function processProfilePicture(input) {
-        if (input.files && input.files[0]) {
+        if (input.files && input.files[0] && activeUserDocRef) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 const base64Image = e.target.result;
+                // Immediate interface patch
                 document.getElementById("pfp-view-target").src = base64Image;
 
-                const dbKey = `user_${sessionOfficer.phone}`;
-                const userObj = JSON.parse(localStorage.getItem(dbKey));
-                userObj.pfp = base64Image;
-                localStorage.setItem(dbKey, JSON.stringify(userObj));
-                localStorage.setItem("session_user", JSON.stringify(userObj));
+                try {
+                    // Update active cloud doc structure trace string data payload instantly
+                    await updateDoc(activeUserDocRef, {
+                        pfp: base64Image
+                    });
+                } catch (err) {
+                    console.error("Critical: Telemetry dropped uploading payload string sync", err);
+                }
             };
             reader.readAsDataURL(input.files[0]);
         }
     }
 
-    function executeDeviceLogout() {
-        localStorage.removeItem("session_user");
-        window.location.href = "login.html";
+    // Bind system event logout actions
+    document.getElementById("logout-trigger-node").addEventListener("click", () => {
+        signOut(auth).then(() => {
+            localStorage.removeItem("cached_operator_phone");
+            window.location.href = "login.html";
+        }).catch((err) => {
+            console.error("Logout authorization failure processing block exit: ", err);
+        });
+    });
+
+</script>
+
+<script>
+    // Global context UI handlers
+    function triggerPfpInput() { 
+        document.getElementById("pfp-file-controller").click(); 
     }
 </script>
 </body>

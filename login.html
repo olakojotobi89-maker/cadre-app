@@ -18,7 +18,7 @@
                 <p class="gateway-p">Authentication Protocol Required</p>
             </div>
 
-            <form onsubmit="handlePortalLogin(event)">
+            <form id="portal-login-form">
                 <div class="form-group">
                     <label>Registered Phone Number / Admin ID</label>
                     <input type="text" id="login-phone" class="form-field" placeholder="e.g. 08123456789" required>
@@ -41,9 +41,30 @@
     </main>
 </div>
 
-<script>
-    function handlePortalLogin(e) {
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Your verified web app's Firebase configuration coordinates
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
+    };
+
+    // Initialize Connection Nodes
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Bind login handler to the form submission interceptor
+    document.getElementById("portal-login-form").addEventListener("submit", handlePortalLogin);
+
+    async function handlePortalLogin(e) {
         e.preventDefault();
+        
         const phone = document.getElementById("login-phone").value.trim();
         const password = document.getElementById("login-password").value;
 
@@ -56,28 +77,41 @@
             };
             localStorage.setItem("session_user", JSON.stringify(adminSession));
             window.location.href = "admin.html";
-            return; // Terminate execution block here to bypass regular user lookup
-        }
-
-        // --- STANDARD PERSONNEL AUTHENTICATION PIPELINE ---
-        const dbUserKey = `user_${phone}`;
-        const localUserRecord = localStorage.getItem(dbUserKey);
-
-        if (!localUserRecord) {
-            alert("ACCESS DENIED: Credentials or Admin ID not recognized.");
             return;
         }
 
-        const parsedUser = JSON.parse(localUserRecord);
+        try {
+            // --- GLOBAL PERSONNEL CLOUD AUTHENTICATION PIPELINE ---
+            // Direct query trace checking the central 'users' collection for the phone identifier document
+            const userDocRef = doc(db, "users", phone);
+            const userSnapshot = await getDoc(userDocRef);
 
-        if (parsedUser.password !== password) {
-            alert("ACCESS DENIED: Invalid tactical authorization token.");
-            return;
+            if (!userSnapshot.exists()) {
+                alert("ACCESS DENIED: Credentials or Admin ID not recognized across cloud registry.");
+                return;
+            }
+
+            const parsedUser = userSnapshot.data();
+
+            // Password verification check
+            if (parsedUser.password !== password) {
+                alert("ACCESS DENIED: Invalid tactical authorization token.");
+                return;
+            }
+
+            // Establish secure active operational app session tokens locally for page transitions
+            localStorage.setItem("session_user", JSON.stringify(parsedUser));
+            
+            // Mirroring the profile record locally so other features don't break during migration
+            localStorage.setItem(`user_${phone}`, JSON.stringify(parsedUser));
+
+            // Forward verified personnel to tactical communications feed
+            window.location.href = "home.html";
+
+        } catch (error) {
+            console.error("Database connection failure context: ", error);
+            alert("SYSTEM ERROR: Secure transmission uplink interrupted. Check network connectivity.");
         }
-
-        // Establish secure app session tokens
-        localStorage.setItem("session_user", JSON.stringify(parsedUser));
-        window.location.href = "home.html";
     }
 </script>
 </body>

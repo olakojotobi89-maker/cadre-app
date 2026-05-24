@@ -227,12 +227,42 @@
     </nav>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Your verified web app's Firebase configuration coordinates
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
+        authDomain: "cadre-c2.firebaseapp.com",
+        projectId: "cadre-c2",
+        storageBucket: "cadre-c2.firebasestorage.app",
+        messagingSenderId: "428369478841",
+        appId: "1:428369478841:web:69f2d8068591ef70170768"
+    };
+
+    // Initialize Connection Nodes
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let currentSessionOfficer = null;
     let isAlertActive = false;
     let watchId = null;
     let mediaRecorder = null;
     let audioChunks = [];
     let micIntervalId = null;
+
+    // Expose interaction loops to structural window event nodes
+    window.handleSosInteraction = handleSosInteraction;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const sessionData = localStorage.getItem("session_user");
+        if (!sessionData) {
+            window.location.href = "login.html";
+            return;
+        }
+        currentSessionOfficer = JSON.parse(sessionData);
+    });
 
     function logToConsole(message, statusClass = '') {
         const consoleBox = document.getElementById("console-logs");
@@ -262,40 +292,33 @@
         
         logToConsole("SOS SIGNAL INITIATED", "status-critical");
 
-        // 1. Run Core Tactical Capture Pipelines
+        // Run Core Tactical Capture Pipelines
         trackLiveLocation();
         startMicrophoneCapture();
-        broadcastCommandCenterPayload();
+        broadcastCommandCenterPayload(true);
     }
 
     // --- DEACTIVATION MODULE ---
-    function requestSecureDeactivation() {
-        // Prompts officer for safety security gate override pin 
+    async function requestSecureDeactivation() {
         const enteredCode = prompt("SECURE SYSTEM COMMAND:\nEnter your Security Access Code to stand down distress beacon:");
-        
-        if (enteredCode === null) return; // User canceled operation
+        if (enteredCode === null) return; 
 
-        // Attempt to verify code from local storage user files
-        let isCodeValid = false;
+        logToConsole("VALIDATING SECURITY RECOVERY PATH...", "status-active");
+
         try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key.startsWith("user_")) {
-                    const profileData = JSON.parse(localStorage.getItem(key));
-                    if (profileData && profileData.password === enteredCode.trim()) {
-                        isCodeValid = true;
-                        break;
-                    }
-                }
-            }
-        } catch(e) {
-            console.error("Local records parse exception", e);
-        }
+            // Verify code directly against user doc file in Cloud Firestore
+            const userDocRef = doc(db, "users", currentSessionOfficer.phone);
+            const userSnap = await getDoc(userDocRef);
 
-        // If validation fails, drop a warning alert logs
-        if (!isCodeValid) {
-            alert("ACCESS DENIED: Invalid System Security Access Code. Surveillance pipeline continues.");
-            logToConsole("UNAUTHORIZED DEACTIVATION ATTEMPT INTERCEPTED", "status-critical");
+            if (!userSnap.exists() || userSnap.data().password !== enteredCode.trim()) {
+                alert("ACCESS DENIED: Invalid System Security Access Code. Surveillance pipeline continues.");
+                logToConsole("UNAUTHORIZED DEACTIVATION ATTEMPT INTERCEPTED", "status-critical");
+                return;
+            }
+            
+        } catch (error) {
+            console.error("Cloud verification breakdown: ", error);
+            alert("SECURITY INTERRUPT: Unable to contact authentication core array. Standing by.");
             return;
         }
 
@@ -311,7 +334,6 @@
         // Stop Audio Capture Engine Completely
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
-            // Stop mic media tracks to release hardware light
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
         if (micIntervalId) {
@@ -330,14 +352,11 @@
         logToConsole("ALL CAPTURE PIPELINES DISCONNECTED", "status-resolved");
         logToConsole("BEACON TRANSMISSION TERMINATED CLEANLY", "status-resolved");
 
-        // Broadcast resolution down to Admin Dashboard
-        localStorage.setItem("admin_panic_state_trigger", JSON.stringify({
-            active: false,
-            resolvedTime: new Date().toISOString()
-        }));
+        // Clear active telemetry signal state directly from Firestore array
+        broadcastCommandCenterPayload(false);
     }
 
-    // FEATURE 1: Continuous Geo-location Tracking Engine with Dynamic High/Standard Fallbacks
+    // FEATURE 1: Continuous Geo-location Tracking Engine with Cloud Firestore Updates
     function trackLiveLocation() {
         if (!navigator.geolocation) {
             logToConsole("GPS MODULE UNSUPPORTED", "status-critical");
@@ -347,36 +366,31 @@
         logToConsole("ACQUIRING TELEMETRY LOCK...", "status-active");
 
         watchId = navigator.geolocation.watchPosition(
-            (position) => {
+            async (position) => {
                 const lat = position.coords.latitude.toFixed(5);
                 const lng = position.coords.longitude.toFixed(5);
                 logToConsole(`LOC LOCK: LAT ${lat} | LNG ${lng}`, "status-active");
 
-                const transmissionPacket = {
-                    event: "CRITICAL_DISTRESS_TELEMETRY",
-                    timestamp: new Date().toISOString(),
-                    coordinates: { latitude: lat, longitude: lng }
-                };
-
-                localStorage.setItem("last_distress_coordinates", JSON.stringify(transmissionPacket));
+                await updateDistressPayload({
+                    coordinates: { latitude: lat, longitude: lng },
+                    lastTelemetryTimestamp: Date.now()
+                });
             },
             (error) => {
                 logToConsole(`GPS FAULT: ${error.message}`, "status-critical");
                 
-                // FALLBACK: If high accuracy locks time out on devices without dedicated GPS hardware chips, retry with standard constraints
                 if (error.code === error.TIMEOUT) {
                     logToConsole("RETRYING IN STANDARD PRECISION MODE...", "status-active");
                     navigator.geolocation.getCurrentPosition(
-                        (pos) => {
+                        async (pos) => {
                             const lat = pos.coords.latitude.toFixed(5);
                             const lng = pos.coords.longitude.toFixed(5);
                             logToConsole(`LOC LOCK (FALLBACK): LAT ${lat} | LNG ${lng}`, "status-active");
                             
-                            localStorage.setItem("last_distress_coordinates", JSON.stringify({
-                                event: "CRITICAL_DISTRESS_TELEMETRY",
-                                timestamp: new Date().toISOString(),
-                                coordinates: { latitude: lat, longitude: lng }
-                            }));
+                            await updateDistressPayload({
+                                coordinates: { latitude: lat, longitude: lng },
+                                lastTelemetryTimestamp: Date.now()
+                            });
                         },
                         (fallbackErr) => {
                             logToConsole(`FALLBACK FAULT: ${fallbackErr.message}`, "status-critical");
@@ -387,8 +401,8 @@
             },
             { 
                 enableHighAccuracy: true, 
-                timeout: 15000,        /* Extended buffer limit constraint to 15 seconds */
-                maximumAge: 5000        /* Permits cached metrics under 5 seconds */
+                timeout: 15000,        
+                maximumAge: 5000        
             }
         );
     }
@@ -413,20 +427,24 @@
 
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
-                reader.onloadend = () => {
+                reader.onloadend = async () => {
                     const base64Audio = reader.result;
-                    localStorage.setItem("distress_audio_payload", base64Audio);
-                    logToConsole("PAYLOAD SHIPPED TO DASHBOARD", "status-active");
+                    
+                    await updateDistressPayload({
+                        audioPayload: base64Audio,
+                        lastAudioTimestamp: Date.now()
+                    });
+                    logToConsole("PAYLOAD SHIPPED TO DASHBOARD ARRAY", "status-active");
                 };
             };
 
             mediaRecorder.start();
             logToConsole("RECORDING LIVE SURVEILLANCE BUFFER", "status-critical");
 
-            // Segment loop controller
             micIntervalId = setInterval(() => {
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
+                    audioChunks = []; // Clean workspace buffer for fresh capture packet
                     mediaRecorder.start();
                 }
             }, 7000);
@@ -436,19 +454,42 @@
         }
     }
 
-    // FEATURE 3: Inter-unit Alert, Mobile Haptic Vibrations, Dashboard Broadcast Execution
-    function broadcastCommandCenterPayload() {
-        if (navigator.vibrate) {
+    // FEATURE 3: Structural Matrix State Helpers
+    async function broadcastCommandCenterPayload(activeState) {
+        if (activeState && navigator.vibrate) {
             navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
         }
 
-        logToConsole("ALERTS BLOWN TO NEARBY UNITS", "status-critical");
-        logToConsole("COMMAND CENTER VIBRATION SIGNAL PIPED", "status-critical");
+        try {
+            const distressDocRef = doc(db, "distress_signals", currentSessionOfficer.phone);
+            
+            if (activeState) {
+                logToConsole("ALERTS BLOWN TO COMMAND CENTER ROSTER", "status-critical");
+                await setDoc(distressDocRef, {
+                    officerName: currentSessionOfficer.name,
+                    officerRank: currentSessionOfficer.rank,
+                    officerPhone: currentSessionOfficer.phone,
+                    active: true,
+                    initiatedAt: Date.now()
+                }, { merge: true });
+            } else {
+                // Remove trace log structural document entirely once cleared securely
+                await deleteDoc(distressDocRef);
+                logToConsole("COMMAND DASHBOARD ARRAY CLEARED SUCCESS", "status-resolved");
+            }
+        } catch (err) {
+            console.error("Dashboard notification broadcast loop issue: ", err);
+        }
+    }
 
-        localStorage.setItem("admin_panic_state_trigger", JSON.stringify({
-            active: true,
-            alertTime: new Date().toISOString()
-        }));
+    async function updateDistressPayload(dataPacket) {
+        if (!isAlertActive) return;
+        try {
+            const distressDocRef = doc(db, "distress_signals", currentSessionOfficer.phone);
+            await setDoc(distressDocRef, dataPacket, { merge: true });
+        } catch (err) {
+            console.error("Distress coordinate payload transfer failed: ", err);
+        }
     }
 </script>
 </body>
