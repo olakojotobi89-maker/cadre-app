@@ -107,7 +107,7 @@
                 
                 <div class="form-group">
                     <label>Create Security Access Code</label>
-                    <input type="password" id="reg-password" class="form-field" placeholder="••••••••" minlength="4" required>
+                    <input type="password" id="reg-password" class="form-field" placeholder="••••••••" minlength="6" required>
                 </div>
 
                 <button type="submit" class="btn-auth-action">Generate System Preview</button>
@@ -150,9 +150,9 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
 
-    // Your verified web app's Firebase configuration coordinates
     const firebaseConfig = {
         apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
         authDomain: "cadre-c2.firebaseapp.com",
@@ -164,15 +164,14 @@
 
     // Initialize Connection Nodes
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
     const db = getFirestore(app);
 
     let stagedPersonnelRecord = null;
 
-    // Attach form execution interceptor
     document.getElementById("profile-registration-form").addEventListener("submit", interceptAndPreview);
     document.getElementById("confirm-deploy-btn").addEventListener("click", commitPersonnelRecord);
 
-    // Make window close callback accessible to layout markers
     window.closePreviewGate = closePreviewGate;
 
     async function interceptAndPreview(e) {
@@ -183,8 +182,14 @@
         const phone = document.getElementById("reg-phone").value.replace(/[\s\-\(\)]+/g, '');
         const password = document.getElementById("reg-password").value;
 
+        // Passwords for Firebase Auth must be at least 6 characters
+        if (password.length < 6) {
+            alert("SECURITY ERROR: Access code must be at least 6 characters long.");
+            return;
+        }
+
         try {
-            // Check global cloud registry for duplication signatures
+            // Check global cloud registry for duplicates
             const userDocRef = doc(db, "users", phone);
             const userSnapshot = await getDoc(userDocRef);
             
@@ -197,7 +202,7 @@
                 name: name,
                 rank: rank,
                 phone: phone,
-                password: password,
+                password: password, // For cross-verification purposes if needed
                 pfp: ""
             };
 
@@ -209,7 +214,7 @@
 
         } catch (error) {
             console.error("Cloud validation error context: ", error);
-            alert("UPLINK FAULT: Unable to verify cloud roster availability.");
+            alert("UPLINK FAULT: Unable to verify cloud roster availability. Ensure your Firestore Rules allow testing or read/write access.");
         }
     }
 
@@ -221,8 +226,21 @@
     async function commitPersonnelRecord() {
         if (!stagedPersonnelRecord) return;
 
+        const confirmBtn = document.getElementById("confirm-deploy-btn");
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = "Deploying...";
+
         try {
-            // Write to shared cloud collection with phone as explicit doc structural ID
+            // Create virtual synthetic email format out of the phone number so Firebase Auth accepts it natively
+            const syntheticEmail = `${stagedPersonnelRecord.phone}@cadre-c2.local`;
+
+            // Step 1: Register credentials safely inside Firebase Authentication Engine
+            const userCredential = await createUserWithEmailAndPassword(auth, syntheticEmail, stagedPersonnelRecord.password);
+            
+            // Save the phone coordinates safely to local storage so profile.html can read it immediately on redirect
+            localStorage.setItem("cached_operator_phone", stagedPersonnelRecord.phone);
+
+            // Step 2: Write account object payload parameters straight down to Firestore collection
             const targetDocRef = doc(db, "users", stagedPersonnelRecord.phone);
             await setDoc(targetDocRef, stagedPersonnelRecord);
             
@@ -231,7 +249,9 @@
             
         } catch (error) {
             console.error("Data push runtime error: ", error);
-            alert("DEPLOYMENT CRASH: Intercepted an uplink connection timeout. Record not saved.");
+            alert(`DEPLOYMENT CRASH: ${error.message}`);
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = "Confirm & Deploy";
         }
     }
 </script>
