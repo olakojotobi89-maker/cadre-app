@@ -9,7 +9,7 @@
         /* --- Tactical Navigation Extensions --- */
         .app-bottom-dock {
             display: grid !important;
-            grid-template-columns: repeat(5, 1fr) !important; /* Reconfigured dock grid for 5 elements */
+            grid-template-columns: repeat(6, 1fr) !important; /* Expanded dock grid for 6 tactical elements */
         }
         
         .dock-node-emergency {
@@ -65,6 +65,7 @@
     <nav class="app-bottom-dock">
         <a href="home.html" class="dock-node active-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
         <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
+        <a href="map.html" class="dock-node"><span class="dock-node-glyph">🗺️</span><span>Map</span></a>
         <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
         <a href="#" class="dock-node" onclick="checkAdminAccess(event)"><span class="dock-node-glyph">⚙️</span><span>Admin</span></a>
         <a href="emergency.html" class="dock-node dock-node-emergency"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
