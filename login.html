@@ -41,10 +41,10 @@
 </div>
 
 <script>
-    // 1. Initialize Supabase
+    // FIX: Renamed client to 'sbClient' to avoid conflict with global 'supabase'
     const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
     const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     document.getElementById("portal-login-form").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -52,8 +52,8 @@
         const email = document.getElementById("login-email").value.trim();
         const password = document.getElementById("login-password").value;
 
-        // Login with Supabase Auth
-        const { data, error } = await supabase.auth.signInWithPassword({
+        // FIX: Use 'sbClient' to reference the initialized instance
+        const { data, error } = await sbClient.auth.signInWithPassword({
             email: email,
             password: password,
         });

@@ -188,7 +188,6 @@
 
 <div class="app-container">
     <main class="emergency-wrapper">
-        
         <div class="panic-card" id="panic-panel">
             <div class="gateway-title-block">
                 <h1 class="gateway-h1" id="beacon-headline" style="color: var(--hud-crimson);">DISTRESS TRANSMITTER</h1>
@@ -210,7 +209,6 @@
                 <a href="home.html" style="color: var(--text-dim); text-decoration: none;">← Abort & Return to Feed</a>
             </div>
         </div>
-
     </main>
 
     <nav class="app-bottom-dock">
@@ -222,7 +220,10 @@
 </div>
 
 <script>
-    const supabase = supabase.createClient('https://ihroattnnnsckvvbosfz.supabase.co', 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX');
+    // FIX: Renamed client to 'sbClient' to avoid global declaration conflict
+    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+    const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+    const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let currentSessionOfficer = null;
     let isAlertActive = false;
@@ -255,7 +256,8 @@
         logToConsole("CONNECTING SECURE IDENT NODE...", "status-active");
         
         try {
-            const { data, error } = await supabase.from("users").select("*").eq("phone", savedPhone).single();
+            // FIX: Use sbClient
+            const { data, error } = await sbClient.from("users").select("*").eq("phone", savedPhone).single();
             if (data) {
                 currentSessionOfficer = data;
                 logToConsole(`OPERATOR IDENTIFIED: ${currentSessionOfficer.name.toUpperCase()}`, "status-resolved");
@@ -294,10 +296,8 @@
 
     function initiateDistressProtocol() {
         isAlertActive = true;
-        
         document.getElementById("sos-container").classList.add("active-alert");
         document.getElementById("action-btn").textContent = "STAND DOWN";
-        
         logToConsole("SOS SIGNAL INITIATED", "status-critical");
 
         trackLiveLocation();
@@ -312,7 +312,8 @@
         logToConsole("VALIDATING SECURITY RECOVERY PATH...", "status-active");
 
         try {
-            const { data } = await supabase.from("users").select("password").eq("phone", currentSessionOfficer.phone).single();
+            // FIX: Use sbClient
+            const { data } = await sbClient.from("users").select("password").eq("phone", currentSessionOfficer.phone).single();
             const passToCheck = (data && data.password) ? data.password : "1234";
 
             if (enteredCode.trim() !== passToCheck) {
@@ -325,20 +326,12 @@
         }
 
         isAlertActive = false;
-        
-        if (watchId !== null) {
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
-        }
-
+        if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
-        if (micIntervalId) {
-            clearInterval(micIntervalId);
-            micIntervalId = null;
-        }
+        if (micIntervalId) { clearInterval(micIntervalId); micIntervalId = null; }
 
         document.getElementById("sos-container").classList.remove("active-alert");
         document.getElementById("panic-panel").classList.add("status-safe");
@@ -358,7 +351,6 @@
             logToConsole("GPS MODULE UNSUPPORTED", "status-critical");
             return;
         }
-
         logToConsole("ACQUIRING TELEMETRY LOCK...", "status-active");
 
         watchId = navigator.geolocation.watchPosition(
@@ -366,15 +358,12 @@
                 const lat = position.coords.latitude.toFixed(5);
                 const lng = position.coords.longitude.toFixed(5);
                 logToConsole(`LOC LOCK: LAT ${lat} | LNG ${lng}`, "status-active");
-
                 await updateDistressPayload({
                     coordinates: { latitude: lat, longitude: lng },
                     lastTelemetryTimestamp: Date.now()
                 });
             },
-            (error) => {
-                logToConsole(`GPS DATA RECORDED STANDBY`, "status-active");
-            },
+            (error) => { logToConsole(`GPS DATA RECORDED STANDBY`, "status-active"); },
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
         );
     }
@@ -383,7 +372,6 @@
         try {
             logToConsole("ACCESSING MICROPHONE PIPELINE...", "status-active");
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
 
@@ -395,7 +383,6 @@
                 if (audioChunks.length === 0) return;
                 const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                 logToConsole("AUDIO BUNDLED. DISPATCHING BATCH...", "status-active");
-
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
                 reader.onloadend = async () => {
@@ -407,10 +394,8 @@
                     logToConsole("PAYLOAD SHIPPED TO DASHBOARD ARRAY", "status-active");
                 };
             };
-
             mediaRecorder.start();
             logToConsole("RECORDING LIVE SURVEILLANCE BUFFER", "status-critical");
-
             micIntervalId = setInterval(() => {
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
@@ -418,23 +403,17 @@
                     mediaRecorder.start();
                 }
             }, 7000);
-
-        } catch (err) {
-            logToConsole(`MIC ASSIGNMENT BYPASSED`, "status-active");
-        }
+        } catch (err) { logToConsole(`MIC ASSIGNMENT BYPASSED`, "status-active"); }
     }
 
     async function broadcastCommandCenterPayload(activeState) {
-        if (activeState && navigator.vibrate) {
-            navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
-        }
-
+        if (activeState && navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
         try {
             const tableName = "distress_signals";
-            
             if (activeState) {
                 logToConsole("ALERTS BLOWN TO COMMAND CENTER ROSTER", "status-critical");
-                await supabase.from(tableName).upsert({
+                // FIX: Use sbClient
+                await sbClient.from(tableName).upsert({
                     officerPhone: currentSessionOfficer.phone,
                     officerName: currentSessionOfficer.name,
                     officerRank: currentSessionOfficer.rank,
@@ -442,21 +421,19 @@
                     initiatedAt: Date.now()
                 });
             } else {
-                await supabase.from(tableName).delete().eq("officerPhone", currentSessionOfficer.phone);
+                // FIX: Use sbClient
+                await sbClient.from(tableName).delete().eq("officerPhone", currentSessionOfficer.phone);
                 logToConsole("COMMAND DASHBOARD ARRAY CLEARED SUCCESS", "status-resolved");
             }
-        } catch (err) {
-            console.error("Dashboard notification broadcast loop issue: ", err);
-        }
+        } catch (err) { console.error("Dashboard notification broadcast loop issue: ", err); }
     }
 
     async function updateDistressPayload(dataPacket) {
         if (!isAlertActive) return;
         try {
-            await supabase.from("distress_signals").update(dataPacket).eq("officerPhone", currentSessionOfficer.phone);
-        } catch (err) {
-            console.error(err);
-        }
+            // FIX: Use sbClient
+            await sbClient.from("distress_signals").update(dataPacket).eq("officerPhone", currentSessionOfficer.phone);
+        } catch (err) { console.error(err); }
     }
 </script>
 </body>

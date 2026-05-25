@@ -53,14 +53,13 @@
 </div>
 
 <script>
-    // Initialize Supabase
+    // FIX: Renamed local instance to 'sbClient' to avoid conflict with global 'supabase'
     const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
     const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let stagedData = null;
 
-    // Handle Form Submission
     document.getElementById("profile-registration-form").addEventListener("submit", (e) => {
         e.preventDefault();
         stagedData = {
@@ -70,15 +69,14 @@
             password: document.getElementById("reg-password").value
         };
         
-        // Populate and show the preview section
         document.getElementById("preview-target-name").textContent = stagedData.name;
         document.getElementById("preview-target-rank").textContent = stagedData.rank;
         document.getElementById("preview-gate-shield").style.display = "block";
     });
 
-    // Handle Deployment
     document.getElementById("confirm-deploy-btn").addEventListener("click", async () => {
-        const { data, error } = await supabase.auth.signUp({
+        // FIX: Use 'sbClient' instead of 'supabase'
+        const { data, error } = await sbClient.auth.signUp({
             email: stagedData.email,
             password: stagedData.password,
             options: {
