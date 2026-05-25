@@ -6,7 +6,7 @@
     <title>CADRE - Initialize Profile</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    </head>
+</head>
 <body>
 
 <div class="app-container">
@@ -28,7 +28,7 @@
                     <input type="text" id="reg-rank" class="form-field" placeholder="e.g. Inspector" required>
                 </div>
                 <div class="form-group">
-                    <label>Email (For Authentication)</label>
+                    <label>Email</label>
                     <input type="email" id="reg-email" class="form-field" placeholder="operator@cadre.com" required>
                 </div>
                 <div class="form-group">
@@ -38,22 +38,29 @@
                 <button type="submit" class="btn-auth-action">Generate System Preview</button>
             </form>
 
+            <div id="preview-gate-shield" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ccc;">
+                <h3>Preview: <span id="preview-target-name"></span></h3>
+                <p>Rank: <span id="preview-target-rank"></span></p>
+                <button id="confirm-deploy-btn" class="btn-auth-action" style="background: green;">Confirm & Initialize</button>
+            </div>
+
             <div class="gateway-footer-link">
                 <span style="color: var(--text-dim);">Already Registered?</span> 
                 <a href="login.html">Access System</a>
             </div>
         </div>
     </main>
-
-    </div>
+</div>
 
 <script>
+    // Initialize Supabase
     const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
     const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
     const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
     let stagedData = null;
 
+    // Handle Form Submission
     document.getElementById("profile-registration-form").addEventListener("submit", (e) => {
         e.preventDefault();
         stagedData = {
@@ -63,14 +70,14 @@
             password: document.getElementById("reg-password").value
         };
         
-        // Show preview
+        // Populate and show the preview section
         document.getElementById("preview-target-name").textContent = stagedData.name;
         document.getElementById("preview-target-rank").textContent = stagedData.rank;
-        document.getElementById("preview-gate-shield").style.display = "flex";
+        document.getElementById("preview-gate-shield").style.display = "block";
     });
 
+    // Handle Deployment
     document.getElementById("confirm-deploy-btn").addEventListener("click", async () => {
-        // 1. Sign Up User
         const { data, error } = await supabase.auth.signUp({
             email: stagedData.email,
             password: stagedData.password,
@@ -85,8 +92,6 @@
         if (error) {
             alert("DEPLOYMENT CRASH: " + error.message);
         } else {
-            // Note: Since we set up a Trigger earlier, the 'users' table 
-            // will be automatically populated with the profile data!
             alert("SUCCESS: Profile initialized.");
             window.location.href = "login.html";
         }
