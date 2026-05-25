@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CADRE - System Access Portal</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <div class="app-container">
     <main class="gateway-wrapper">
-        
         <div class="gateway-card">
             <div class="gateway-title-block">
                 <img src="Cadre logo png.jpg" alt="CADRE Emblem" class="gateway-emblem">
@@ -20,8 +20,8 @@
 
             <form id="portal-login-form">
                 <div class="form-group">
-                    <label>Registered Phone Number / Admin ID</label>
-                    <input type="text" id="login-phone" class="form-field" placeholder="e.g. 08123456789" required>
+                    <label>Email Address</label>
+                    <input type="email" id="login-email" class="form-field" placeholder="operator@cadre.com" required>
                 </div>
                 
                 <div class="form-group">
@@ -37,82 +37,34 @@
                 <a href="index.html">Initialize Profile</a>
             </div>
         </div>
-
     </main>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+<script>
+    // 1. Initialize Supabase
+    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+    const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // Your verified web app's Firebase configuration coordinates
-    const firebaseConfig = {
-        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
-        authDomain: "cadre-c2.firebaseapp.com",
-        projectId: "cadre-c2",
-        storageBucket: "cadre-c2.firebasestorage.app",
-        messagingSenderId: "428369478841",
-        appId: "1:428369478841:web:69f2d8068591ef70170768"
-    };
-
-    // Initialize Connection Nodes
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // Bind login handler to the form submission interceptor
-    document.getElementById("portal-login-form").addEventListener("submit", handlePortalLogin);
-
-    async function handlePortalLogin(e) {
+    document.getElementById("portal-login-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         
-        const phone = document.getElementById("login-phone").value.trim();
+        const email = document.getElementById("login-email").value.trim();
         const password = document.getElementById("login-password").value;
 
-        // --- COMMAND CENTER ADMIN BYPASS INTERCEPT ---
-        if (phone === "Cadre" && password === "CDR123") {
-            const adminSession = {
-                name: "Command Center Admin",
-                rank: "HQ_TACTICAL_ADMIN",
-                phone: "ADMIN_NODE"
-            };
-            localStorage.setItem("session_user", JSON.stringify(adminSession));
-            window.location.href = "admin.html";
-            return;
-        }
+        // Login with Supabase Auth
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+        });
 
-        try {
-            // --- GLOBAL PERSONNEL CLOUD AUTHENTICATION PIPELINE ---
-            // Direct query trace checking the central 'users' collection for the phone identifier document
-            const userDocRef = doc(db, "users", phone);
-            const userSnapshot = await getDoc(userDocRef);
-
-            if (!userSnapshot.exists()) {
-                alert("ACCESS DENIED: Credentials or Admin ID not recognized across cloud registry.");
-                return;
-            }
-
-            const parsedUser = userSnapshot.data();
-
-            // Password verification check
-            if (parsedUser.password !== password) {
-                alert("ACCESS DENIED: Invalid tactical authorization token.");
-                return;
-            }
-
-            // Establish secure active operational app session tokens locally for page transitions
-            localStorage.setItem("session_user", JSON.stringify(parsedUser));
-            
-            // Mirroring the profile record locally so other features don't break during migration
-            localStorage.setItem(`user_${phone}`, JSON.stringify(parsedUser));
-
-            // Forward verified personnel to tactical communications feed
+        if (error) {
+            alert("ACCESS DENIED: " + error.message);
+        } else {
+            // Session is automatically saved by Supabase
             window.location.href = "home.html";
-
-        } catch (error) {
-            console.error("Database connection failure context: ", error);
-            alert("SYSTEM ERROR: Secure transmission uplink interrupted. Check network connectivity.");
         }
-    }
+    });
 </script>
 </body>
 </html>

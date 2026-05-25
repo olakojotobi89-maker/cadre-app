@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CADRE - Tactical Distress Portal</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* --- Tactical Emergency System Overrides --- */
         :root {
@@ -220,22 +221,8 @@
     </nav>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
-        authDomain: "cadre-c2.firebaseapp.com",
-        projectId: "cadre-c2",
-        storageBucket: "cadre-c2.firebasestorage.app",
-        messagingSenderId: "428369478841",
-        appId: "1:428369478841:web:69f2d8068591ef70170768"
-    };
-
-    // Initialize Connection Nodes
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+<script>
+    const supabase = supabase.createClient('https://ihroattnnnsckvvbosfz.supabase.co', 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX');
 
     let currentSessionOfficer = null;
     let isAlertActive = false;
@@ -244,12 +231,9 @@
     let audioChunks = [];
     let micIntervalId = null;
 
-    // CRITICAL FIX: Bind the interaction handler IMMEDIATELY to the window object
     window.handleSosInteraction = handleSosInteraction;
 
-    // Run session mapping as soon as script mounts
     (async function initSession() {
-        // Fallback checks across both historical storage key formats
         let savedPhone = localStorage.getItem("cached_operator_phone");
         
         if (!savedPhone) {
@@ -271,18 +255,15 @@
         logToConsole("CONNECTING SECURE IDENT NODE...", "status-active");
         
         try {
-            const docRef = doc(db, "users", savedPhone);
-            const docSnap = await getDoc(docRef);
-            
-            if (docSnap.exists()) {
-                currentSessionOfficer = docSnap.data();
+            const { data, error } = await supabase.from("users").select("*").eq("phone", savedPhone).single();
+            if (data) {
+                currentSessionOfficer = data;
                 logToConsole(`OPERATOR IDENTIFIED: ${currentSessionOfficer.name.toUpperCase()}`, "status-resolved");
             } else {
                 logToConsole("PROFILE SIG MISSING IN CLOUD. CREATING LOCAL REF...", "status-active");
                 currentSessionOfficer = { phone: savedPhone, name: "Field Agent", rank: "Operational Operator" };
             }
         } catch (err) {
-            console.error(err);
             logToConsole("OFFLINE MODE FORCED: NETWORK UPLINK FAILURE", "status-active");
             currentSessionOfficer = { phone: savedPhone, name: "Field Agent", rank: "Operational Operator" };
         }
@@ -299,7 +280,6 @@
     }
 
     function handleSosInteraction() {
-        // If profile authentication takes a second, create an immediate temporary backup object so the button works natively
         if (!currentSessionOfficer) {
             const fallbackPhone = localStorage.getItem("cached_operator_phone") || "0000000000";
             currentSessionOfficer = { phone: fallbackPhone, name: "Field Agent", rank: "Emergency Responder" };
@@ -332,20 +312,15 @@
         logToConsole("VALIDATING SECURITY RECOVERY PATH...", "status-active");
 
         try {
-            const userDocRef = doc(db, "users", currentSessionOfficer.phone);
-            const userSnap = await getDoc(userDocRef);
-
-            // Safety fallback if database rules prevent unauthenticated reading during clear sequence
-            const passToCheck = (userSnap.exists() && userSnap.data().password) ? userSnap.data().password : "1234";
+            const { data } = await supabase.from("users").select("password").eq("phone", currentSessionOfficer.phone).single();
+            const passToCheck = (data && data.password) ? data.password : "1234";
 
             if (enteredCode.trim() !== passToCheck) {
                 alert("ACCESS DENIED: Invalid System Security Access Code. Surveillance pipeline continues.");
                 logToConsole("UNAUTHORIZED DEACTIVATION ATTEMPT INTERCEPTED", "status-critical");
                 return;
             }
-            
         } catch (error) {
-            console.error(error);
             logToConsole("LOCAL DEFENSE OVERRIDE ENABLED FOR CLEARANCE", "status-resolved");
         }
 
@@ -455,19 +430,19 @@
         }
 
         try {
-            const distressDocRef = doc(db, "distress_signals", currentSessionOfficer.phone);
+            const tableName = "distress_signals";
             
             if (activeState) {
                 logToConsole("ALERTS BLOWN TO COMMAND CENTER ROSTER", "status-critical");
-                await setDoc(distressDocRef, {
+                await supabase.from(tableName).upsert({
+                    officerPhone: currentSessionOfficer.phone,
                     officerName: currentSessionOfficer.name,
                     officerRank: currentSessionOfficer.rank,
-                    officerPhone: currentSessionOfficer.phone,
                     active: true,
                     initiatedAt: Date.now()
-                }, { merge: true });
+                });
             } else {
-                await deleteDoc(distressDocRef);
+                await supabase.from(tableName).delete().eq("officerPhone", currentSessionOfficer.phone);
                 logToConsole("COMMAND DASHBOARD ARRAY CLEARED SUCCESS", "status-resolved");
             }
         } catch (err) {
@@ -478,8 +453,7 @@
     async function updateDistressPayload(dataPacket) {
         if (!isAlertActive) return;
         try {
-            const distressDocRef = doc(db, "distress_signals", currentSessionOfficer.phone);
-            await setDoc(distressDocRef, dataPacket, { merge: true });
+            await supabase.from("distress_signals").update(dataPacket).eq("officerPhone", currentSessionOfficer.phone);
         } catch (err) {
             console.error(err);
         }

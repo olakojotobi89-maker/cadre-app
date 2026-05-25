@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CADRE - Operational Library</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -38,89 +39,73 @@
     </nav>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+<script>
+    // Supabase Configuration
+    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+    const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // Your verified web app's Firebase configuration coordinates
-    const firebaseConfig = {
-        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
-        authDomain: "cadre-c2.firebaseapp.com",
-        projectId: "cadre-c2",
-        storageBucket: "cadre-c2.firebasestorage.app",
-        messagingSenderId: "428369478841",
-        appId: "1:428369478841:web:69f2d8068591ef70170768"
-    };
-
-    // Initialize Connection Nodes
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // Expose layout functional tracking pipelines to DOM interaction events
     window.toggleLibraryAccordion = toggleLibraryAccordion;
     window.filterLibraryModules = filterLibraryModules;
 
     window.addEventListener('DOMContentLoaded', () => {
-        // Enforce secure user credential check prior to parsing module logs
         if (!localStorage.getItem("session_user")) {
             window.location.href = "login.html";
             return;
         }
-
-        // Establish connection to live documentation manifest array
         streamOperationalManuals();
     });
 
     /**
      * Real-Time Documentation Database Synchronization Engine
      */
-    function streamOperationalManuals() {
+    async function streamOperationalManuals() {
         const targetContainer = document.getElementById("library-content-container");
-        const modulesQuery = query(collection(db, "ebook_modules"), orderBy("order", "asc"));
+        
+        // Fetch data from Supabase
+        const { data: manuals, error } = await supabase
+            .from('ebook_modules')
+            .select('*')
+            .order('order', { ascending: true });
 
-        onSnapshot(modulesQuery, (snapshot) => {
-            targetContainer.innerHTML = "";
-
-            if (snapshot.empty) {
-                targetContainer.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;">NO OPERATIONAL MANUALS FOUND IN REGISTRY.</div>`;
-                return;
-            }
-
-            snapshot.forEach((doc) => {
-                const manual = doc.data();
-                
-                // Fallback default clean strings to protect container injection cycles
-                const title = manual.title ? manual.title.toUpperCase() : "UNTITLED OPERATIONAL MANUAL";
-                const content = manual.content ? manual.content : "No documentation details supplied for this segment node.";
-                const keywords = manual.keywords ? manual.keywords.toLowerCase() : "";
-
-                const docItem = document.createElement("div");
-                docItem.className = "doc-item searchable-module-node";
-                docItem.setAttribute("data-keywords", keywords);
-                
-                docItem.innerHTML = `
-                    <div class="doc-header" onclick="toggleLibraryAccordion(this)">
-                        <span>${escapeHTML(title)}</span>
-                        <span class="accordion-arrow-indicator">▼</span>
-                    </div>
-                    <div class="doc-body" style="display: none;">
-                        <div class="article-block">
-                            <p style="white-space: pre-wrap; line-height: 1.5;">${escapeHTML(content)}</p>
-                        </div>
-                    </div>
-                `;
-                
-                targetContainer.appendChild(docItem);
-            });
-        }, (err) => {
-            console.error("Manual registry connection failure: ", err);
+        if (error) {
+            console.error("Manual registry connection failure: ", error);
             targetContainer.innerHTML = `<div style="text-align:center; padding:40px; color:var(--hud-crimson); font-size:0.8rem;">LINK ERROR: ABORTED METRIC ACQUISITION.</div>`;
+            return;
+        }
+
+        targetContainer.innerHTML = "";
+
+        if (!manuals || manuals.length === 0) {
+            targetContainer.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;">NO OPERATIONAL MANUALS FOUND IN REGISTRY.</div>`;
+            return;
+        }
+
+        manuals.forEach((manual) => {
+            const title = manual.title ? manual.title.toUpperCase() : "UNTITLED OPERATIONAL MANUAL";
+            const content = manual.content ? manual.content : "No documentation details supplied for this segment node.";
+            const keywords = manual.keywords ? manual.keywords.toLowerCase() : "";
+
+            const docItem = document.createElement("div");
+            docItem.className = "doc-item searchable-module-node";
+            docItem.setAttribute("data-keywords", keywords);
+            
+            docItem.innerHTML = `
+                <div class="doc-header" onclick="toggleLibraryAccordion(this)">
+                    <span>${escapeHTML(title)}</span>
+                    <span class="accordion-arrow-indicator">▼</span>
+                </div>
+                <div class="doc-body" style="display: none;">
+                    <div class="article-block">
+                        <p style="white-space: pre-wrap; line-height: 1.5;">${escapeHTML(content)}</p>
+                    </div>
+                </div>
+            `;
+            
+            targetContainer.appendChild(docItem);
         });
     }
 
-    /**
-     * Toggles the visibility state of library module containers.
-     */
     function toggleLibraryAccordion(headerElement) {
         const bodyTarget = headerElement.nextElementSibling;
         const arrowTarget = headerElement.querySelector(".accordion-arrow-indicator");
@@ -134,9 +119,6 @@
         }
     }
 
-    /**
-     * Crawls search strings across internal header content text parameters and data attributes.
-     */
     function filterLibraryModules(searchQuery) {
         const structuralCleanQuery = searchQuery.toLowerCase().trim();
         const activeModuleNodes = document.querySelectorAll('.searchable-module-node');
@@ -147,8 +129,6 @@
             
             if (internalTextString.includes(structuralCleanQuery) || analyticalKeywords.includes(structuralCleanQuery)) {
                 node.style.display = "block";
-                
-                // Keep windows open automatically during deep string matches to show metrics clearly
                 if (structuralCleanQuery.length > 2) {
                     node.querySelector('.doc-body').style.display = "block";
                     node.querySelector('.accordion-arrow-indicator').textContent = "▲";

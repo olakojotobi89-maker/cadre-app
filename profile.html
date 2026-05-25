@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CADRE - Terminal Profile</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <div class="app-container">
-    
     <header class="app-header">
         <div class="brand-wrapper">
             <img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo">
@@ -50,107 +50,95 @@
     </nav>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
-    import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+<script>
+    // 1. Initialize Supabase
+    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co'; 
+    const supabaseAnonKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+    const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-    // Standard CADRE Firebase configurations initialization matrix
-    const firebaseConfig = {
-        apiKey: "AIzaSyCBLxRU7IeCCk8fyR8f7EwxtEz5Y1pZpn4",
-        authDomain: "cadre-c2.firebaseapp.com",
-        projectId: "cadre-c2",
-        storageBucket: "cadre-c2.firebasestorage.app",
-        messagingSenderId: "428369478841",
-        appId: "1:428369478841:web:69f2d8068591ef70170768"
-    };
+    let currentUserId = null;
 
-    // Spin up operational database endpoints
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    let activeUserDocRef = null;
-
-    // Monitor local session gate states
-    onAuthStateChanged(auth, (user) => {
-        if (!user) {
-            // Drop unauthenticated traffic straight to login trace routes
+    // 2. Check Authentication
+    async function checkAuth() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
             window.location.href = "login.html";
         } else {
-            // Track the real-time status of user state documents via fallback phone UID profiles
-            // Assuming fallback profile metadata uses local storage mappings as fallback keys 
-            const savedPhone = localStorage.getItem("cached_operator_phone") || user.phoneNumber || user.uid;
-            
-            activeUserDocRef = doc(db, "users", savedPhone);
-            
-            // Build real-time stream node connection
-            onSnapshot(activeUserDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const profileData = docSnap.data();
-                    
-                    document.getElementById("id-name").textContent = profileData.name || "UNREGISTERED_OPERATOR";
-                    document.getElementById("id-rank").textContent = profileData.rank || "FIELD_UNIT";
-                    document.getElementById("id-phone").textContent = profileData.phone || savedPhone;
-                    document.getElementById("terminal-status-pill").textContent = "Active";
-                    
-                    if (profileData.pfp) {
-                        document.getElementById("pfp-view-target").src = profileData.pfp;
-                    }
-                }
-            }, (error) => {
-                console.error("C2 Telemetry drop intercepted on document listener: ", error);
-            });
-        }
-    });
-
-    // Wire Up File Change Inputs
-    const fileController = document.getElementById("pfp-file-controller");
-    fileController.addEventListener("change", (e) => {
-        processProfilePicture(e.target);
-    });
-
-    /**
-     * Process avatar data payloads directly to Firestore user document
-     */
-    function processProfilePicture(input) {
-        if (input.files && input.files[0] && activeUserDocRef) {
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const base64Image = e.target.result;
-                // Immediate interface patch
-                document.getElementById("pfp-view-target").src = base64Image;
-
-                try {
-                    // Update active cloud doc structure trace string data payload instantly
-                    await updateDoc(activeUserDocRef, {
-                        pfp: base64Image
-                    });
-                } catch (err) {
-                    console.error("Critical: Telemetry dropped uploading payload string sync", err);
-                }
-            };
-            reader.readAsDataURL(input.files[0]);
+            currentUserId = session.user.id;
+            loadProfileData();
         }
     }
 
-    // Bind system event logout actions
-    document.getElementById("logout-trigger-node").addEventListener("click", () => {
-        signOut(auth).then(() => {
-            localStorage.removeItem("cached_operator_phone");
-            window.location.href = "login.html";
-        }).catch((err) => {
-            console.error("Logout authorization failure processing block exit: ", err);
-        });
+    // 3. Load User Data
+    async function loadProfileData() {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', currentUserId)
+            .single();
+
+        if (data) {
+            document.getElementById("id-name").textContent = data.name || "UNREGISTERED_OPERATOR";
+            document.getElementById("id-rank").textContent = data.rank || "FIELD_UNIT";
+            document.getElementById("id-phone").textContent = data.phone || "—";
+            document.getElementById("terminal-status-pill").textContent = "Active";
+            
+            if (data.pfp) {
+                document.getElementById("pfp-view-target").src = data.pfp;
+            }
+        }
+    }
+
+    // 4. Handle Image Upload
+    async function processProfilePicture(file) {
+        if (!currentUserId) return;
+
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${currentUserId}.${fileExt}`; // Path inside bucket
+
+        // Upload to Storage
+        const { error: uploadError } = await supabase.storage
+            .from('profile_pictures') 
+            .upload(filePath, file, { upsert: true });
+
+        if (uploadError) {
+            console.error("Upload error:", uploadError.message);
+            return;
+        }
+
+        // Get Public URL
+        const { data } = supabase.storage
+            .from('profile_pictures')
+            .getPublicUrl(filePath);
+
+        // Update Database
+        await supabase
+            .from('users')
+            .update({ pfp: data.publicUrl })
+            .eq('id', currentUserId);
+
+        // Refresh UI
+        document.getElementById("pfp-view-target").src = data.publicUrl;
+    }
+
+    // Event Listeners
+    document.getElementById("pfp-file-controller").addEventListener("change", (e) => {
+        if (e.target.files && e.target.files[0]) {
+            processProfilePicture(e.target.files[0]);
+        }
     });
 
+    document.getElementById("logout-trigger-node").addEventListener("click", async () => {
+        await supabase.auth.signOut();
+        window.location.href = "login.html";
+    });
+
+    // Run on startup
+    checkAuth();
 </script>
 
 <script>
-    // Global context UI handlers
-    function triggerPfpInput() { 
-        document.getElementById("pfp-file-controller").click(); 
-    }
+    function triggerPfpInput() { document.getElementById("pfp-file-controller").click(); }
 </script>
 </body>
 </html>
