@@ -1,160 +1,305 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CADRE - Communications Feed</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        .app-bottom-dock { display: grid !important; grid-template-columns: repeat(6, 1fr) !important; }
-        .dock-node-emergency { color: #ff3333 !important; font-weight: 700; }
-        .dock-node-emergency .dock-node-glyph { animation: beacon-pulse 1.5s infinite ease-in-out; }
-        @keyframes beacon-pulse { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.15); } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CADRE - Communications Feed</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+.app-bottom-dock { display: grid !important; grid-template-columns: repeat(6, 1fr) !important; }
+.dock-node-emergency { color: #ff3333 !important; font-weight: 700; }
+.dock-node-emergency .dock-node-glyph { animation: beacon-pulse 1.5s infinite ease-in-out; }
+
+@keyframes beacon-pulse {
+0%, 100% { opacity: 0.6; transform: scale(1); }
+50% { opacity: 1; transform: scale(1.15); }
+}
+
+.feed-post-card{
+background:#101826;
+border:1px solid #1f2937;
+border-radius:14px;
+margin-bottom:20px;
+overflow:hidden;
+}
+
+.feed-post-header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:14px;
+}
+
+.feed-post-user{display:flex;flex-direction:column;}
+
+.feed-post-rank{font-weight:bold;color:white;}
+
+.feed-post-name{font-size:13px;color:#94a3b8;}
+
+.feed-post-caption{
+padding:0 14px 14px;
+color:white;
+line-height:1.5;
+word-break:break-word;
+}
+
+.feed-post-image{
+width:100%;
+display:block;
+max-height:500px;
+object-fit:cover;
+background:#000;
+}
+
+.delete-post-btn{
+background:#ff3333;
+border:none;
+color:white;
+padding:8px 12px;
+border-radius:8px;
+cursor:pointer;
+font-size:12px;
+font-weight:bold;
+}
+</style>
 </head>
+
 <body>
 
 <div class="app-container">
-    <header class="app-header">
-        <div class="brand-wrapper">
-            <img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo">
-            <span class="brand-text">CADRE HUB</span>
-        </div>
-        <div id="officer-header-tag" class="header-badge">Loading...</div>
-    </header>
 
-    <section class="search-tray">
-        <input type="text" id="officer-search" class="search-input" placeholder="SEARCH ACTIVE INDIVIDUALS BY NAME..." oninput="searchPersonnel(this.value)">
-    </section>
+<header class="app-header">
+<div class="brand-wrapper">
+<img src="Cadre logo png.jpg" class="brand-logo">
+<span class="brand-text">CADRE HUB</span>
+</div>
+<div id="officer-header-tag" class="header-badge">Loading...</div>
+</header>
 
-    <div id="search-dropdown" class="search-results-box"></div>
+<section class="search-tray">
+<input type="text" id="officer-search" class="search-input" placeholder="SEARCH ACTIVE INDIVIDUALS BY NAME...">
+</section>
 
-    <main class="feed-content">
-        <section class="composer-card">
-            <div class="composer-row">
-                <img id="composer-avatar" class="avatar-frame" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>">
-                <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..."></textarea>
-            </div>
-            <div class="composer-footer">
-                <label for="image-upload" class="file-upload-label">📷 Attach Media</label>
-                <input type="file" id="image-upload" accept="image/*" style="display: none;" onchange="previewSelectedImage(this)">
-                <img id="post-img-preview" class="preview-thumbnail">
-                <button type="button" class="btn-post" onclick="submitInstagramPost()">Broadcast</button>
-            </div>
-        </section>
-        <section id="instagram-stream"></section>
-    </main>
+<div id="search-dropdown" class="search-results-box"></div>
 
-    <nav class="app-bottom-dock">
-        <a href="home.html" class="dock-node active-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
-        <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
-        <a href="map.html" class="dock-node"><span class="dock-node-glyph">🗺️</span><span>Map</span></a>
-        <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
-        <a href="#" id="admin-btn" class="dock-node"><span class="dock-node-glyph">⚙️</span><span>Admin</span></a>
-        <a href="emergency.html" class="dock-node dock-node-emergency"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
-    </nav>
+<main class="feed-content">
+
+<section class="composer-card">
+
+<div class="composer-row">
+<img id="composer-avatar" class="avatar-frame">
+<textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..."></textarea>
+</div>
+
+<div class="composer-footer">
+<label for="image-upload" class="file-upload-label">📷 Attach Media</label>
+
+<input type="file" id="image-upload" accept="image/*" style="display:none;" onchange="previewSelectedImage(this)">
+
+<img id="post-img-preview" class="preview-thumbnail">
+
+<button type="button" class="btn-post" onclick="submitInstagramPost()">
+Broadcast
+</button>
+
+</div>
+</section>
+
+<section id="instagram-stream"></section>
+
+</main>
+
+<nav class="app-bottom-dock">
+
+<a href="home.html" class="dock-node active-node">
+<span class="dock-node-glyph">🏠</span><span>Feed</span>
+</a>
+
+<a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
+<a href="map.html" class="dock-node"><span class="dock-node-glyph">🗺️</span><span>Map</span></a>
+<a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+
+<a href="#" id="admin-btn" class="dock-node">
+<span class="dock-node-glyph">⚙️</span><span>Admin</span>
+</a>
+
+<a href="emergency.html" class="dock-node dock-node-emergency">
+<span class="dock-node-glyph">🚨</span><span>SOS</span>
+</a>
+
+</nav>
+
 </div>
 
 <script>
-    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
-    const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    let currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
-    let base64ImageString = "";
+let currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
+let base64ImageString = "";
 
-    window.addEventListener('DOMContentLoaded', async () => {
-        if (!currentSessionOfficer) { 
-            window.location.href = "login.html"; 
-            return; 
-        }
+window.addEventListener('DOMContentLoaded', async () => {
 
-        document.getElementById("officer-header-tag").textContent = currentSessionOfficer.rank;
-        
-        const { data } = await sbClient.from('users').select('pfp').eq('phone', currentSessionOfficer.phone).single();
-        
-        if (data?.pfp) {
-            document.getElementById("composer-avatar").src = data.pfp;
-        }
+if (!currentSessionOfficer) {
+window.location.href = "login.html";
+return;
+}
 
-        // FIXED ADMIN BUTTON
-        document.getElementById("admin-btn").addEventListener("click", checkAdminAccess);
+document.getElementById("officer-header-tag").textContent = currentSessionOfficer.rank;
 
-        renderFeed();
+const { data } = await sbClient
+.from('users')
+.select('pfp')
+.eq('phone', currentSessionOfficer.phone)
+.single();
 
-        sbClient
-            .channel('public:ig_feed_posts')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'ig_feed_posts' },
-                renderFeed
-            )
-            .subscribe();
-    });
+if (data?.pfp) {
+document.getElementById("composer-avatar").src = data.pfp;
+}
 
-    function checkAdminAccess(event) {
-        event.preventDefault();
+document.getElementById("admin-btn")
+.addEventListener("click", checkAdminAccess);
 
-        const password = prompt("ENTER COMMANDER AUTHORIZATION CODE:");
+renderFeed();
 
-        if (password === "CDR123") {
-            window.location.href = "admin.html";
-        } else if (password !== null) {
-            alert("ACCESS DENIED: INVALID AUTHORIZATION CODE.");
-        }
-    }
+sbClient
+.channel('public:ig_feed_posts')
+.on('postgres_changes',
+{ event: '*', schema: 'public', table: 'ig_feed_posts' },
+renderFeed
+)
+.subscribe();
+});
 
-    async function renderFeed() {
-        const { data: posts } = await sbClient
-            .from('ig_feed_posts')
-            .select('*')
-            .order('timestamp', { ascending: false });
+function checkAdminAccess(event){
+event.preventDefault();
 
-        const container = document.getElementById("instagram-stream");
+const password = prompt("ENTER COMMANDER AUTHORIZATION CODE:");
 
-        container.innerHTML = posts?.length
-            ? ""
-            : `<div style="text-align:center; padding:40px; color:var(--text-dim);">NO ARCHIVED LOGS AVAILABLE.</div>`;
-        
-        posts?.forEach(post => {
-            const article = document.createElement("article");
-            article.className = "ig-post";
-            article.innerHTML = ``; 
-            container.appendChild(article);
-        });
-    }
+if(password === "CDR123"){
+window.location.href = "admin.html";
+}else if(password !== null){
+alert("ACCESS DENIED");
+}
+}
 
-    async function submitInstagramPost() {
-        const caption = document.getElementById("post-input").value.trim();
+async function renderFeed(){
 
-        if (!caption && !base64ImageString) return;
-        
-        await sbClient.from('ig_feed_posts').insert({
-            name: currentSessionOfficer.name,
-            rank: currentSessionOfficer.rank,
-            phone: currentSessionOfficer.phone,
-            caption,
-            image: base64ImageString,
-            timestamp: Date.now()
-        });
+const { data: posts } = await sbClient
+.from('ig_feed_posts')
+.select('*')
+.order('timestamp', { ascending: false });
 
-        document.getElementById("post-input").value = "";
-        base64ImageString = "";
-    }
+const container = document.getElementById("instagram-stream");
 
-    function previewSelectedImage(input) {
-        const reader = new FileReader();
+container.innerHTML = "";
 
-        reader.onload = (e) => {
-            base64ImageString = e.target.result;
+// FIX: prevent false empty message flicker
+if(!posts || posts.length === 0){
+container.innerHTML = `<div style="text-align:center;padding:40px;color:#666;">NO ARCHIVED LOGS AVAILABLE.</div>`;
+return;
+}
 
-            document.getElementById("post-img-preview").src = base64ImageString;
-            document.getElementById("post-img-preview").style.display = "block";
-        };
+posts.forEach(post => {
 
-        reader.readAsDataURL(input.files[0]);
-    }
+const article = document.createElement("article");
+article.className = "feed-post-card";
+
+const canDelete = currentSessionOfficer?.phone === post.phone;
+
+article.innerHTML = `
+<div class="feed-post-header">
+
+<div class="feed-post-user">
+<span class="feed-post-rank">${post.rank || "UNIT"}</span>
+<span class="feed-post-name">${post.name || "UNKNOWN"}</span>
+</div>
+
+${canDelete ? `<button class="delete-post-btn" onclick="deletePost('${post.id}')">Delete</button>` : ""}
+
+</div>
+
+${post.caption ? `<div class="feed-post-caption">${post.caption}</div>` : ""}
+
+${post.image ? `<img src="${post.image}" class="feed-post-image">` : ""}
+
+`;
+
+container.appendChild(article);
+});
+
+}
+
+async function submitInstagramPost(){
+
+const caption = document.getElementById("post-input").value.trim();
+
+if(!caption && !base64ImageString){
+alert("Write something or add image");
+return;
+}
+
+const { error } = await sbClient
+.from('ig_feed_posts')
+.insert({
+name: currentSessionOfficer.name,
+rank: currentSessionOfficer.rank,
+phone: currentSessionOfficer.phone,
+caption,
+image: base64ImageString,
+timestamp: Date.now()
+});
+
+if(error){
+console.error(error);
+alert("Post failed");
+return;
+}
+
+document.getElementById("post-input").value = "";
+base64ImageString = "";
+
+document.getElementById("post-img-preview").src = "";
+document.getElementById("post-img-preview").style.display = "none";
+
+renderFeed();
+}
+
+async function deletePost(postId){
+
+if(!confirm("DELETE THIS POST?")) return;
+
+const { error } = await sbClient
+.from('ig_feed_posts')
+.delete()
+.eq('id', postId);
+
+if(error){
+alert("Delete failed");
+return;
+}
+
+renderFeed();
+}
+
+function previewSelectedImage(input){
+
+if(!input.files[0]) return;
+
+const reader = new FileReader();
+
+reader.onload = (e) => {
+base64ImageString = e.target.result;
+document.getElementById("post-img-preview").src = base64ImageString;
+document.getElementById("post-img-preview").style.display = "block";
+};
+
+reader.readAsDataURL(input.files[0]);
+}
 </script>
+
 </body>
 </html>
