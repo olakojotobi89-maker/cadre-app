@@ -220,10 +220,9 @@
 </div>
 
 <script>
-    // FIX: Renamed client to 'sbClient' to avoid global declaration conflict
     const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
     const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
+    const sbClient = supabase.createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
     let currentSessionOfficer = null;
     let isAlertActive = false;
@@ -256,20 +255,35 @@
         logToConsole("CONNECTING SECURE IDENT NODE...", "status-active");
         
         try {
-            // FIX: Use sbClient
             const { data, error } = await sbClient.from("users").select("*").eq("phone", savedPhone).single();
             if (data) {
                 currentSessionOfficer = data;
                 logToConsole(`OPERATOR IDENTIFIED: ${currentSessionOfficer.name.toUpperCase()}`, "status-resolved");
+                // Check if an SOS is already active for this officer
+                await checkActiveStatus(savedPhone);
             } else {
-                logToConsole("PROFILE SIG MISSING IN CLOUD. CREATING LOCAL REF...", "status-active");
                 currentSessionOfficer = { phone: savedPhone, name: "Field Agent", rank: "Operational Operator" };
             }
         } catch (err) {
-            logToConsole("OFFLINE MODE FORCED: NETWORK UPLINK FAILURE", "status-active");
             currentSessionOfficer = { phone: savedPhone, name: "Field Agent", rank: "Operational Operator" };
         }
     })();
+
+    async function checkActiveStatus(phone) {
+        const { data, error } = await sbClient
+            .from('distress_signals')
+            .select('*')
+            .eq('officerPhone', phone)
+            .eq('active', true);
+
+        if (data && data.length > 0) {
+            isAlertActive = true;
+            document.getElementById("sos-container").classList.add("active-alert");
+            document.getElementById("action-btn").textContent = "STAND DOWN";
+            logToConsole("RESUMING ACTIVE DISTRESS SESSION", "status-critical");
+            trackLiveLocation();
+        }
+    }
 
     function logToConsole(message, statusClass = '') {
         const consoleBox = document.getElementById("console-logs");
@@ -312,17 +326,16 @@
         logToConsole("VALIDATING SECURITY RECOVERY PATH...", "status-active");
 
         try {
-            // FIX: Use sbClient
             const { data } = await sbClient.from("users").select("password").eq("phone", currentSessionOfficer.phone).single();
             const passToCheck = (data && data.password) ? data.password : "1234";
 
             if (enteredCode.trim() !== passToCheck) {
-                alert("ACCESS DENIED: Invalid System Security Access Code. Surveillance pipeline continues.");
+                alert("ACCESS DENIED: Invalid System Security Access Code.");
                 logToConsole("UNAUTHORIZED DEACTIVATION ATTEMPT INTERCEPTED", "status-critical");
                 return;
             }
         } catch (error) {
-            logToConsole("LOCAL DEFENSE OVERRIDE ENABLED FOR CLEARANCE", "status-resolved");
+            logToConsole("LOCAL DEFENSE OVERRIDE ENABLED", "status-resolved");
         }
 
         isAlertActive = false;
@@ -336,102 +349,62 @@
         document.getElementById("sos-container").classList.remove("active-alert");
         document.getElementById("panic-panel").classList.add("status-safe");
         document.getElementById("action-btn").textContent = "SECURED";
-        document.getElementById("action-btn").style.background = "radial-gradient(circle, #2e7d32 0%, #1b5e20 100%)";
         document.getElementById("beacon-headline").textContent = "SITUATION SECURED";
-        document.getElementById("beacon-headline").style.color = "var(--hud-emerald)";
         
-        logToConsole("ALL CAPTURE PIPELINES DISCONNECTED", "status-resolved");
-        logToConsole("BEACON TRANSMISSION TERMINATED CLEANLY", "status-resolved");
-
         broadcastCommandCenterPayload(false);
     }
 
     function trackLiveLocation() {
-        if (!navigator.geolocation) {
-            logToConsole("GPS MODULE UNSUPPORTED", "status-critical");
-            return;
-        }
-        logToConsole("ACQUIRING TELEMETRY LOCK...", "status-active");
-
+        if (!navigator.geolocation) return;
         watchId = navigator.geolocation.watchPosition(
             async (position) => {
                 const lat = position.coords.latitude.toFixed(5);
                 const lng = position.coords.longitude.toFixed(5);
-                logToConsole(`LOC LOCK: LAT ${lat} | LNG ${lng}`, "status-active");
                 await updateDistressPayload({
-                    coordinates: { latitude: lat, longitude: lng },
-                    lastTelemetryTimestamp: Date.now()
+                    lat: lat,
+                    lng: lng,
+                    lastTelemetryTimestamp: new Date().toISOString()
                 });
             },
-            (error) => { logToConsole(`GPS DATA RECORDED STANDBY`, "status-active"); },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+            null,
+            { enableHighAccuracy: true }
         );
     }
 
     async function startMicrophoneCapture() {
         try {
-            logToConsole("ACCESSING MICROPHONE PIPELINE...", "status-active");
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = () => {
-                if (audioChunks.length === 0) return;
-                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                logToConsole("AUDIO BUNDLED. DISPATCHING BATCH...", "status-active");
-                const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
-                reader.onloadend = async () => {
-                    const base64Audio = reader.result;
-                    await updateDistressPayload({
-                        audioPayload: base64Audio,
-                        lastAudioTimestamp: Date.now()
-                    });
-                    logToConsole("PAYLOAD SHIPPED TO DASHBOARD ARRAY", "status-active");
-                };
-            };
+            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.start();
-            logToConsole("RECORDING LIVE SURVEILLANCE BUFFER", "status-critical");
             micIntervalId = setInterval(() => {
-                if (mediaRecorder && mediaRecorder.state === "recording") {
+                if (mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
-                    audioChunks = []; 
                     mediaRecorder.start();
                 }
             }, 7000);
-        } catch (err) { logToConsole(`MIC ASSIGNMENT BYPASSED`, "status-active"); }
+        } catch (err) { logToConsole("MIC PIPELINE BYPASSED", "status-active"); }
     }
 
     async function broadcastCommandCenterPayload(activeState) {
-        if (activeState && navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
         try {
-            const tableName = "distress_signals";
             if (activeState) {
-                logToConsole("ALERTS BLOWN TO COMMAND CENTER ROSTER", "status-critical");
-                // FIX: Use sbClient
-                await sbClient.from(tableName).upsert({
+                await sbClient.from("distress_signals").upsert({
                     officerPhone: currentSessionOfficer.phone,
                     officerName: currentSessionOfficer.name,
                     officerRank: currentSessionOfficer.rank,
                     active: true,
-                    initiatedAt: Date.now()
+                    initiatedAt: new Date().toISOString()
                 });
             } else {
-                // FIX: Use sbClient
-                await sbClient.from(tableName).delete().eq("officerPhone", currentSessionOfficer.phone);
-                logToConsole("COMMAND DASHBOARD ARRAY CLEARED SUCCESS", "status-resolved");
+                await sbClient.from("distress_signals").delete().eq("officerPhone", currentSessionOfficer.phone);
             }
-        } catch (err) { console.error("Dashboard notification broadcast loop issue: ", err); }
+        } catch (err) { console.error("Sync Error: ", err); }
     }
 
     async function updateDistressPayload(dataPacket) {
         if (!isAlertActive) return;
         try {
-            // FIX: Use sbClient
             await sbClient.from("distress_signals").update(dataPacket).eq("officerPhone", currentSessionOfficer.phone);
         } catch (err) { console.error(err); }
     }

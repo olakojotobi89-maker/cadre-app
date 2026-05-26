@@ -51,13 +51,12 @@
         <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
         <a href="map.html" class="dock-node"><span class="dock-node-glyph">🗺️</span><span>Map</span></a>
         <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
-        <a href="#" class="dock-node" onclick="checkAdminAccess(event)"><span class="dock-node-glyph">⚙️</span><span>Admin</span></a>
+        <a href="#" id="admin-btn" class="dock-node"><span class="dock-node-glyph">⚙️</span><span>Admin</span></a>
         <a href="emergency.html" class="dock-node dock-node-emergency"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
     </nav>
 </div>
 
 <script>
-    // FIX: Do not declare 'supabase' again. Use a new variable name.
     const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
     const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
     const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
@@ -66,34 +65,69 @@
     let base64ImageString = "";
 
     window.addEventListener('DOMContentLoaded', async () => {
-        if (!currentSessionOfficer) { window.location.href = "login.html"; return; }
+        if (!currentSessionOfficer) { 
+            window.location.href = "login.html"; 
+            return; 
+        }
+
         document.getElementById("officer-header-tag").textContent = currentSessionOfficer.rank;
         
-        // Use sbClient here
         const { data } = await sbClient.from('users').select('pfp').eq('phone', currentSessionOfficer.phone).single();
-        if (data?.pfp) document.getElementById("composer-avatar").src = data.pfp;
+        
+        if (data?.pfp) {
+            document.getElementById("composer-avatar").src = data.pfp;
+        }
+
+        // FIXED ADMIN BUTTON
+        document.getElementById("admin-btn").addEventListener("click", checkAdminAccess);
 
         renderFeed();
-        sbClient.channel('public:ig_feed_posts').on('postgres_changes', { event: '*', schema: 'public', table: 'ig_feed_posts' }, renderFeed).subscribe();
+
+        sbClient
+            .channel('public:ig_feed_posts')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'ig_feed_posts' },
+                renderFeed
+            )
+            .subscribe();
     });
 
+    function checkAdminAccess(event) {
+        event.preventDefault();
+
+        const password = prompt("ENTER COMMANDER AUTHORIZATION CODE:");
+
+        if (password === "CDR123") {
+            window.location.href = "admin.html";
+        } else if (password !== null) {
+            alert("ACCESS DENIED: INVALID AUTHORIZATION CODE.");
+        }
+    }
+
     async function renderFeed() {
-        const { data: posts } = await sbClient.from('ig_feed_posts').select('*').order('timestamp', { ascending: false });
-        // ... (rest of your render logic using sbClient)
+        const { data: posts } = await sbClient
+            .from('ig_feed_posts')
+            .select('*')
+            .order('timestamp', { ascending: false });
+
         const container = document.getElementById("instagram-stream");
-        container.innerHTML = posts?.length ? "" : `<div style="text-align:center; padding:40px; color:var(--text-dim);">NO ARCHIVED LOGS AVAILABLE.</div>`;
+
+        container.innerHTML = posts?.length
+            ? ""
+            : `<div style="text-align:center; padding:40px; color:var(--text-dim);">NO ARCHIVED LOGS AVAILABLE.</div>`;
         
         posts?.forEach(post => {
-            const hasLiked = post.likes?.includes(currentSessionOfficer.phone);
             const article = document.createElement("article");
             article.className = "ig-post";
-            article.innerHTML = `...`; // Use your original logic
+            article.innerHTML = ``; 
             container.appendChild(article);
         });
     }
 
     async function submitInstagramPost() {
         const caption = document.getElementById("post-input").value.trim();
+
         if (!caption && !base64ImageString) return;
         
         await sbClient.from('ig_feed_posts').insert({
@@ -104,25 +138,21 @@
             image: base64ImageString,
             timestamp: Date.now()
         });
+
         document.getElementById("post-input").value = "";
         base64ImageString = "";
     }
 
-    async function toggleLike(postId) {
-        const { data: post } = await sbClient.from('ig_feed_posts').select('likes').eq('id', postId).single();
-        // ... (rest of your logic using sbClient)
-    }
-
-    async function submitComment(e, postId) {
-        e.preventDefault();
-        const text = e.target.querySelector(".comment-field").value;
-        const { data: post } = await sbClient.from('ig_feed_posts').select('comments').eq('id', postId).single();
-        // ... (rest of your logic using sbClient)
-    }
-
     function previewSelectedImage(input) {
         const reader = new FileReader();
-        reader.onload = (e) => { base64ImageString = e.target.result; document.getElementById("post-img-preview").src = base64ImageString; document.getElementById("post-img-preview").style.display = "block"; };
+
+        reader.onload = (e) => {
+            base64ImageString = e.target.result;
+
+            document.getElementById("post-img-preview").src = base64ImageString;
+            document.getElementById("post-img-preview").style.display = "block";
+        };
+
         reader.readAsDataURL(input.files[0]);
     }
 </script>

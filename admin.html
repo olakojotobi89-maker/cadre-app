@@ -55,7 +55,6 @@
             margin: 0 auto;
         }
 
-        /* Highly fluid multi-tier layout structure array grid controllers */
         @media (min-width: 992px) {
             .admin-grid {
                 grid-template-columns: 2fr 1fr;
@@ -71,7 +70,6 @@
             }
         }
 
-        /* High-tech status banner matrices layout panels styling controllers */
         .status-banner {
             background: linear-gradient(180deg, #09111c 0%, #050a12 100%);
             border-left: 5px solid var(--hud-emerald);
@@ -85,7 +83,6 @@
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        /* Extreme Emergency Glitch-Shake Matrix Trigger Animation Hook */
         .status-banner.alert-active {
             border-left-color: var(--hud-crimson);
             box-shadow: 0 0 35px var(--hud-crimson-glow);
@@ -103,7 +100,6 @@
             text-shadow: 0 0 10px rgba(0, 255, 102, 0.4);
         }
 
-        /* Tactical Precision Dashboard Framework Panels */
         .dashboard-panel {
             background: rgba(9, 17, 28, 0.7);
             border: 1px solid var(--border-precision);
@@ -115,7 +111,6 @@
             clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
         }
 
-        /* Tech frame corner ticks markers design overrides */
         .dashboard-panel::after {
             content: '';
             position: absolute;
@@ -140,7 +135,6 @@
             align-items: center;
         }
 
-        /* Telemetry Stream Console Terminal System Logs UI Layout */
         .admin-terminal {
             background: var(--bg-dark-surface);
             border: 1px solid #14213d;
@@ -174,7 +168,6 @@
             background: rgba(74, 222, 128, 0.05);
         }
 
-        /* Audio Hardware Surveillance Receivers Node Wrapper styling controller UI modules */
         .audio-intercept-container {
             background: #04080f;
             border: 1px dashed #243b61;
@@ -191,7 +184,6 @@
             filter: invert(0.9) hue-rotate(140deg) brightness(1.2);
         }
 
-        /* Micro Telemetry Graphic Bar Elements inside components */
         .audio-wave-sim {
             display: flex;
             justify-content: center;
@@ -213,7 +205,6 @@
         .alert-active .audio-wave-sim div:nth-child(2n) { animation-delay: 0.05s; }
         .alert-active .audio-wave-sim div:nth-child(3n) { animation-delay: 0.1s; }
 
-        /* Units Grid Dynamic Fleet Roster Arrays styling */
         .units-roster {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -245,7 +236,6 @@
             animation: flash-badge 1s infinite alternate;
         }
 
-        /* --- TACTICAL HUD ICONS GRID DESIGN SYSTEM --- */
         .hud-icon-nav-matrix {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -294,7 +284,6 @@
             transform: scale(1.1);
         }
 
-        /* Alert Active Override state for icons grid links */
         .alert-active .hud-icon-btn {
             border-color: #451217;
             background: rgba(42, 8, 13, 0.3);
@@ -307,7 +296,6 @@
             box-shadow: 0 0 10px var(--hud-crimson-glow);
         }
 
-        /* --- EXTREME MOBILE OPTIMIZATIONS LAYER TRACE --- */
         @media (max-width: 768px) {
             .admin-grid {
                 padding: 10px;
@@ -348,13 +336,11 @@
             }
         }
 
-        /* Core Global Level Animations Declarations Keyframes rules */
         @keyframes warning-pulse {
             0% { box-shadow: 0 0 15px rgba(255, 51, 51, 0.1); border-left-color: #990000; }
             100% { box-shadow: 0 0 35px rgba(255, 51, 51, 0.5); border-left-color: #ff3333; }
         }
 
-        /* Glitch Intercept Vibration Sequence Modulators */
         @keyframes glitch-alert-shake {
             0% { transform: translate(0, 0) skewX(0deg); }
             20% { transform: translate(-1.5px, 1px) skewX(-1deg); background: rgba(42, 8, 13, 0.95); }
@@ -397,7 +383,6 @@
             animation: heartbeat 0.8s infinite ease-in-out;
         }
 
-        /* --- SOUND ENGINE SECURITY OVERLAY --- */
         #audio-lock-overlay {
             position: fixed;
             top: 0; left: 0;
@@ -545,18 +530,28 @@
 </div>
 
 <script>
-    // Supabase Configuration
-    const sbClient = supabase.createClient('https://ihroattnnnsckvvbosfz.supabase.co', 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX');
+    // --- UPDATED SUPABASE INITIALIZATION ---
+    const sbClient = supabase.createClient(
+        'https://ihroattnnnsckvvbosfz.supabase.co', 
+        'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX',
+        {
+            auth: {
+                persistSession: false 
+            }
+        }
+    );
 
     let activeEmergencySignals = {};
     let audioCtx = null;
     let mainOscillator = null;
-    let modulationOscillator = null;
     let mainGainNode = null;
 
     window.addEventListener('DOMContentLoaded', () => {
         initiateAdminRosterGrid();
         listenToDistressSignals();
+        
+        // --- Forced state refresh on load ---
+        refreshDistressSignals();
 
         const audioOverlay = document.getElementById('audio-lock-overlay');
         const initBtn = document.getElementById('initialize-audio-btn');
@@ -568,6 +563,7 @@
                     audioCtx.resume();
                 }
                 audioOverlay.style.display = 'none';
+                refreshDistressSignals();
                 addTerminalLog("[SYS] Sound frequency synthesis arrays safely initialized and armed.", "ok");
             } catch (e) {
                 console.error("Audio Context Init failure:", e);
@@ -579,15 +575,16 @@
         // Subscribe to real-time changes
         sbClient.channel('distress_signals_channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'distress_signals' }, payload => {
+                addTerminalLog(`[UPDATE] Signal table update detected.`, "ok");
                 refreshDistressSignals();
             })
             .subscribe();
-
-        refreshDistressSignals();
     }
 
     async function refreshDistressSignals() {
-        const { data: signals } = await sbClient.from("distress_signals").select("*");
+        const { data: signals, error } = await sbClient.from("distress_signals").select("*");
+        if (error) { console.error(error); return; }
+        
         const activeCount = signals ? signals.length : 0;
         
         const banner = document.getElementById("master-status-banner");
@@ -602,7 +599,10 @@
             audioContainer.classList.add("alert-active");
             interactiveSidebar.classList.add("alert-active");
             title.textContent = "CRITICAL DISTRESS SIGNAL INTERCEPTED";
-            triggerTacticalSirenAudio(true);
+            
+            if (audioCtx) {
+                triggerTacticalSirenAudio(true);
+            }
             
             vibrationBox.textContent = "🚨 ALARM RELAY ACTIVE - PAYLOAD INBOUND";
             vibrationBox.style.color = "var(--hud-crimson)";
@@ -624,6 +624,11 @@
             interactiveSidebar.classList.remove("alert-active");
             title.textContent = "SYSTEMS STATUS: NOMINAL";
             triggerTacticalSirenAudio(false);
+            
+            vibrationBox.textContent = "VIBRATION_MODULE: IDLE";
+            vibrationBox.style.color = "#475569";
+            vibrationBox.style.backgroundColor = "#04080f";
+            vibrationBox.style.borderColor = "#14213d";
         }
     }
 
@@ -659,7 +664,7 @@
             if (mainOscillator) { try { mainOscillator.stop(); } catch(e){} mainOscillator = null; }
             return;
         }
-        if (mainOscillator) return;
+        if (mainOscillator || !audioCtx) return;
         try {
             mainOscillator = audioCtx.createOscillator();
             mainGainNode = audioCtx.createGain();
@@ -670,10 +675,6 @@
             mainGainNode.connect(audioCtx.destination);
             mainOscillator.start();
         } catch (e) { console.error(e); }
-    }
-
-    function escapeHTML(str) {
-        return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
     }
 </script>
 </body>
