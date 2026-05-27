@@ -4,17 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CADRE - Communications Feed</title>
+
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-.app-bottom-dock { display: grid !important; grid-template-columns: repeat(6, 1fr) !important; }
-.dock-node-emergency { color: #ff3333 !important; font-weight: 700; }
-.dock-node-emergency .dock-node-glyph { animation: beacon-pulse 1.5s infinite ease-in-out; }
 
-@keyframes beacon-pulse {
-0%, 100% { opacity: 0.6; transform: scale(1); }
-50% { opacity: 1; transform: scale(1.15); }
+.app-bottom-dock{
+display:grid !important;
+grid-template-columns:repeat(8,1fr) !important;
+}
+
+.dock-node-emergency{
+color:#ff3333 !important;
+font-weight:700;
+}
+
+.dock-node-emergency .dock-node-glyph{
+animation:beacon-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes beacon-pulse{
+0%,100%{
+opacity:0.6;
+transform:scale(1);
+}
+50%{
+opacity:1;
+transform:scale(1.15);
+}
 }
 
 .feed-post-card{
@@ -32,11 +50,20 @@ align-items:center;
 padding:14px;
 }
 
-.feed-post-user{display:flex;flex-direction:column;}
+.feed-post-user{
+display:flex;
+flex-direction:column;
+}
 
-.feed-post-rank{font-weight:bold;color:white;}
+.feed-post-rank{
+font-weight:bold;
+color:white;
+}
 
-.feed-post-name{font-size:13px;color:#94a3b8;}
+.feed-post-name{
+font-size:13px;
+color:#94a3b8;
+}
 
 .feed-post-caption{
 padding:0 14px 14px;
@@ -63,6 +90,64 @@ cursor:pointer;
 font-size:12px;
 font-weight:bold;
 }
+
+.post-actions{
+display:flex;
+gap:10px;
+padding:14px;
+border-top:1px solid #1f2937;
+}
+
+.like-btn{
+background:#2563eb;
+border:none;
+color:white;
+padding:8px 14px;
+border-radius:8px;
+cursor:pointer;
+font-weight:bold;
+}
+
+.comment-box{
+padding:14px;
+border-top:1px solid #1f2937;
+}
+
+.comment-input{
+width:100%;
+padding:10px;
+border:none;
+border-radius:8px;
+background:#1e293b;
+color:white;
+margin-bottom:10px;
+}
+
+.comment-btn{
+background:#10b981;
+border:none;
+padding:8px 14px;
+border-radius:8px;
+color:white;
+cursor:pointer;
+font-weight:bold;
+}
+
+.comment-item{
+background:#1e293b;
+padding:10px;
+border-radius:8px;
+margin-top:10px;
+color:white;
+font-size:14px;
+}
+
+.likes-count{
+color:#94a3b8;
+font-size:13px;
+padding:0 14px 14px;
+}
+
 </style>
 </head>
 
@@ -71,11 +156,16 @@ font-weight:bold;
 <div class="app-container">
 
 <header class="app-header">
+
 <div class="brand-wrapper">
 <img src="Cadre logo png.jpg" class="brand-logo">
 <span class="brand-text">CADRE HUB</span>
 </div>
-<div id="officer-header-tag" class="header-badge">Loading...</div>
+
+<div id="officer-header-tag" class="header-badge">
+Loading...
+</div>
+
 </header>
 
 <section class="search-tray">
@@ -89,12 +179,18 @@ font-weight:bold;
 <section class="composer-card">
 
 <div class="composer-row">
+
 <img id="composer-avatar" class="avatar-frame">
+
 <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..."></textarea>
+
 </div>
 
 <div class="composer-footer">
-<label for="image-upload" class="file-upload-label">📷 Attach Media</label>
+
+<label for="image-upload" class="file-upload-label">
+📷 Attach Media
+</label>
 
 <input type="file" id="image-upload" accept="image/*" style="display:none;" onchange="previewSelectedImage(this)">
 
@@ -105,6 +201,7 @@ Broadcast
 </button>
 
 </div>
+
 </section>
 
 <section id="instagram-stream"></section>
@@ -114,19 +211,43 @@ Broadcast
 <nav class="app-bottom-dock">
 
 <a href="home.html" class="dock-node active-node">
-<span class="dock-node-glyph">🏠</span><span>Feed</span>
+<span class="dock-node-glyph">🏠</span>
+<span>Feed</span>
 </a>
 
-<a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
-<a href="map.html" class="dock-node"><span class="dock-node-glyph">🗺️</span><span>Map</span></a>
-<a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+<a href="ebook.html" class="dock-node">
+<span class="dock-node-glyph">📖</span>
+<span>eBook</span>
+</a>
+
+<a href="map.html" class="dock-node">
+<span class="dock-node-glyph">🗺️</span>
+<span>Map</span>
+</a>
+
+<a href="compass.html" class="dock-node">
+<span class="dock-node-glyph">🧭</span>
+<span>Compass</span>
+</a>
+
+<a href="tactical-plotter.html" class="dock-node">
+<span class="dock-node-glyph">📍</span>
+<span>Plotter</span>
+</a>
+
+<a href="profile.html" class="dock-node">
+<span class="dock-node-glyph">👤</span>
+<span>Profile</span>
+</a>
 
 <a href="#" id="admin-btn" class="dock-node">
-<span class="dock-node-glyph">⚙️</span><span>Admin</span>
+<span class="dock-node-glyph">⚙️</span>
+<span>Admin</span>
 </a>
 
 <a href="emergency.html" class="dock-node dock-node-emergency">
-<span class="dock-node-glyph">🚨</span><span>SOS</span>
+<span class="dock-node-glyph">🚨</span>
+<span>SOS</span>
 </a>
 
 </nav>
@@ -134,31 +255,49 @@ Broadcast
 </div>
 
 <script>
+
 const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
 const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+
 const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-let currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
+/* FIX: safe session handling */
+let currentSessionOfficer = null;
+try {
+currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
+} catch (e) {
+currentSessionOfficer = null;
+}
+
 let base64ImageString = "";
+
+if(!currentSessionOfficer){
+window.location.href = "login.html";
+}
+
+/* FIX: safer profile loading */
+async function loadProfile(){
+const phone = currentSessionOfficer?.phone;
+
+if(!phone) return;
+
+const { data, error } = await sbClient
+.from('users')
+.select('pfp')
+.eq('phone', phone)
+.maybeSingle();
+
+if(!error && data?.pfp){
+document.getElementById("composer-avatar").src = data.pfp;
+}
+}
 
 window.addEventListener('DOMContentLoaded', async () => {
 
-if (!currentSessionOfficer) {
-window.location.href = "login.html";
-return;
-}
+document.getElementById("officer-header-tag").textContent =
+currentSessionOfficer.rank;
 
-document.getElementById("officer-header-tag").textContent = currentSessionOfficer.rank;
-
-const { data } = await sbClient
-.from('users')
-.select('pfp')
-.eq('phone', currentSessionOfficer.phone)
-.single();
-
-if (data?.pfp) {
-document.getElementById("composer-avatar").src = data.pfp;
-}
+await loadProfile();
 
 document.getElementById("admin-btn")
 .addEventListener("click", checkAdminAccess);
@@ -168,11 +307,15 @@ renderFeed();
 sbClient
 .channel('public:ig_feed_posts')
 .on('postgres_changes',
-{ event: '*', schema: 'public', table: 'ig_feed_posts' },
-renderFeed
-)
+{ event:'*', schema:'public', table:'ig_feed_posts' },
+renderFeed)
 .subscribe();
+
 });
+
+function openProfile(phone){
+window.location.href = `profile.html?phone=${phone}`;
+}
 
 function checkAdminAccess(event){
 event.preventDefault();
@@ -186,36 +329,48 @@ alert("ACCESS DENIED");
 }
 }
 
+/* FIX: safer feed query + error visibility */
 async function renderFeed(){
 
-const { data: posts } = await sbClient
+const { data: posts, error } = await sbClient
 .from('ig_feed_posts')
 .select('*')
-.order('timestamp', { ascending: false });
+.order('timestamp', { ascending:false });
 
 const container = document.getElementById("instagram-stream");
-
 container.innerHTML = "";
 
-// FIX: prevent false empty message flicker
+if(error){
+console.error("FEED ERROR FULL:", error);
+container.innerHTML = `<div style="padding:20px;color:red;">FAILED TO LOAD POSTS</div>`;
+return;
+}
+
 if(!posts || posts.length === 0){
-container.innerHTML = `<div style="text-align:center;padding:40px;color:#666;">NO ARCHIVED LOGS AVAILABLE.</div>`;
+container.innerHTML = `
+<div style="text-align:center;padding:40px;color:#666;">
+NO ARCHIVED LOGS AVAILABLE.
+</div>`;
 return;
 }
 
 posts.forEach(post => {
 
+const canDelete = currentSessionOfficer?.phone === post.phone;
+const likes = Number(post.likes ?? 0);
+const comments = Array.isArray(post.comments) ? post.comments : [];
+
 const article = document.createElement("article");
 article.className = "feed-post-card";
-
-const canDelete = currentSessionOfficer?.phone === post.phone;
 
 article.innerHTML = `
 <div class="feed-post-header">
 
-<div class="feed-post-user">
+<div class="feed-post-user" onclick="openProfile('${post.phone}')">
+
 <span class="feed-post-rank">${post.rank || "UNIT"}</span>
 <span class="feed-post-name">${post.name || "UNKNOWN"}</span>
+
 </div>
 
 ${canDelete ? `<button class="delete-post-btn" onclick="deletePost('${post.id}')">Delete</button>` : ""}
@@ -226,6 +381,29 @@ ${post.caption ? `<div class="feed-post-caption">${post.caption}</div>` : ""}
 
 ${post.image ? `<img src="${post.image}" class="feed-post-image">` : ""}
 
+<div class="post-actions">
+
+<button class="like-btn" onclick="likePost('${post.id}', ${likes})">
+👍 Like
+</button>
+
+</div>
+
+<div class="likes-count">${likes} Likes</div>
+
+<div class="comment-box">
+
+<input type="text" id="comment-${post.id}" class="comment-input" placeholder="Write comment...">
+
+<button class="comment-btn" onclick="addComment('${post.id}')">
+Comment
+</button>
+
+<div>
+${comments.map(c => `<div class="comment-item">${c}</div>`).join("")}
+</div>
+
+</div>
 `;
 
 container.appendChild(article);
@@ -233,11 +411,13 @@ container.appendChild(article);
 
 }
 
+/* POST FIX */
 async function submitInstagramPost(){
 
 const caption = document.getElementById("post-input").value.trim();
+const imageValue = base64ImageString || null;
 
-if(!caption && !base64ImageString){
+if(!caption && !imageValue){
 alert("Write something or add image");
 return;
 }
@@ -249,19 +429,20 @@ name: currentSessionOfficer.name,
 rank: currentSessionOfficer.rank,
 phone: currentSessionOfficer.phone,
 caption,
-image: base64ImageString,
+image: imageValue,
+likes: 0,
+comments: [],
 timestamp: Date.now()
 });
 
 if(error){
-console.error(error);
+console.error("POST ERROR:", error);
 alert("Post failed");
 return;
 }
 
 document.getElementById("post-input").value = "";
 base64ImageString = "";
-
 document.getElementById("post-img-preview").src = "";
 document.getElementById("post-img-preview").style.display = "none";
 
@@ -269,19 +450,40 @@ renderFeed();
 }
 
 async function deletePost(postId){
-
-if(!confirm("DELETE THIS POST?")) return;
-
-const { error } = await sbClient
-.from('ig_feed_posts')
-.delete()
-.eq('id', postId);
-
-if(error){
-alert("Delete failed");
-return;
+await sbClient.from('ig_feed_posts').delete().eq('id', postId);
+renderFeed();
 }
 
+async function likePost(postId, likes){
+await sbClient.from('ig_feed_posts')
+.update({ likes: likes + 1 })
+.eq('id', postId);
+
+renderFeed();
+}
+
+async function addComment(postId){
+
+const input = document.getElementById(`comment-${postId}`);
+const text = input.value.trim();
+if(!text) return;
+
+const { data } = await sbClient
+.from('ig_feed_posts')
+.select('comments')
+.eq('id', postId)
+.single();
+
+let comments = Array.isArray(data.comments) ? data.comments : [];
+
+comments.push(`${currentSessionOfficer.rank}: ${text}`);
+
+await sbClient
+.from('ig_feed_posts')
+.update({ comments })
+.eq('id', postId);
+
+input.value = "";
 renderFeed();
 }
 
@@ -290,15 +492,14 @@ function previewSelectedImage(input){
 if(!input.files[0]) return;
 
 const reader = new FileReader();
-
 reader.onload = (e) => {
 base64ImageString = e.target.result;
 document.getElementById("post-img-preview").src = base64ImageString;
 document.getElementById("post-img-preview").style.display = "block";
 };
-
 reader.readAsDataURL(input.files[0]);
 }
+
 </script>
 
 </body>

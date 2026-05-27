@@ -1,144 +1,285 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CADRE - Terminal Profile</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CADRE - Terminal Profile</title>
+
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root{
+    --bg:#050812;
+    --panel:#0b1220;
+    --line:#1f2a3a;
+    --accent:#00f0ff;
+    --danger:#ff3333;
+    --text:#e5e7eb;
+    --muted:#94a3b8;
+}
+
+body{
+    margin:0;
+    font-family:system-ui, Arial;
+    background:radial-gradient(circle at top, #0b1220, #050812);
+    color:var(--text);
+}
+
+/* HEADER */
+.app-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:15px;
+    border-bottom:1px solid var(--line);
+    background:rgba(0,0,0,0.3);
+}
+
+.brand-wrapper{
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.brand-logo{
+    width:35px;
+    height:35px;
+    border-radius:8px;
+}
+
+.brand-text{
+    font-weight:700;
+    color:var(--accent);
+}
+
+/* PROFILE WRAPPER */
+.profile-wrapper{
+    max-width:500px;
+    margin:auto;
+    padding:20px;
+}
+
+/* AVATAR */
+.radar-avatar-zone{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    margin-top:20px;
+}
+
+.radar-ring{
+    width:130px;
+    height:130px;
+    border-radius:50%;
+    border:2px solid var(--accent);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 0 15px rgba(0,240,255,0.3);
+    cursor:pointer;
+}
+
+.pfp-display{
+    width:115px;
+    height:115px;
+    border-radius:50%;
+    object-fit:cover;
+}
+
+/* STATUS */
+.status-pill-badge{
+    margin-top:10px;
+    padding:5px 12px;
+    font-size:12px;
+    border:1px solid var(--line);
+    border-radius:20px;
+    color:var(--muted);
+}
+
+/* DATA CARD */
+.terminal-data-card{
+    margin-top:25px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:15px;
+}
+
+.terminal-data-card div{
+    display:flex;
+    justify-content:space-between;
+    padding:10px 0;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+}
+
+.terminal-data-card div:last-child{
+    border-bottom:none;
+}
+
+label{
+    color:var(--muted);
+}
+
+/* BUTTON */
+button{
+    width:100%;
+    margin-top:20px;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:var(--danger);
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+/* NAV */
+.app-bottom-dock{
+    position:fixed;
+    bottom:0;
+    width:100%;
+    display:flex;
+    justify-content:space-around;
+    padding:10px;
+    background:#050812;
+    border-top:1px solid var(--line);
+}
+
+.app-bottom-dock a{
+    color:var(--muted);
+    text-decoration:none;
+    font-size:14px;
+}
+</style>
+
 </head>
+
 <body>
 
 <div class="app-container">
-    <header class="app-header">
-        <div class="brand-wrapper">
-            <img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo">
-            <span class="brand-text">HQ ARCHIVE</span>
-        </div>
-    </header>
 
-    <main class="profile-wrapper">
-        <div class="radar-avatar-zone" onclick="triggerPfpInput()">
-            <div class="radar-ring">
-                <img id="pfp-view-target" class="pfp-display" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>">
-            </div>
-            <div class="status-pill-badge" id="terminal-status-pill">Offline</div>
-        </div>
-        
-        <input type="file" id="pfp-file-controller" accept="image/*" style="display: none;">
+<header class="app-header">
+<div class="brand-wrapper">
+<img src="Cadre logo png.jpg" class="brand-logo">
+<span class="brand-text">HQ ARCHIVE</span>
+</div>
+</header>
 
-        <section class="terminal-data-card">
-            <div class="data-row-entry"><label>Name</label><span id="id-name">—</span></div>
-            <div class="data-row-entry"><label>Rank</label><span id="id-rank">—</span></div>
-            <div class="data-row-entry"><label>Phone</label><span id="id-phone">—</span></div>
-        </section>
+<main class="profile-wrapper">
 
-        <section class="action-menu-container">
-            <div class="menu-action-node"><span>📡</span><span>System Notifications</span></div>
-            <div class="menu-action-node"><span>🗃️</span><span>View Duty Roster</span></div>
-        </section>
+<div class="radar-avatar-zone" onclick="triggerPfpInput()">
+<div class="radar-ring">
+<img id="pfp-view-target" class="pfp-display"
+src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>">
+</div>
 
-        <button class="btn-terminal-logout" id="logout-trigger-node">
-            <span>Clear Access Session</span><span>🔒</span>
-        </button>
-    </main>
+<div class="status-pill-badge" id="terminal-status-pill">Loading...</div>
+</div>
 
-    <nav class="app-bottom-dock">
-        <a href="home.html" class="dock-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
-        <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
-        <a href="profile.html" class="dock-node active-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
-    </nav>
+<input type="file" id="pfp-file-controller" accept="image/*" style="display:none;">
+
+<section class="terminal-data-card">
+<div><label>Name</label><span id="id-name">—</span></div>
+<div><label>Rank</label><span id="id-rank">—</span></div>
+<div><label>Phone</label><span id="id-phone">—</span></div>
+</section>
+
+<button id="logout-trigger-node">
+Clear Access Session 🔒
+</button>
+
+</main>
+
+<nav class="app-bottom-dock">
+<a href="home.html">🏠 Feed</a>
+<a href="ebook.html">📖 eBook</a>
+<a href="profile.html">👤 Profile</a>
+</nav>
+
 </div>
 
 <script>
-    // 1. Initialize Supabase
-    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co'; 
-    const supabaseAnonKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    let currentUserId = null;
+/* fallback session (for your current system) */
+let sessionUser = JSON.parse(localStorage.getItem("session_user"));
 
-    // 2. Check Authentication
-    async function checkAuth() {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            window.location.href = "login.html";
-        } else {
-            currentUserId = session.user.id;
-            loadProfileData();
-        }
-    }
+/* optional future Supabase auth support */
+let currentPhone = sessionUser?.phone;
 
-    // 3. Load User Data
-    async function loadProfileData() {
-        const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', currentUserId)
-            .single();
+if(!sessionUser){
+window.location.href = "login.html";
+}
 
-        if (data) {
-            document.getElementById("id-name").textContent = data.name || "UNREGISTERED_OPERATOR";
-            document.getElementById("id-rank").textContent = data.rank || "FIELD_UNIT";
-            document.getElementById("id-phone").textContent = data.phone || "—";
-            document.getElementById("terminal-status-pill").textContent = "Active";
-            
-            if (data.pfp) {
-                document.getElementById("pfp-view-target").src = data.pfp;
-            }
-        }
-    }
+/* LOAD PROFILE */
+async function loadProfile(){
 
-    // 4. Handle Image Upload
-    async function processProfilePicture(file) {
-        if (!currentUserId) return;
+const { data, error } = await sbClient
+.from('users')
+.select('*')
+.eq('phone', currentPhone)
+.single();
 
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${currentUserId}.${fileExt}`; // Path inside bucket
+if(data){
 
-        // Upload to Storage
-        const { error: uploadError } = await supabase.storage
-            .from('profile_pictures') 
-            .upload(filePath, file, { upsert: true });
+document.getElementById("id-name").textContent = data.name || "UNKNOWN";
+document.getElementById("id-rank").textContent = data.rank || "UNIT";
+document.getElementById("id-phone").textContent = data.phone || "—";
 
-        if (uploadError) {
-            console.error("Upload error:", uploadError.message);
-            return;
-        }
+document.getElementById("terminal-status-pill").textContent = "ACTIVE";
 
-        // Get Public URL
-        const { data } = supabase.storage
-            .from('profile_pictures')
-            .getPublicUrl(filePath);
+if(data.pfp){
+document.getElementById("pfp-view-target").src = data.pfp;
+}
 
-        // Update Database
-        await supabase
-            .from('users')
-            .update({ pfp: data.publicUrl })
-            .eq('id', currentUserId);
+}
+}
 
-        // Refresh UI
-        document.getElementById("pfp-view-target").src = data.publicUrl;
-    }
+/* UPLOAD PFP */
+async function uploadPfp(file){
 
-    // Event Listeners
-    document.getElementById("pfp-file-controller").addEventListener("change", (e) => {
-        if (e.target.files && e.target.files[0]) {
-            processProfilePicture(e.target.files[0]);
-        }
-    });
+const fileExt = file.name.split('.').pop();
+const filePath = `${currentPhone}.${fileExt}`;
 
-    document.getElementById("logout-trigger-node").addEventListener("click", async () => {
-        await supabase.auth.signOut();
-        window.location.href = "login.html";
-    });
+await sbClient.storage
+.from('profile_pictures')
+.upload(filePath, file, { upsert:true });
 
-    // Run on startup
-    checkAuth();
+const { data } = sbClient.storage
+.from('profile_pictures')
+.getPublicUrl(filePath);
+
+await sbClient
+.from('users')
+.update({ pfp: data.publicUrl })
+.eq('phone', currentPhone);
+
+document.getElementById("pfp-view-target").src = data.publicUrl;
+}
+
+/* EVENTS */
+document.getElementById("pfp-file-controller")
+.addEventListener("change", (e)=>{
+if(e.target.files[0]){
+uploadPfp(e.target.files[0]);
+}
+});
+
+document.getElementById("logout-trigger-node")
+.addEventListener("click", ()=>{
+localStorage.removeItem("session_user");
+window.location.href = "login.html";
+});
+
+function triggerPfpInput(){
+document.getElementById("pfp-file-controller").click();
+}
+
+loadProfile();
 </script>
 
-<script>
-    function triggerPfpInput() { document.getElementById("pfp-file-controller").click(); }
-</script>
 </body>
 </html>
