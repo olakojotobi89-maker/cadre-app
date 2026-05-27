@@ -1,147 +1,289 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CADRE - Operational Library</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CADRE - Operational Library</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+
+/* ===== TACTICAL HISTORY MODULE ===== */
+
+.history-module {
+background: #101826;
+border: 1px solid #1f2937;
+border-radius: 14px;
+margin-bottom: 15px;
+overflow: hidden;
+position: relative;
+cursor: pointer;
+transition: 0.3s;
+}
+
+.history-module:hover {
+transform: scale(1.01);
+border-color: #00f0ff;
+}
+
+.history-header {
+padding: 15px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+font-weight: bold;
+color: white;
+background: linear-gradient(90deg, #0f172a, #101826);
+position: relative;
+overflow: hidden;
+}
+
+.history-header::before {
+content: "";
+position: absolute;
+top: 0;
+left: -100%;
+width: 100%;
+height: 2px;
+background: #00f0ff;
+animation: scan 3s linear infinite;
+}
+
+@keyframes scan {
+0% { left: -100%; }
+100% { left: 100%; }
+}
+
+.history-body {
+padding: 15px;
+color: #cbd5e1;
+line-height: 1.6;
+white-space: pre-wrap;
+display: none;
+min-height: 80px;
+animation: fadeIn 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+from { opacity: 0; transform: translateY(-10px); }
+to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== TYPEWRITER ===== */
+
+.typing-cursor {
+display: inline-block;
+width: 10px;
+background: #00f0ff;
+margin-left: 3px;
+animation: blink 0.8s infinite;
+}
+
+@keyframes blink {
+0%,100% { opacity: 1; }
+50% { opacity: 0; }
+}
+
+.accordion-arrow-indicator {
+color: #00f0ff;
+}
+
+</style>
 </head>
+
 <body>
 
 <div class="app-container">
-    
-    <header class="app-header">
-        <div class="brand-wrapper">
-            <img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo">
-            <span class="brand-text">LIBRARY DECK</span>
-        </div>
-    </header>
 
-    <main class="library-wrapper">
-        <h3 class="section-title">Operational Manuals</h3>
-        
-        <div style="margin-bottom: 20px; display: flex; gap: 8px;">
-            <input type="text" id="library-search" class="search-input" placeholder="Filter operational manuals by keyword..." oninput="filterLibraryModules(this.value)">
-        </div>
-        
-        <div id="library-content-container">
-            <div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;" id="library-loader">
-                CONNECTING TO OPERATIONS DATA STREAM...
-            </div>
-        </div>
-    </main>
+<header class="app-header">
+<div class="brand-wrapper">
+<img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo">
+<span class="brand-text">LIBRARY DECK</span>
+</div>
+</header>
 
-    <nav class="app-bottom-dock">
-        <a href="home.html" class="dock-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
-        <a href="ebook.html" class="dock-node active-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
-        <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
-    </nav>
+<main class="library-wrapper">
+
+<h3 class="section-title">Operational Manuals</h3>
+
+<!-- ================= ORGANIZATION HISTORY ================= -->
+<div class="history-module" onclick="toggleHistory(this)">
+<div class="history-header">
+ORGANIZATION HISTORY
+<span class="accordion-arrow-indicator">▼</span>
+</div>
+
+<div class="history-body" data-fulltext="HISTORICAL BACKGROUND  
+The CADRE MARSHAL CORPS was established in the year 2012 under the visionary leadership of Reverend Adeleke Israel Emioye, the Chief Steward of Word of Spirit & Life Ministry, Oriyangi Ogbere, Ibadan, with the organizational framework co-founded by Egbekunle Adewale M. and Adeleke Israel O.
+
+The organization was officially inaugurated on the 31st of August, 2014, with Egbekunle Adewale appointed as the General Commander. He served meritoriously until his resignation in 2017. Thereafter, Adeleke Israel O., the co-founder, assumed full leadership and has since remained the Founder and General Commander of CADRE MARSHAL CORPS.
+
+The organization commenced operations at Ona-Ara Local Government Area, Oyo State, with an initial enrollment of thirty-five (35) officers.">
+</div>
+</div>
+
+<!-- ================= ORGANIZATION PROFILE ================= -->
+<div class="history-module" onclick="toggleHistory(this)">
+<div class="history-header">
+ORGANIZATION PROFILE
+<span class="accordion-arrow-indicator">▼</span>
+</div>
+
+<div class="history-body" data-fulltext="MOTTO:
+Defence for the Nation, Dignity to the Law.
+
+SLOGAN:
+In Unity We Serve.
+
+TERRITORY:
+This organization shall operate throughout the Federal Republic of Nigeria and beyond, with its Headquarters located in Ibadan, Oyo State, Nigeria.
+
+VISION:
+To instill in youths the capacity to utilize their leisure hours productively and to foster unity for a safe and secure society.
+To develop national consciousness, patriotism, self-discipline, and self-reliance in individuals.
+
+MISSION:
+To inculcate discipline among Nigerian youths.
+To promote moral values and responsibility.
+To raise individuals who serve as true ambassadors of the nation.
+To support law enforcement and empower youths for national development.
+To collaborate with relevant security agencies in intelligence gathering for public safety and national security.
+
+CORE VALUES:
+Values are the principles or standards that guide behavior, foster cooperation, and promote inclusiveness regardless of religious, political, or socioeconomic affiliations.
+
+QUALITIES EXPECTED OF EVERY CADRE OFFICER:
+- Deliver quality and accessible services to the public.
+- Build public trust and confidence in the organization.
+- Continually evaluate and improve organizational services.
+- Collaborate with government agencies and civil society stakeholders.">
+</div>
+</div>
+
+<!-- SEARCH -->
+<div style="margin-bottom: 20px; display: flex; gap: 8px;">
+<input type="text" id="library-search" class="search-input"
+placeholder="Filter operational manuals by keyword..."
+oninput="filterLibraryModules(this.value)">
+</div>
+
+<!-- SUPABASE CONTENT -->
+<div id="library-content-container">
+<div style="text-align:center; padding:40px; color:#666;" id="library-loader">
+CONNECTING TO OPERATIONS DATA STREAM...
+</div>
+</div>
+
+</main>
+
+<nav class="app-bottom-dock">
+<a href="home.html" class="dock-node"><span>🏠</span><span>Feed</span></a>
+<a href="ebook.html" class="dock-node active-node"><span>📖</span><span>eBook</span></a>
+<a href="profile.html" class="dock-node"><span>👤</span><span>Profile</span></a>
+</nav>
+
 </div>
 
 <script>
-    // Supabase Configuration
-    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
-    const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    window.toggleLibraryAccordion = toggleLibraryAccordion;
-    window.filterLibraryModules = filterLibraryModules;
+const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    window.addEventListener('DOMContentLoaded', () => {
-        if (!localStorage.getItem("session_user")) {
-            window.location.href = "login.html";
-            return;
-        }
-        streamOperationalManuals();
-    });
+/* ================= TYPEWRITER ENGINE ================= */
 
-    /**
-     * Real-Time Documentation Database Synchronization Engine
-     */
-    async function streamOperationalManuals() {
-        const targetContainer = document.getElementById("library-content-container");
-        
-        // Fetch data from Supabase
-        const { data: manuals, error } = await supabase
-            .from('ebook_modules')
-            .select('*')
-            .order('order', { ascending: true });
+function typeWriter(el, text, speed = 12) {
+let i = 0;
+el.innerHTML = "";
 
-        if (error) {
-            console.error("Manual registry connection failure: ", error);
-            targetContainer.innerHTML = `<div style="text-align:center; padding:40px; color:var(--hud-crimson); font-size:0.8rem;">LINK ERROR: ABORTED METRIC ACQUISITION.</div>`;
-            return;
-        }
+const cursor = document.createElement("span");
+cursor.className = "typing-cursor";
+el.appendChild(cursor);
 
-        targetContainer.innerHTML = "";
+function type() {
+if (i < text.length) {
+cursor.insertAdjacentText("beforebegin", text.charAt(i));
+i++;
+setTimeout(type, speed);
+} else {
+cursor.remove();
+}
+}
 
-        if (!manuals || manuals.length === 0) {
-            targetContainer.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;">NO OPERATIONAL MANUALS FOUND IN REGISTRY.</div>`;
-            return;
-        }
+type();
+}
 
-        manuals.forEach((manual) => {
-            const title = manual.title ? manual.title.toUpperCase() : "UNTITLED OPERATIONAL MANUAL";
-            const content = manual.content ? manual.content : "No documentation details supplied for this segment node.";
-            const keywords = manual.keywords ? manual.keywords.toLowerCase() : "";
+/* ================= TOGGLE MODULE ================= */
 
-            const docItem = document.createElement("div");
-            docItem.className = "doc-item searchable-module-node";
-            docItem.setAttribute("data-keywords", keywords);
-            
-            docItem.innerHTML = `
-                <div class="doc-header" onclick="toggleLibraryAccordion(this)">
-                    <span>${escapeHTML(title)}</span>
-                    <span class="accordion-arrow-indicator">▼</span>
-                </div>
-                <div class="doc-body" style="display: none;">
-                    <div class="article-block">
-                        <p style="white-space: pre-wrap; line-height: 1.5;">${escapeHTML(content)}</p>
-                    </div>
-                </div>
-            `;
-            
-            targetContainer.appendChild(docItem);
-        });
-    }
+function toggleHistory(el) {
+const body = el.querySelector(".history-body");
+const arrow = el.querySelector(".accordion-arrow-indicator");
 
-    function toggleLibraryAccordion(headerElement) {
-        const bodyTarget = headerElement.nextElementSibling;
-        const arrowTarget = headerElement.querySelector(".accordion-arrow-indicator");
-        
-        if (bodyTarget.style.display === "block") {
-            bodyTarget.style.display = "none";
-            arrowTarget.textContent = "▼";
-        } else {
-            bodyTarget.style.display = "block";
-            arrowTarget.textContent = "▲";
-        }
-    }
+if (body.style.display === "block") {
+body.style.display = "none";
+arrow.textContent = "▼";
+return;
+}
 
-    function filterLibraryModules(searchQuery) {
-        const structuralCleanQuery = searchQuery.toLowerCase().trim();
-        const activeModuleNodes = document.querySelectorAll('.searchable-module-node');
-        
-        activeModuleNodes.forEach(node => {
-            const analyticalKeywords = node.getAttribute('data-keywords') || '';
-            const internalTextString = node.textContent.toLowerCase();
-            
-            if (internalTextString.includes(structuralCleanQuery) || analyticalKeywords.includes(structuralCleanQuery)) {
-                node.style.display = "block";
-                if (structuralCleanQuery.length > 2) {
-                    node.querySelector('.doc-body').style.display = "block";
-                    node.querySelector('.accordion-arrow-indicator').textContent = "▲";
-                }
-            } else {
-                node.style.display = "none";
-            }
-        });
-    }
+body.style.display = "block";
+arrow.textContent = "▲";
 
-    function escapeHTML(str) {
-        return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
-    }
+const fullText = body.getAttribute("data-fulltext");
+typeWriter(body, fullText, 10);
+}
+
+/* ================= LOAD SYSTEM ================= */
+
+window.addEventListener('DOMContentLoaded', () => {
+if (!localStorage.getItem("session_user")) {
+window.location.href = "login.html";
+return;
+}
+streamOperationalManuals();
+});
+
+async function streamOperationalManuals() {
+
+const container = document.getElementById("library-content-container");
+
+const { data: manuals, error } = await supabaseClient
+.from('ebook_modules')
+.select('*')
+.order('order', { ascending: true });
+
+if (error) {
+container.innerHTML = `<div style="color:red;text-align:center;">FAILED TO LOAD</div>`;
+return;
+}
+
+container.innerHTML = "";
+
+if (!manuals || manuals.length === 0) {
+container.innerHTML = `<div style="text-align:center;color:#666;">NO MANUALS FOUND</div>`;
+return;
+}
+
+manuals.forEach(manual => {
+
+const div = document.createElement("div");
+div.className = "history-module";
+
+div.innerHTML = `
+<div class="history-header" onclick="toggleHistory(this)">
+${manual.title || "UNTITLED"}
+<span class="accordion-arrow-indicator">▼</span>
+</div>
+<div class="history-body" data-fulltext="${(manual.content || "").replace(/"/g, '&quot;')}">
+</div>
+`;
+
+container.appendChild(div);
+});
+
+}
+
 </script>
+
 </body>
 </html>

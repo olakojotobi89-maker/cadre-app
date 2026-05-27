@@ -220,9 +220,10 @@ Broadcast
 <span>eBook</span>
 </a>
 
-<a href="map.html" class="dock-node">
-<span class="dock-node-glyph">🗺️</span>
-<span>Map</span>
+<!-- 🔥 REPLACED MAP WITH GROUP CALL -->
+<a href="group-call.html" class="dock-node">
+<span class="dock-node-glyph">📞</span>
+<span>Call</span>
 </a>
 
 <a href="compass.html" class="dock-node">
@@ -261,7 +262,6 @@ const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
 
 const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-/* FIX: safe session handling */
 let currentSessionOfficer = null;
 try {
 currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
@@ -275,10 +275,8 @@ if(!currentSessionOfficer){
 window.location.href = "login.html";
 }
 
-/* FIX: safer profile loading */
 async function loadProfile(){
 const phone = currentSessionOfficer?.phone;
-
 if(!phone) return;
 
 const { data, error } = await sbClient
@@ -329,7 +327,6 @@ alert("ACCESS DENIED");
 }
 }
 
-/* FIX: safer feed query + error visibility */
 async function renderFeed(){
 
 const { data: posts, error } = await sbClient
@@ -411,7 +408,6 @@ container.appendChild(article);
 
 }
 
-/* POST FIX */
 async function submitInstagramPost(){
 
 const caption = document.getElementById("post-input").value.trim();
