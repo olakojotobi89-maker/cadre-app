@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CADRE - Group Comms</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* Inheriting your existing mobile dock and card styles */
+        .comms-container { padding: 20px; color: white; }
+        .audio-link-panel {
+            background: #101826;
+            border: 1px solid #1f2937;
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+        }
+        .wave-visualizer {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            height: 60px;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .wave-bar { width: 8px; height: 20px; background: #00f0ff; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { height: 20px; } 50% { height: 50px; } }
+        .join-btn {
+            background: #10b981;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header class="app-header">
+        <div class="brand-wrapper">
+            <span class="brand-text">TACTICAL_LINK</span>
+        </div>
+    </header>
+
+    <main class="feed-content">
+        <div class="comms-container">
+            <div class="audio-link-panel">
+                <h2 style="margin-top:0;">GROUP_CALL_ALPHA</h2>
+                <div class="wave-visualizer">
+                    <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                </div>
+                <button class="join-btn" onclick="initializeComms()">INITIATE_LINK</button>
+            </div>
+        </div>
+    </main>
+
+    <nav class="app-bottom-dock">
+        <a href="home.html" class="dock-node"><span>🏠</span><span>Feed</span></a>
+        </nav>
+</div>
+
+<script>
+    function initializeComms() {
+        alert("Initializing encrypted tactical stream...");
+        // Logic for group audio will connect here
+    }
+</script>
+</body>
+</html>
