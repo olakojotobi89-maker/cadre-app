@@ -25,14 +25,8 @@ animation:beacon-pulse 1.5s infinite ease-in-out;
 }
 
 @keyframes beacon-pulse{
-0%,100%{
-opacity:0.6;
-transform:scale(1);
-}
-50%{
-opacity:1;
-transform:scale(1.15);
-}
+0%,100%{ opacity:0.6; transform:scale(1); }
+50%{ opacity:1; transform:scale(1.15); }
 }
 
 .feed-post-card{
@@ -41,6 +35,9 @@ border:1px solid #1f2937;
 border-radius:14px;
 margin-bottom:20px;
 overflow:hidden;
+/* GPU-composite the card so layout shifts don't repaint the whole page */
+will-change:transform;
+contain:content;
 }
 
 .feed-post-header{
@@ -53,17 +50,11 @@ padding:14px;
 .feed-post-user{
 display:flex;
 flex-direction:column;
+cursor:pointer;
 }
 
-.feed-post-rank{
-font-weight:bold;
-color:white;
-}
-
-.feed-post-name{
-font-size:13px;
-color:#94a3b8;
-}
+.feed-post-rank{ font-weight:bold; color:white; }
+.feed-post-name{ font-size:13px; color:#94a3b8; }
 
 .feed-post-caption{
 padding:0 14px 14px;
@@ -72,12 +63,15 @@ line-height:1.5;
 word-break:break-word;
 }
 
+/* Lazy-load placeholder so the layout doesn't jump */
 .feed-post-image{
 width:100%;
 display:block;
 max-height:500px;
 object-fit:cover;
-background:#000;
+background:#1e293b;
+/* Reserve space while loading — prevents reflow */
+min-height:200px;
 }
 
 .delete-post-btn{
@@ -106,7 +100,10 @@ padding:8px 14px;
 border-radius:8px;
 cursor:pointer;
 font-weight:bold;
+/* Prevent double-clicks while request is in flight */
 }
+
+.like-btn:disabled{ opacity:0.5; cursor:not-allowed; }
 
 .comment-box{
 padding:14px;
@@ -133,6 +130,8 @@ cursor:pointer;
 font-weight:bold;
 }
 
+.comment-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
 .comment-item{
 background:#1e293b;
 padding:10px;
@@ -148,6 +147,58 @@ font-size:13px;
 padding:0 14px 14px;
 }
 
+/* Skeleton loader */
+.skeleton-card{
+background:#101826;
+border:1px solid #1f2937;
+border-radius:14px;
+margin-bottom:20px;
+padding:14px;
+}
+
+.skeleton-line{
+background:linear-gradient(90deg,#1e293b 25%,#2d3f55 50%,#1e293b 75%);
+background-size:200% 100%;
+animation:shimmer 1.4s infinite;
+border-radius:6px;
+height:14px;
+margin-bottom:10px;
+}
+
+.skeleton-line.wide{ width:70%; }
+.skeleton-line.narrow{ width:40%; }
+.skeleton-block{
+background:linear-gradient(90deg,#1e293b 25%,#2d3f55 50%,#1e293b 75%);
+background-size:200% 100%;
+animation:shimmer 1.4s infinite;
+border-radius:6px;
+height:200px;
+margin-bottom:10px;
+}
+
+@keyframes shimmer{
+0%{ background-position:200% 0; }
+100%{ background-position:-200% 0; }
+}
+
+/* Load-more button */
+#load-more-btn{
+display:block;
+width:100%;
+padding:14px;
+background:#1e293b;
+color:#94a3b8;
+border:1px solid #1f2937;
+border-radius:14px;
+cursor:pointer;
+font-size:14px;
+margin-bottom:80px;
+transition:background 0.2s;
+}
+
+#load-more-btn:hover{ background:#2d3f55; color:white; }
+#load-more-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
 </style>
 </head>
 
@@ -156,16 +207,11 @@ padding:0 14px 14px;
 <div class="app-container">
 
 <header class="app-header">
-
 <div class="brand-wrapper">
 <img src="Cadre logo png.jpg" class="brand-logo">
 <span class="brand-text">CADRE HUB</span>
 </div>
-
-<div id="officer-header-tag" class="header-badge">
-Loading...
-</div>
-
+<div id="officer-header-tag" class="header-badge">Loading...</div>
 </header>
 
 <section class="search-tray">
@@ -177,323 +223,614 @@ Loading...
 <main class="feed-content">
 
 <section class="composer-card">
-
 <div class="composer-row">
-
 <img id="composer-avatar" class="avatar-frame">
-
 <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..."></textarea>
-
 </div>
-
 <div class="composer-footer">
-
-<label for="image-upload" class="file-upload-label">
-📷 Attach Media
-</label>
-
+<label for="image-upload" class="file-upload-label">📷 Attach Media</label>
 <input type="file" id="image-upload" accept="image/*" style="display:none;" onchange="previewSelectedImage(this)">
-
 <img id="post-img-preview" class="preview-thumbnail">
-
-<button type="button" class="btn-post" onclick="submitInstagramPost()">
-Broadcast
-</button>
-
+<button type="button" class="btn-post" onclick="submitInstagramPost()">Broadcast</button>
 </div>
-
 </section>
 
 <section id="instagram-stream"></section>
 
+<button id="load-more-btn" onclick="loadMorePosts()" style="display:none;">Load more posts</button>
+
 </main>
 
 <nav class="app-bottom-dock">
-
 <a href="home.html" class="dock-node active-node">
-<span class="dock-node-glyph">🏠</span>
-<span>Feed</span>
+<span class="dock-node-glyph">🏠</span><span>Feed</span>
 </a>
-
 <a href="ebook.html" class="dock-node">
-<span class="dock-node-glyph">📖</span>
-<span>eBook</span>
+<span class="dock-node-glyph">📖</span><span>eBook</span>
 </a>
-
-<!-- 🔥 REPLACED MAP WITH GROUP CALL -->
 <a href="group-call.html" class="dock-node">
-<span class="dock-node-glyph">📞</span>
-<span>Call</span>
+<span class="dock-node-glyph">📞</span><span>Call</span>
 </a>
-
 <a href="compass.html" class="dock-node">
-<span class="dock-node-glyph">🧭</span>
-<span>Compass</span>
+<span class="dock-node-glyph">🧭</span><span>Compass</span>
 </a>
-
 <a href="tactical-plotter.html" class="dock-node">
-<span class="dock-node-glyph">📍</span>
-<span>Plotter</span>
+<span class="dock-node-glyph">📍</span><span>Plotter</span>
 </a>
-
 <a href="profile.html" class="dock-node">
-<span class="dock-node-glyph">👤</span>
-<span>Profile</span>
+<span class="dock-node-glyph">👤</span><span>Profile</span>
 </a>
-
 <a href="#" id="admin-btn" class="dock-node">
-<span class="dock-node-glyph">⚙️</span>
-<span>Admin</span>
+<span class="dock-node-glyph">⚙️</span><span>Admin</span>
 </a>
-
 <a href="emergency.html" class="dock-node dock-node-emergency">
-<span class="dock-node-glyph">🚨</span>
-<span>SOS</span>
+<span class="dock-node-glyph">🚨</span><span>SOS</span>
 </a>
-
 </nav>
 
 </div>
 
 <script>
 
+/* ─────────────────────────────────────────────
+   SUPABASE + SESSION
+───────────────────────────────────────────── */
+
 const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
 const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-
 const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 let currentSessionOfficer = null;
-try {
-currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
-} catch (e) {
-currentSessionOfficer = null;
-}
+try { currentSessionOfficer = JSON.parse(localStorage.getItem("session_user")); }
+catch(e) { currentSessionOfficer = null; }
+
+if (!currentSessionOfficer) window.location.href = "login.html";
 
 let base64ImageString = "";
 
-if(!currentSessionOfficer){
-window.location.href = "login.html";
+/* ─────────────────────────────────────────────
+   PAGINATION STATE
+   PAGE_SIZE controls how many posts load per
+   batch. Increase if your posts are text-only;
+   keep smaller if posts carry large images.
+───────────────────────────────────────────── */
+
+const PAGE_SIZE   = 10;
+let   currentPage = 0;       // 0-based page index
+let   allLoaded   = false;   // true when no more rows exist
+
+/*
+   postCache: Map<postId, postObject>
+   Keeps the last-known state of every loaded post
+   so we can do targeted DOM updates instead of
+   full re-renders.
+*/
+const postCache = new Map();
+
+/* ─────────────────────────────────────────────
+   REALTIME DEBOUNCE
+   The realtime listener fires per-row-change.
+   Debouncing collapses rapid-fire events (e.g.
+   many likes at once) into a single refresh so
+   the DOM isn't hammered.
+───────────────────────────────────────────── */
+
+let realtimeDebounceTimer = null;
+
+function scheduleRealtimeRefresh(payload) {
+  clearTimeout(realtimeDebounceTimer);
+  realtimeDebounceTimer = setTimeout(() => {
+    handleRealtimeEvent(payload);
+  }, 300); // wait 300 ms for burst to settle
 }
 
-async function loadProfile(){
-const phone = currentSessionOfficer?.phone;
-if(!phone) return;
+async function handleRealtimeEvent(payload) {
+  const { eventType, new: newRow, old: oldRow } = payload;
 
-const { data, error } = await sbClient
-.from('users')
-.select('pfp')
-.eq('phone', phone)
-.maybeSingle();
+  if (eventType === 'DELETE') {
+    const id = oldRow?.id;
+    if (id) {
+      postCache.delete(id);
+      const el = document.getElementById(`post-${id}`);
+      if (el) el.remove();
+    }
+    return;
+  }
 
-if(!error && data?.pfp){
-document.getElementById("composer-avatar").src = data.pfp;
+  if (eventType === 'INSERT') {
+    // Only prepend if we're on the first page (top of feed)
+    if (currentPage === 0 || postCache.size < PAGE_SIZE) {
+      postCache.set(newRow.id, newRow);
+      prependPostCard(newRow);
+    }
+    return;
+  }
+
+  if (eventType === 'UPDATE') {
+    // Patch only the changed fields — no full re-render
+    postCache.set(newRow.id, newRow);
+    patchPostCard(newRow);
+    return;
+  }
 }
-}
+
+/* ─────────────────────────────────────────────
+   BOOT
+───────────────────────────────────────────── */
 
 window.addEventListener('DOMContentLoaded', async () => {
 
-document.getElementById("officer-header-tag").textContent =
-currentSessionOfficer.rank;
+  document.getElementById("officer-header-tag").textContent =
+    currentSessionOfficer.rank;
 
-await loadProfile();
+  document.getElementById("admin-btn")
+    .addEventListener("click", checkAdminAccess);
 
-document.getElementById("admin-btn")
-.addEventListener("click", checkAdminAccess);
+  // Profile pic and first page of posts load in parallel
+  await Promise.all([
+    loadProfile(),
+    loadPostsPage(0)
+  ]);
 
-renderFeed();
-
-sbClient
-.channel('public:ig_feed_posts')
-.on('postgres_changes',
-{ event:'*', schema:'public', table:'ig_feed_posts' },
-renderFeed)
-.subscribe();
+  // Subscribe AFTER initial load so the realtime handler
+  // doesn't race with the first render
+  sbClient
+    .channel('public:ig_feed_posts')
+    .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'ig_feed_posts' },
+        scheduleRealtimeRefresh)
+    .subscribe();
 
 });
 
-function openProfile(phone){
-window.location.href = `profile.html?phone=${phone}`;
+/* ─────────────────────────────────────────────
+   PROFILE
+───────────────────────────────────────────── */
+
+async function loadProfile() {
+  const phone = currentSessionOfficer?.phone;
+  if (!phone) return;
+
+  const { data, error } = await sbClient
+    .from('users')
+    .select('pfp')
+    .eq('phone', phone)
+    .maybeSingle();
+
+  if (!error && data?.pfp) {
+    document.getElementById("composer-avatar").src = data.pfp;
+  }
 }
 
-function checkAdminAccess(event){
-event.preventDefault();
+/* ─────────────────────────────────────────────
+   PAGINATION — LOAD A PAGE OF POSTS
+───────────────────────────────────────────── */
 
-const password = prompt("ENTER COMMANDER AUTHORIZATION CODE:");
+async function loadPostsPage(page) {
+  const container = document.getElementById("instagram-stream");
 
-if(password === "CDR123"){
-window.location.href = "admin.html";
-}else if(password !== null){
-alert("ACCESS DENIED");
-}
-}
+  // Show skeleton only on the very first load
+  if (page === 0) {
+    showSkeletons(container, 3);
+  }
 
-async function renderFeed(){
+  const from = page * PAGE_SIZE;
+  const to   = from + PAGE_SIZE - 1;
 
-const { data: posts, error } = await sbClient
-.from('ig_feed_posts')
-.select('*')
-.order('timestamp', { ascending:false });
+  const { data: posts, error } = await sbClient
+    .from('ig_feed_posts')
+    .select('*')
+    .order('timestamp', { ascending: false })
+    .range(from, to);
 
-const container = document.getElementById("instagram-stream");
-container.innerHTML = "";
+  if (page === 0) container.innerHTML = ''; // clear skeletons
 
-if(error){
-console.error("FEED ERROR FULL:", error);
-container.innerHTML = `<div style="padding:20px;color:red;">FAILED TO LOAD POSTS</div>`;
-return;
-}
+  if (error) {
+    console.error("FEED ERROR:", error);
 
-if(!posts || posts.length === 0){
-container.innerHTML = `
-<div style="text-align:center;padding:40px;color:#666;">
-NO ARCHIVED LOGS AVAILABLE.
-</div>`;
-return;
-}
+    // Show a detailed, actionable error message in the UI
+    const code    = error.code    || 'unknown';
+    const message = error.message || JSON.stringify(error);
+    const hint    = error.hint    || '';
 
-posts.forEach(post => {
+    let advice = '';
+    if (code === '42501' || message.includes('permission') || message.includes('policy')) {
+      advice = '<br><br><strong>Likely cause:</strong> Row Level Security (RLS) is enabled on <code>ig_feed_posts</code> but there is no SELECT policy allowing reads.<br>Fix: In Supabase → Table Editor → ig_feed_posts → RLS → add a policy: <em>allow select for all / authenticated users</em>.';
+    } else if (code === '42P01' || message.includes('does not exist')) {
+      advice = '<br><br><strong>Likely cause:</strong> The table <code>ig_feed_posts</code> does not exist in your database.<br>Fix: Check the table name in Supabase Table Editor.';
+    } else if (code === 'PGRST116' || message.includes('column')) {
+      advice = '<br><br><strong>Likely cause:</strong> A column name in the query does not match your table schema.<br>Fix: Check column names in Supabase Table Editor.';
+    }
 
-const canDelete = currentSessionOfficer?.phone === post.phone;
-const likes = Number(post.likes ?? 0);
-const comments = Array.isArray(post.comments) ? post.comments : [];
+    container.innerHTML = `
+      <div style="padding:20px;color:#ff6b6b;background:#1a0a0a;border-radius:12px;border:1px solid #ff3333;font-size:13px;line-height:1.7;">
+        <strong>FAILED TO LOAD POSTS</strong><br>
+        Code: <code>${code}</code><br>
+        Message: <code>${message}</code><br>
+        ${hint ? `Hint: <code>${hint}</code>` : ''}
+        ${advice}
+      </div>`;
+    return;
+  }
 
-const article = document.createElement("article");
-article.className = "feed-post-card";
+  if (!posts || posts.length === 0) {
+    if (page === 0) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px;color:#666;">
+          NO ARCHIVED LOGS AVAILABLE.
+        </div>`;
+    }
+    allLoaded = true;
+    document.getElementById("load-more-btn").style.display = 'none';
+    return;
+  }
 
-article.innerHTML = `
-<div class="feed-post-header">
+  // Build a DocumentFragment — one DOM insertion for the whole batch
+  const fragment = document.createDocumentFragment();
+  posts.forEach(post => {
+    postCache.set(post.id, post);
+    fragment.appendChild(buildPostCard(post));
+  });
+  container.appendChild(fragment);
 
-<div class="feed-post-user" onclick="openProfile('${post.phone}')">
+  allLoaded = posts.length < PAGE_SIZE;
+  currentPage = page;
 
-<span class="feed-post-rank">${post.rank || "UNIT"}</span>
-<span class="feed-post-name">${post.name || "UNKNOWN"}</span>
-
-</div>
-
-${canDelete ? `<button class="delete-post-btn" onclick="deletePost('${post.id}')">Delete</button>` : ""}
-
-</div>
-
-${post.caption ? `<div class="feed-post-caption">${post.caption}</div>` : ""}
-
-${post.image ? `<img src="${post.image}" class="feed-post-image">` : ""}
-
-<div class="post-actions">
-
-<button class="like-btn" onclick="likePost('${post.id}', ${likes})">
-👍 Like
-</button>
-
-</div>
-
-<div class="likes-count">${likes} Likes</div>
-
-<div class="comment-box">
-
-<input type="text" id="comment-${post.id}" class="comment-input" placeholder="Write comment...">
-
-<button class="comment-btn" onclick="addComment('${post.id}')">
-Comment
-</button>
-
-<div>
-${comments.map(c => `<div class="comment-item">${c}</div>`).join("")}
-</div>
-
-</div>
-`;
-
-container.appendChild(article);
-});
-
+  const loadMoreBtn = document.getElementById("load-more-btn");
+  loadMoreBtn.style.display = allLoaded ? 'none' : 'block';
+  loadMoreBtn.disabled = false;
+  loadMoreBtn.textContent = 'Load more posts';
 }
 
-async function submitInstagramPost(){
-
-const caption = document.getElementById("post-input").value.trim();
-const imageValue = base64ImageString || null;
-
-if(!caption && !imageValue){
-alert("Write something or add image");
-return;
+async function loadMorePosts() {
+  if (allLoaded) return;
+  const btn = document.getElementById("load-more-btn");
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  await loadPostsPage(currentPage + 1);
 }
 
-const { error } = await sbClient
-.from('ig_feed_posts')
-.insert({
-name: currentSessionOfficer.name,
-rank: currentSessionOfficer.rank,
-phone: currentSessionOfficer.phone,
-caption,
-image: imageValue,
-likes: 0,
-comments: [],
-timestamp: Date.now()
-});
+/* ─────────────────────────────────────────────
+   BUILD POST CARD (called once per post)
+───────────────────────────────────────────── */
 
-if(error){
-console.error("POST ERROR:", error);
-alert("Post failed");
-return;
+function buildPostCard(post) {
+  const canDelete = currentSessionOfficer?.phone === post.phone;
+  const likes     = Number(post.likes ?? 0);
+  const comments  = Array.isArray(post.comments) ? post.comments : [];
+
+  const article = document.createElement('article');
+  article.className = 'feed-post-card';
+  article.id = `post-${post.id}`;
+
+  // Build header
+  const header = document.createElement('div');
+  header.className = 'feed-post-header';
+
+  const userDiv = document.createElement('div');
+  userDiv.className = 'feed-post-user';
+  userDiv.onclick = () => openProfile(post.phone);
+  userDiv.innerHTML = `
+    <span class="feed-post-rank">${escHtml(post.rank || 'UNIT')}</span>
+    <span class="feed-post-name">${escHtml(post.name || 'UNKNOWN')}</span>
+  `;
+  header.appendChild(userDiv);
+
+  if (canDelete) {
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-post-btn';
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = () => deletePost(post.id);
+    header.appendChild(delBtn);
+  }
+
+  article.appendChild(header);
+
+  // Caption
+  if (post.caption) {
+    const cap = document.createElement('div');
+    cap.className = 'feed-post-caption';
+    cap.textContent = post.caption; // textContent: safe, no XSS
+    article.appendChild(cap);
+  }
+
+  // Image — use loading="lazy" so off-screen images don't block render
+  if (post.image) {
+    const img = document.createElement('img');
+    img.className = 'feed-post-image';
+    img.loading = 'lazy';     // native lazy-load
+    img.decoding = 'async';   // decode off-main-thread
+    img.src = post.image;
+    img.alt = 'Post media';
+    article.appendChild(img);
+  }
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'post-actions';
+
+  const likeBtn = document.createElement('button');
+  likeBtn.className = 'like-btn';
+  likeBtn.id = `like-btn-${post.id}`;
+  likeBtn.innerHTML = '👍 Like';
+  likeBtn.onclick = () => likePost(post.id);
+  actions.appendChild(likeBtn);
+  article.appendChild(actions);
+
+  // Likes count
+  const likesDiv = document.createElement('div');
+  likesDiv.className = 'likes-count';
+  likesDiv.id = `likes-count-${post.id}`;
+  likesDiv.textContent = `${likes} Likes`;
+  article.appendChild(likesDiv);
+
+  // Comments
+  const commentBox = document.createElement('div');
+  commentBox.className = 'comment-box';
+
+  const commentInput = document.createElement('input');
+  commentInput.type = 'text';
+  commentInput.id = `comment-${post.id}`;
+  commentInput.className = 'comment-input';
+  commentInput.placeholder = 'Write comment...';
+  // Allow Enter key to submit
+  commentInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addComment(post.id);
+  });
+  commentBox.appendChild(commentInput);
+
+  const commentBtn = document.createElement('button');
+  commentBtn.className = 'comment-btn';
+  commentBtn.id = `comment-btn-${post.id}`;
+  commentBtn.textContent = 'Comment';
+  commentBtn.onclick = () => addComment(post.id);
+  commentBox.appendChild(commentBtn);
+
+  const commentsContainer = document.createElement('div');
+  commentsContainer.id = `comments-list-${post.id}`;
+  renderCommentsList(commentsContainer, comments);
+  commentBox.appendChild(commentsContainer);
+
+  article.appendChild(commentBox);
+
+  return article;
 }
 
-document.getElementById("post-input").value = "";
-base64ImageString = "";
-document.getElementById("post-img-preview").src = "";
-document.getElementById("post-img-preview").style.display = "none";
+/* ─────────────────────────────────────────────
+   PATCH — targeted DOM update, no full re-render
+───────────────────────────────────────────── */
 
-renderFeed();
+function patchPostCard(post) {
+  // Update likes count label
+  const likesEl = document.getElementById(`likes-count-${post.id}`);
+  if (likesEl) {
+    likesEl.textContent = `${Number(post.likes ?? 0)} Likes`;
+  }
+
+  // Re-render comments list only
+  const commentsEl = document.getElementById(`comments-list-${post.id}`);
+  if (commentsEl) {
+    const comments = Array.isArray(post.comments) ? post.comments : [];
+    renderCommentsList(commentsEl, comments);
+  }
 }
 
-async function deletePost(postId){
-await sbClient.from('ig_feed_posts').delete().eq('id', postId);
-renderFeed();
+function renderCommentsList(container, comments) {
+  // DocumentFragment — single reflow
+  const frag = document.createDocumentFragment();
+  comments.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'comment-item';
+    div.textContent = c; // textContent: safe
+    frag.appendChild(div);
+  });
+  container.innerHTML = '';
+  container.appendChild(frag);
 }
 
-async function likePost(postId, likes){
-await sbClient.from('ig_feed_posts')
-.update({ likes: likes + 1 })
-.eq('id', postId);
-
-renderFeed();
+/* Prepend a brand-new post card at the top of the feed */
+function prependPostCard(post) {
+  const container = document.getElementById("instagram-stream");
+  const card = buildPostCard(post);
+  // Animate in smoothly
+  card.style.opacity = '0';
+  card.style.transform = 'translateY(-12px)';
+  card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+  container.prepend(card);
+  // Trigger animation
+  requestAnimationFrame(() => {
+    card.style.opacity = '1';
+    card.style.transform = 'translateY(0)';
+  });
 }
 
-async function addComment(postId){
+/* ─────────────────────────────────────────────
+   SKELETON LOADER
+───────────────────────────────────────────── */
 
-const input = document.getElementById(`comment-${postId}`);
-const text = input.value.trim();
-if(!text) return;
-
-const { data } = await sbClient
-.from('ig_feed_posts')
-.select('comments')
-.eq('id', postId)
-.single();
-
-let comments = Array.isArray(data.comments) ? data.comments : [];
-
-comments.push(`${currentSessionOfficer.rank}: ${text}`);
-
-await sbClient
-.from('ig_feed_posts')
-.update({ comments })
-.eq('id', postId);
-
-input.value = "";
-renderFeed();
+function showSkeletons(container, count) {
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    container.innerHTML += `
+      <div class="skeleton-card">
+        <div class="skeleton-line narrow"></div>
+        <div class="skeleton-line wide"></div>
+        <div class="skeleton-block"></div>
+        <div class="skeleton-line narrow"></div>
+      </div>`;
+  }
 }
 
-function previewSelectedImage(input){
+/* ─────────────────────────────────────────────
+   POST — CREATE
+───────────────────────────────────────────── */
 
-if(!input.files[0]) return;
+async function submitInstagramPost() {
+  const caption    = document.getElementById("post-input").value.trim();
+  const imageValue = base64ImageString || null;
 
-const reader = new FileReader();
-reader.onload = (e) => {
-base64ImageString = e.target.result;
-document.getElementById("post-img-preview").src = base64ImageString;
-document.getElementById("post-img-preview").style.display = "block";
-};
-reader.readAsDataURL(input.files[0]);
+  if (!caption && !imageValue) {
+    alert("Write something or add image");
+    return;
+  }
+
+  const postBtn = document.querySelector('.btn-post');
+  postBtn.disabled = true;
+  postBtn.textContent = 'Sending...';
+
+  const { error } = await sbClient
+    .from('ig_feed_posts')
+    .insert({
+      name:      currentSessionOfficer.name,
+      rank:      currentSessionOfficer.rank,
+      phone:     currentSessionOfficer.phone,
+      caption,
+      image:     imageValue,
+      likes:     0,
+      comments:  [],
+      timestamp: Date.now()
+    });
+
+  postBtn.disabled = false;
+  postBtn.textContent = 'Broadcast';
+
+  if (error) {
+    console.error("POST ERROR:", error);
+    alert("Post failed");
+    return;
+  }
+
+  document.getElementById("post-input").value = "";
+  base64ImageString = "";
+  const preview = document.getElementById("post-img-preview");
+  preview.src = "";
+  preview.style.display = "none";
+
+  // The realtime INSERT event will prepend the card automatically.
+  // No manual renderFeed() call needed.
+}
+
+/* ─────────────────────────────────────────────
+   POST — DELETE
+───────────────────────────────────────────── */
+
+async function deletePost(postId) {
+  await sbClient.from('ig_feed_posts').delete().eq('id', postId);
+  // Realtime DELETE event removes the card — no renderFeed() needed
+}
+
+/* ─────────────────────────────────────────────
+   POST — LIKE
+   Optimistic UI: update the counter immediately,
+   then persist. If the DB call fails, revert.
+───────────────────────────────────────────── */
+
+async function likePost(postId) {
+  const btn = document.getElementById(`like-btn-${postId}`);
+  if (btn) btn.disabled = true;  // prevent double-like spam
+
+  const cached = postCache.get(postId);
+  const oldLikes = Number(cached?.likes ?? 0);
+  const newLikes = oldLikes + 1;
+
+  // Optimistic update — instant feedback
+  const likesEl = document.getElementById(`likes-count-${postId}`);
+  if (likesEl) likesEl.textContent = `${newLikes} Likes`;
+
+  const { error } = await sbClient
+    .from('ig_feed_posts')
+    .update({ likes: newLikes })
+    .eq('id', postId);
+
+  if (error) {
+    console.error("LIKE ERROR:", error);
+    // Revert optimistic update on failure
+    if (likesEl) likesEl.textContent = `${oldLikes} Likes`;
+  } else {
+    // Update local cache
+    if (cached) cached.likes = newLikes;
+  }
+
+  if (btn) btn.disabled = false;
+}
+
+/* ─────────────────────────────────────────────
+   POST — COMMENT
+───────────────────────────────────────────── */
+
+async function addComment(postId) {
+  const input = document.getElementById(`comment-${postId}`);
+  const text  = input.value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById(`comment-btn-${postId}`);
+  if (btn) btn.disabled = true;
+
+  // Read from cache instead of a separate SELECT round-trip
+  const cached   = postCache.get(postId);
+  const comments = Array.isArray(cached?.comments) ? [...cached.comments] : [];
+  comments.push(`${currentSessionOfficer.rank}: ${escHtml(text)}`);
+
+  const { error } = await sbClient
+    .from('ig_feed_posts')
+    .update({ comments })
+    .eq('id', postId);
+
+  if (btn) btn.disabled = false;
+
+  if (error) {
+    console.error("COMMENT ERROR:", error);
+    return;
+  }
+
+  // Optimistic: update cache and DOM immediately
+  if (cached) cached.comments = comments;
+
+  const commentsEl = document.getElementById(`comments-list-${postId}`);
+  if (commentsEl) renderCommentsList(commentsEl, comments);
+
+  input.value = "";
+  // Realtime UPDATE will also fire patchPostCard — idempotent, no harm
+}
+
+/* ─────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────── */
+
+function openProfile(phone) {
+  window.location.href = `profile.html?phone=${phone}`;
+}
+
+function checkAdminAccess(event) {
+  event.preventDefault();
+  const password = prompt("ENTER COMMANDER AUTHORIZATION CODE:");
+  if (password === "CDR123") {
+    window.location.href = "admin.html";
+  } else if (password !== null) {
+    alert("ACCESS DENIED");
+  }
+}
+
+function previewSelectedImage(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    base64ImageString = e.target.result;
+    const preview = document.getElementById("post-img-preview");
+    preview.src = base64ImageString;
+    preview.style.display = "block";
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+// Safe HTML escape — prevents XSS from post content
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 </script>
