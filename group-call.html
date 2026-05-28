@@ -2,11 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
 <title>CADRE - Group Comms</title>
-
-<link rel="stylesheet" href="style.css">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
@@ -59,6 +57,7 @@ align-items:center;
 justify-content:space-between;
 padding:0 20px;
 z-index:10;
+flex-shrink:0;
 }
 
 .top-left{
@@ -74,17 +73,12 @@ border-radius:50%;
 background:#10b981;
 box-shadow:0 0 10px #10b981;
 animation:pulse 1.5s infinite;
+flex-shrink:0;
 }
 
 @keyframes pulse{
-0%,100%{
-transform:scale(1);
-opacity:0.6;
-}
-50%{
-transform:scale(1.3);
-opacity:1;
-}
+0%,100%{transform:scale(1);opacity:0.6;}
+50%{transform:scale(1.3);opacity:1;}
 }
 
 .call-title{
@@ -223,6 +217,8 @@ border-left:1px solid #1f2937;
 display:flex;
 flex-direction:column;
 z-index:50;
+/* FIX: explicit height so flex children work correctly on desktop */
+height:100%;
 }
 
 .chat-header{
@@ -233,15 +229,19 @@ align-items:center;
 justify-content:space-between;
 padding:0 16px;
 font-weight:bold;
+flex-shrink:0;
 }
 
 .chat-messages{
 flex:1;
-overflow:auto;
+overflow-y:auto;
+overflow-x:hidden;
 padding:16px;
 display:flex;
 flex-direction:column;
 gap:12px;
+/* FIX: min-height:0 so flex children scroll correctly */
+min-height:0;
 }
 
 .chat-message{
@@ -249,6 +249,7 @@ background:#0f172a;
 padding:12px;
 border-radius:12px;
 border:1px solid #1f2937;
+flex-shrink:0;
 }
 
 .chat-user{
@@ -261,6 +262,7 @@ color:#00f0ff;
 margin-top:6px;
 font-size:14px;
 line-height:1.4;
+word-break:break-word;
 }
 
 .chat-time{
@@ -269,11 +271,15 @@ font-size:11px;
 color:#94a3b8;
 }
 
+/* FIX: Chat input area — always visible, safe area aware */
 .chat-input-area{
 padding:14px;
+padding-bottom:calc(14px + env(safe-area-inset-bottom, 0px));
 border-top:1px solid #1f2937;
 display:flex;
 gap:10px;
+flex-shrink:0;
+background:#101826;
 }
 
 .chat-input{
@@ -284,6 +290,7 @@ border-radius:12px;
 padding:12px;
 color:white;
 outline:none;
+font-size:16px; /* FIX: prevent iOS auto-zoom on focus */
 }
 
 .send-btn{
@@ -294,6 +301,8 @@ padding:12px 16px;
 border-radius:12px;
 cursor:pointer;
 font-weight:bold;
+white-space:nowrap;
+flex-shrink:0;
 }
 
 /* ===== CONTROLS ===== */
@@ -301,6 +310,7 @@ font-weight:bold;
 .bottom-controls{
 position:fixed;
 bottom:18px;
+bottom:calc(18px + env(safe-area-inset-bottom, 0px));
 left:50%;
 transform:translateX(-50%);
 background:rgba(15,23,42,0.96);
@@ -357,6 +367,7 @@ white-space:nowrap;
 .reaction-picker{
 position:fixed;
 bottom:95px;
+bottom:calc(95px + env(safe-area-inset-bottom, 0px));
 left:50%;
 transform:translateX(-50%);
 background:#101826;
@@ -392,14 +403,8 @@ z-index:99999;
 }
 
 @keyframes floatUp{
-0%{
-opacity:1;
-transform:translateY(0) scale(1);
-}
-100%{
-opacity:0;
-transform:translateY(-240px) scale(1.6);
-}
+0%{opacity:1;transform:translateY(0) scale(1);}
+100%{opacity:0;transform:translateY(-240px) scale(1.6);}
 }
 
 /* ===== LOG ===== */
@@ -421,33 +426,48 @@ z-index:999;
 /* ===== ANIMATION ===== */
 
 @keyframes fadeIn{
-from{
-opacity:0;
-transform:scale(0.92);
-}
-to{
-opacity:1;
-transform:scale(1);
-}
+from{opacity:0;transform:scale(0.92);}
+to{opacity:1;transform:scale(1);}
 }
 
 /* ===== MOBILE ===== */
 
 @media(max-width:900px){
 
+/* FIX: Chat panel slides in from right, occupies full screen safely */
 .chat-panel{
 position:fixed;
 right:0;
 top:0;
+/* Use dvh so it accounts for browser chrome on mobile */
 height:100vh;
+height:100dvh;
 width:100%;
 transform:translateX(100%);
-transition:0.3s ease;
+transition:transform 0.3s ease;
 z-index:99999;
+/* FIX: flex column so input stays at bottom */
+display:flex;
+flex-direction:column;
 }
 
 .chat-panel.open{
 transform:translateX(0);
+}
+
+/* FIX: When keyboard is open on mobile, panel shrinks to visible viewport.
+   This relies on the browser resizing the viewport when the keyboard appears.
+   We use dvh and min-height:0 on flex children so content scrolls correctly. */
+.chat-panel.open .chat-messages{
+flex:1;
+min-height:0;
+overflow-y:auto;
+}
+
+/* FIX: Input area always pinned to bottom with safe area inset for notches */
+.chat-panel .chat-input-area{
+flex-shrink:0;
+padding-bottom:calc(14px + env(safe-area-inset-bottom, 0px));
 }
 
 .participant-grid{
@@ -465,6 +485,20 @@ display:none;
 
 }
 
+/* ===== SYSTEM MESSAGE ===== */
+.chat-message.system-msg{
+background:#0a1628;
+border-color:#1e3a5f;
+}
+.chat-message.system-msg .chat-user{
+color:#94a3b8;
+font-size:11px;
+}
+.chat-message.system-msg .chat-text{
+font-size:12px;
+color:#64748b;
+}
+
 </style>
 </head>
 
@@ -479,45 +513,25 @@ display:none;
 <div class="top-bar">
 
 <div class="top-left">
-
 <div class="live-dot"></div>
-
 <div>
-
-<div class="call-title">
-GROUP_CALL_ALPHA
+<div class="call-title">GROUP_CALL_ALPHA</div>
+<div class="call-status" id="connection-status">SECURE CHANNEL READY</div>
+</div>
 </div>
 
-<div class="call-status" id="connection-status">
-SECURE CHANNEL READY
-</div>
-
-</div>
-
-</div>
-
-<div class="member-count" id="member-count">
-0 OPERATORS CONNECTED
-</div>
+<div class="member-count" id="member-count">0 OPERATORS CONNECTED</div>
 
 </div>
 
 <div class="participant-grid" id="participant-grid">
 
 <!-- LOCAL USER -->
-
 <div class="user-card" id="local-user-card">
 
 <div class="user-top-icons">
-
-<div class="user-badge" id="local-mic-icon">
-🎤 LIVE
-</div>
-
-<div class="user-badge" id="local-hand-icon" style="display:none;color:#facc15;">
-✋ HAND
-</div>
-
+<div class="user-badge" id="local-mic-icon">🎤 LIVE</div>
+<div class="user-badge" id="local-hand-icon" style="display:none;color:#facc15;">✋ HAND</div>
 </div>
 
 <img
@@ -526,27 +540,15 @@ class="user-avatar"
 id="local-avatar"
 >
 
-<div class="user-name" id="local-name">
-LOCAL OPERATOR
-</div>
-
-<div class="user-rank" id="local-rank">
-CONNECTED
-</div>
+<div class="user-name" id="local-name">LOCAL OPERATOR</div>
+<div class="user-rank" id="local-rank">CONNECTED</div>
 
 <div class="user-footer">
-
-<div class="connection-status">
-ONLINE
-</div>
-
+<div class="connection-status">ONLINE</div>
 <div class="card-controls">
-
 <button class="small-btn" onclick="pinParticipant('local-user-card')">📌</button>
 <button class="small-btn" onclick="toggleRaiseHand()">✋</button>
-
 </div>
-
 </div>
 
 </div>
@@ -567,11 +569,16 @@ TACTICAL CHAT
 <div class="chat-messages" id="chat-messages"></div>
 
 <div class="chat-input-area">
-
-<input type="text" id="chat-input" class="chat-input" placeholder="Send tactical message...">
-
+<input
+type="text"
+id="chat-input"
+class="chat-input"
+placeholder="Send tactical message..."
+autocomplete="off"
+autocorrect="off"
+spellcheck="false"
+>
 <button class="send-btn" onclick="sendChatMessage()">SEND</button>
-
 </div>
 
 </div>
@@ -581,28 +588,19 @@ TACTICAL CHAT
 <!-- ===== LOG ===== -->
 
 <div class="comms-log" id="comms-log">
-
-<div class="log-entry">
-SYSTEM :: Tactical communication interface initialized
-</div>
-
-<div class="log-entry">
-SYSTEM :: Encryption layer active
-</div>
-
+<div class="log-entry">SYSTEM :: Tactical communication interface initialized</div>
+<div class="log-entry">SYSTEM :: Encryption layer active</div>
 </div>
 
 <!-- ===== REACTIONS ===== -->
 
 <div class="reaction-picker" id="reactionPicker">
-
 <div class="reaction-btn" onclick="sendReaction('👍')">👍</div>
 <div class="reaction-btn" onclick="sendReaction('👏')">👏</div>
 <div class="reaction-btn" onclick="sendReaction('❤️')">❤️</div>
 <div class="reaction-btn" onclick="sendReaction('😂')">😂</div>
 <div class="reaction-btn" onclick="sendReaction('🔥')">🔥</div>
 <div class="reaction-btn" onclick="sendReaction('😮')">😮</div>
-
 </div>
 
 <!-- ===== CONTROLS ===== -->
@@ -631,284 +629,406 @@ SYSTEM :: Encryption layer active
 
 <script>
 
+/* ===== SUPABASE ===== */
+
 const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
 const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
 const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-let currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
+/* ===== SESSION ===== */
 
-const APP_ID = "8f88034e0a9545868b55af604b268e1e";
+let currentSessionOfficer = JSON.parse(localStorage.getItem("session_user")) || {
+  name: "OPERATOR_" + Math.floor(Math.random() * 9000 + 1000),
+  rank: "UNIT",
+  phone: "anon_" + Math.random().toString(36).slice(2, 9)
+};
+
+/* ===== AGORA ===== */
+
+const APP_ID  = "8f88034e0a9545868b55af604b268e1e";
 const CHANNEL = "GROUP_CALL_ALPHA";
-const TOKEN = null;
+const TOKEN   = null;
 
-const client = AgoraRTC.createClient({ mode:"rtc", codec:"vp8" });
+const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
 let localAudioTrack;
-let activeStream = false;
-let isMuted = false;
-let handRaised = false;
-let isRecording = false;
+let activeStream  = false;
+let isMuted       = false;
+let handRaised    = false;
+let isRecording   = false;
+
+/* ===== SUPABASE REALTIME CHANNEL (broadcast) =====
+   One channel for both chat messages and reactions.
+   Broadcast events don't require a DB table — they are
+   peer-to-peer through Supabase's realtime infrastructure.
+   ====================================================*/
+
+const realtimeChannel = sbClient.channel('cadre_comms', {
+  config: { broadcast: { self: false } }   // don't echo back to sender
+});
+
+// Listen for incoming chat messages from other users
+realtimeChannel.on('broadcast', { event: 'chat_message' }, ({ payload }) => {
+  renderChatMessage(payload.name, payload.text, payload.time, false);
+});
+
+// Listen for incoming reactions from other users
+realtimeChannel.on('broadcast', { event: 'reaction' }, ({ payload }) => {
+  showFloatingReaction(payload.emoji);
+});
+
+// Subscribe once, up-front — doesn't need an active voice session
+realtimeChannel.subscribe((status) => {
+  if (status === 'SUBSCRIBED') {
+    addLog('COMMS :: Realtime broadcast channel active');
+  }
+});
 
 /* ===== UI TOGGLES ===== */
 
 function toggleChat(){
-document.getElementById("chatPanel").classList.toggle("open");
+  const panel = document.getElementById("chatPanel");
+  panel.classList.toggle("open");
+
+  // FIX: On mobile, focus input after panel opens so keyboard appears
+  if (panel.classList.contains("open")) {
+    setTimeout(() => {
+      const input = document.getElementById("chat-input");
+      // Only auto-focus on non-touch devices to avoid jarring keyboard pop
+      if (window.innerWidth > 900) input.focus();
+    }, 320);
+  }
 }
 
 function toggleRecord(){
-isRecording = !isRecording;
-addLog(isRecording ? "REC :: Recording started" : "REC :: Recording stopped");
+  isRecording = !isRecording;
+  addLog(isRecording ? "REC :: Recording started" : "REC :: Recording stopped");
 }
 
 function shareScreen(){
-if(navigator.share){
-navigator.share({title:"CADRE CALL"});
-}else{
-addLog("SHARE :: Not supported on this device");
-}
+  if(navigator.share){
+    navigator.share({ title: "CADRE CALL" });
+  } else {
+    addLog("SHARE :: Not supported on this device");
+  }
 }
 
 /* ===== LOCAL INFO ===== */
 
 document.getElementById("local-name").textContent =
-currentSessionOfficer?.name || "UNKNOWN";
+  currentSessionOfficer?.name || "UNKNOWN";
 
 document.getElementById("local-rank").textContent =
-currentSessionOfficer?.rank || "UNIT";
+  currentSessionOfficer?.rank || "UNIT";
 
 /* ===== LOG ===== */
 
 function addLog(message){
-const logContainer = document.getElementById("comms-log");
-const log = document.createElement("div");
-log.className = "log-entry";
-log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
-logContainer.prepend(log);
+  const logContainer = document.getElementById("comms-log");
+  const log = document.createElement("div");
+  log.className = "log-entry";
+  log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+  logContainer.prepend(log);
 }
 
 /* ===== JOIN ===== */
 
 async function initializeComms(){
+  if(activeStream) return;
 
-if(activeStream) return;
+  try{
+    activeStream = true;
 
-try{
+    document.getElementById("connection-status").textContent = "LIVE SECURE CHANNEL ACTIVE";
+    document.getElementById("joinBtn").style.display  = "none";
+    document.getElementById("leaveBtn").style.display = "block";
+    document.getElementById("muteBtn").style.display  = "block";
 
-activeStream = true;
+    addLog("SYSTEM :: Initializing secure audio bridge");
 
-document.getElementById("connection-status").textContent = "LIVE SECURE CHANNEL ACTIVE";
-document.getElementById("joinBtn").style.display = "none";
-document.getElementById("leaveBtn").style.display = "block";
-document.getElementById("muteBtn").style.display = "block";
+    await client.join(APP_ID, CHANNEL, TOKEN, currentSessionOfficer.phone || null);
 
-addLog("SYSTEM :: Initializing secure audio bridge");
+    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+      AEC: true,
+      ANS: true,
+      AGC: true
+    });
 
-await client.join(APP_ID, CHANNEL, TOKEN, currentSessionOfficer.phone || null);
+    await client.publish([localAudioTrack]);
 
-localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-AEC:true,
-ANS:true,
-AGC:true
-});
+    addLog("VOICE LINK :: Connected to tactical channel");
 
-await client.publish([localAudioTrack]);
+    await sbClient.from('group_call_members').upsert({
+      phone:     currentSessionOfficer.phone,
+      name:      currentSessionOfficer.name,
+      rank:      currentSessionOfficer.rank,
+      status:    "ONLINE",
+      joined_at: Date.now()
+    });
 
-addLog("VOICE LINK :: Connected to tactical channel");
+    loadMembers();
+    listenForMembers();
 
-await sbClient.from('group_call_members').upsert({
-phone: currentSessionOfficer.phone,
-name: currentSessionOfficer.name,
-rank: currentSessionOfficer.rank,
-status: "ONLINE",
-joined_at: Date.now()
-});
+    client.on("user-published", async (user, mediaType) => {
+      await client.subscribe(user, mediaType);
+      if(mediaType === "audio"){
+        user.audioTrack.play();
+        createRemoteCard(user.uid);
+        addLog(`VOICE LINK :: ${user.uid} connected`);
+      }
+    });
 
-loadMembers();
-listenForMembers();
+    client.on("user-left", (user) => {
+      removeRemoteCard(user.uid);
+      addLog(`VOICE LINK :: ${user.uid} disconnected`);
+    });
 
-client.on("user-published", async (user, mediaType) => {
-
-await client.subscribe(user, mediaType);
-
-if(mediaType === "audio"){
-user.audioTrack.play();
-createRemoteCard(user.uid);
-addLog(`VOICE LINK :: ${user.uid} connected`);
-}
-
-});
-
-client.on("user-left", (user) => {
-removeRemoteCard(user.uid);
-addLog(`VOICE LINK :: ${user.uid} disconnected`);
-});
-
-}catch(error){
-console.error(error);
-alert("Failed to connect");
-terminateComms();
-}
-
+  } catch(error){
+    console.error(error);
+    alert("Failed to connect");
+    terminateComms();
+  }
 }
 
 /* ===== MEMBERS ===== */
 
 async function loadMembers(){
-const { data } = await sbClient.from('group_call_members').select('*');
-if(!data) return;
-
-document.getElementById("member-count").textContent =
-`${data.length} OPERATORS CONNECTED`;
+  const { data } = await sbClient.from('group_call_members').select('*');
+  if(!data) return;
+  document.getElementById("member-count").textContent =
+    `${data.length} OPERATORS CONNECTED`;
 }
 
 function listenForMembers(){
-sbClient.channel('group_call_members_changes')
-.on('postgres_changes',{event:'*',schema:'public',table:'group_call_members'},payload=>{
-loadMembers();
-})
-.subscribe();
+  sbClient.channel('group_call_members_changes')
+    .on('postgres_changes', { event:'*', schema:'public', table:'group_call_members' }, () => {
+      loadMembers();
+    })
+    .subscribe();
 }
 
 /* ===== REMOTE CARDS ===== */
 
 function createRemoteCard(uid){
+  if(document.getElementById(`remote-${uid}`)) return;
 
-if(document.getElementById(`remote-${uid}`)) return;
+  const grid = document.getElementById("participant-grid");
+  const card = document.createElement("div");
+  card.className = "user-card speaking";
+  card.id = `remote-${uid}`;
 
-const grid = document.getElementById("participant-grid");
+  card.innerHTML = `
+    <div class="user-top-icons">
+      <div class="user-badge">🎤 LIVE</div>
+    </div>
+    <img src="https://ui-avatars.com/api/?name=${uid}&background=0f172a&color=00f0ff" class="user-avatar">
+    <div class="user-name">${uid}</div>
+    <div class="user-rank">REMOTE OPERATOR</div>
+    <div class="user-footer">
+      <div class="connection-status">CONNECTED</div>
+      <div class="card-controls">
+        <button class="small-btn" onclick="pinParticipant('remote-${uid}')">📌</button>
+        <button class="small-btn" onclick="remoteMute('${uid}')">🔇</button>
+      </div>
+    </div>
+  `;
 
-const card = document.createElement("div");
-card.className = "user-card speaking";
-card.id = `remote-${uid}`;
-
-card.innerHTML = `
-<div class="user-top-icons">
-<div class="user-badge">🎤 LIVE</div>
-</div>
-
-<img src="https://ui-avatars.com/api/?name=${uid}&background=0f172a&color=00f0ff" class="user-avatar">
-
-<div class="user-name">${uid}</div>
-<div class="user-rank">REMOTE OPERATOR</div>
-
-<div class="user-footer">
-<div class="connection-status">CONNECTED</div>
-
-<div class="card-controls">
-<button class="small-btn" onclick="pinParticipant('remote-${uid}')">📌</button>
-<button class="small-btn" onclick="remoteMute('${uid}')">🔇</button>
-</div>
-</div>
-`;
-
-grid.appendChild(card);
+  grid.appendChild(card);
 }
 
 function removeRemoteCard(uid){
-const el = document.getElementById(`remote-${uid}`);
-if(el) el.remove();
+  const el = document.getElementById(`remote-${uid}`);
+  if(el) el.remove();
 }
 
 function pinParticipant(id){
-document.querySelectorAll(".user-card").forEach(c=>c.style.order=0);
-const target = document.getElementById(id);
-if(target) target.style.order=-1;
+  document.querySelectorAll(".user-card").forEach(c => c.style.order = 0);
+  const target = document.getElementById(id);
+  if(target) target.style.order = -1;
 }
 
 function remoteMute(uid){
-addLog(`ADMIN ACTION :: Mute request sent to ${uid}`);
+  addLog(`ADMIN ACTION :: Mute request sent to ${uid}`);
 }
 
 /* ===== CONTROLS ===== */
 
 async function toggleMute(){
-if(!localAudioTrack) return;
+  if(!localAudioTrack) return;
 
-isMuted = !isMuted;
-await localAudioTrack.setEnabled(!isMuted);
+  isMuted = !isMuted;
+  await localAudioTrack.setEnabled(!isMuted);
 
-document.getElementById("muteBtn").innerHTML =
-isMuted ? '🔇<div class="control-label">MUTED</div>' : '🎤<div class="control-label">MIC</div>';
+  document.getElementById("muteBtn").innerHTML =
+    isMuted ? '🔇<div class="control-label">MUTED</div>' : '🎤<div class="control-label">MIC</div>';
 
-document.getElementById("local-mic-icon").textContent =
-isMuted ? "🔇 MUTED" : "🎤 LIVE";
+  document.getElementById("local-mic-icon").textContent =
+    isMuted ? "🔇 MUTED" : "🎤 LIVE";
 
-addLog(isMuted ? "VOICE CHANNEL :: Microphone muted" : "VOICE CHANNEL :: Microphone unmuted");
+  addLog(isMuted ? "VOICE CHANNEL :: Microphone muted" : "VOICE CHANNEL :: Microphone unmuted");
 }
 
 function toggleRaiseHand(){
-handRaised = !handRaised;
-document.getElementById("local-hand-icon").style.display =
-handRaised ? "block" : "none";
+  handRaised = !handRaised;
+  document.getElementById("local-hand-icon").style.display =
+    handRaised ? "block" : "none";
 }
 
-/* ===== CHAT ===== */
+/* ===== CHAT — GLOBAL VIA SUPABASE BROADCAST ===== */
 
 function sendChatMessage(){
-const input = document.getElementById("chat-input");
-const text = input.value.trim();
-if(!text) return;
+  const input = document.getElementById("chat-input");
+  const text  = input.value.trim();
+  if(!text) return;
 
-const container = document.getElementById("chat-messages");
+  const name = currentSessionOfficer?.name || "UNKNOWN";
+  const time = new Date().toLocaleTimeString();
 
-const div = document.createElement("div");
-div.className = "chat-message";
+  // 1. Render locally (self = false means broadcast won't echo back)
+  renderChatMessage(name, text, time, true);
 
-div.innerHTML = `
-<div class="chat-user">${currentSessionOfficer.name}</div>
-<div class="chat-text">${text}</div>
-<div class="chat-time">${new Date().toLocaleTimeString()}</div>
-`;
+  // 2. Broadcast to all other connected users
+  realtimeChannel.send({
+    type:    'broadcast',
+    event:   'chat_message',
+    payload: { name, text, time }
+  });
 
-container.appendChild(div);
-container.scrollTop = container.scrollHeight;
-input.value = "";
+  input.value = "";
+  input.focus();
 }
 
-/* ===== REACTIONS ===== */
+/**
+ * Render a chat message in the panel.
+ * @param {string}  name      - Sender display name
+ * @param {string}  text      - Message body
+ * @param {string}  time      - Formatted time string
+ * @param {boolean} isSelf    - True if this user sent it (highlights differently)
+ */
+function renderChatMessage(name, text, time, isSelf){
+  const container = document.getElementById("chat-messages");
+
+  const div = document.createElement("div");
+  div.className = "chat-message";
+
+  // Slightly different style for own messages
+  if(isSelf){
+    div.style.borderColor = "#2563eb55";
+    div.style.background  = "#0f1e3a";
+  }
+
+  div.innerHTML = `
+    <div class="chat-user">${escapeHtml(name)}${isSelf ? ' <span style="font-size:10px;color:#2563eb;">(YOU)</span>' : ''}</div>
+    <div class="chat-text">${escapeHtml(text)}</div>
+    <div class="chat-time">${time}</div>
+  `;
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+/* ===== REACTIONS — GLOBAL VIA SUPABASE BROADCAST ===== */
 
 function toggleReactionPicker(){
-document.getElementById("reactionPicker").classList.toggle("active");
+  document.getElementById("reactionPicker").classList.toggle("active");
 }
 
 function sendReaction(emoji){
-const reaction = document.createElement("div");
-reaction.className = "floating-reaction";
-reaction.textContent = emoji;
-reaction.style.left = (Math.random()*80+10)+"%";
-document.body.appendChild(reaction);
-setTimeout(()=>reaction.remove(),3000);
-toggleReactionPicker();
+  // 1. Show locally
+  showFloatingReaction(emoji);
+
+  // 2. Broadcast to all other users
+  realtimeChannel.send({
+    type:    'broadcast',
+    event:   'reaction',
+    payload: { emoji }
+  });
+
+  toggleReactionPicker();
+}
+
+/**
+ * Render a floating reaction animation on screen.
+ * Called for both local sends and remote receives.
+ */
+function showFloatingReaction(emoji){
+  const reaction = document.createElement("div");
+  reaction.className = "floating-reaction";
+  reaction.textContent = emoji;
+  reaction.style.left = (Math.random() * 80 + 10) + "%";
+  document.body.appendChild(reaction);
+  setTimeout(() => reaction.remove(), 3000);
 }
 
 /* ===== LEAVE ===== */
 
 async function terminateComms(){
+  activeStream = false;
 
-activeStream = false;
+  document.getElementById("connection-status").textContent = "CHANNEL OFFLINE";
+  document.getElementById("joinBtn").style.display  = "block";
+  document.getElementById("leaveBtn").style.display = "none";
+  document.getElementById("muteBtn").style.display  = "none";
 
-document.getElementById("connection-status").textContent = "CHANNEL OFFLINE";
-document.getElementById("joinBtn").style.display = "block";
-document.getElementById("leaveBtn").style.display = "none";
-document.getElementById("muteBtn").style.display = "none";
+  if(localAudioTrack) localAudioTrack.close();
 
-if(localAudioTrack) localAudioTrack.close();
+  await client.leave();
 
-await client.leave();
+  if(currentSessionOfficer?.phone){
+    await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
+  }
 
-if(currentSessionOfficer?.phone){
-await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
+  loadMembers();
+  addLog("SYSTEM :: Tactical stream terminated");
 }
 
-loadMembers();
-addLog("SYSTEM :: Tactical stream terminated");
-}
-
-window.addEventListener("beforeunload", async ()=>{
-if(currentSessionOfficer?.phone){
-await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
-}
+window.addEventListener("beforeunload", async () => {
+  if(currentSessionOfficer?.phone){
+    await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
+  }
 });
+
+/* ===== CHAT KEYBOARD SHORTCUT ===== */
+
+document.getElementById("chat-input").addEventListener("keydown", (e) => {
+  if(e.key === "Enter" && !e.shiftKey){
+    e.preventDefault();
+    sendChatMessage();
+  }
+});
+
+/* ===== MOBILE: Keep input above keyboard =====
+   When the virtual keyboard opens, browsers on iOS/Android shrink
+   the visual viewport. We listen for visualViewport resize events
+   and shift the chat panel's input area accordingly so it's never
+   buried under the keyboard.
+   ============================================*/
+
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', () => {
+    const chatPanel = document.getElementById("chatPanel");
+    if(!chatPanel.classList.contains("open")) return;
+
+    const viewportHeight = window.visualViewport.height;
+    const windowHeight   = window.innerHeight;
+    const keyboardHeight = Math.max(0, windowHeight - viewportHeight);
+
+    // Lift the chat input area above the keyboard
+    chatPanel.style.height = viewportHeight + "px";
+    chatPanel.style.top    = window.visualViewport.offsetTop + "px";
+  });
+}
+
+/* ===== SECURITY HELPER ===== */
+
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 </script>
 
