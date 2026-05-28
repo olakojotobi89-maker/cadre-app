@@ -24,6 +24,8 @@ body{
 background:#0b1120;
 color:white;
 overflow:hidden;
+height:100vh;
+height:100dvh;
 }
 
 /* ===== MAIN ===== */
@@ -31,7 +33,9 @@ overflow:hidden;
 .main-wrapper{
 display:flex;
 height:100vh;
+height:100dvh;
 width:100%;
+position:relative;
 }
 
 /* ===== LEFT SIDE ===== */
@@ -54,6 +58,7 @@ display:flex;
 align-items:center;
 justify-content:space-between;
 padding:0 20px;
+z-index:10;
 }
 
 .top-left{
@@ -108,6 +113,7 @@ display:grid;
 grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
 gap:16px;
 overflow:auto;
+padding-bottom:120px;
 }
 
 /* ===== USER CARD ===== */
@@ -216,6 +222,7 @@ background:#101826;
 border-left:1px solid #1f2937;
 display:flex;
 flex-direction:column;
+z-index:50;
 }
 
 .chat-header{
@@ -304,6 +311,8 @@ padding:12px;
 display:flex;
 gap:10px;
 z-index:9999;
+max-width:95%;
+overflow-x:auto;
 }
 
 .control-btn{
@@ -317,6 +326,7 @@ font-size:20px;
 cursor:pointer;
 transition:0.25s;
 position:relative;
+flex-shrink:0;
 }
 
 .control-btn:hover{
@@ -408,14 +418,6 @@ padding:12px;
 z-index:999;
 }
 
-.log-entry{
-font-size:12px;
-color:#cbd5e1;
-padding-bottom:10px;
-margin-bottom:10px;
-border-bottom:1px solid #1f2937;
-}
-
 /* ===== ANIMATION ===== */
 
 @keyframes fadeIn{
@@ -433,13 +435,19 @@ transform:scale(1);
 
 @media(max-width:900px){
 
-.main-wrapper{
-flex-direction:column;
+.chat-panel{
+position:fixed;
+right:0;
+top:0;
+height:100vh;
+width:100%;
+transform:translateX(100%);
+transition:0.3s ease;
+z-index:99999;
 }
 
-.chat-panel{
-width:100%;
-height:300px;
+.chat-panel.open{
+transform:translateX(0);
 }
 
 .participant-grid{
@@ -447,9 +455,12 @@ grid-template-columns:1fr;
 }
 
 .bottom-controls{
-flex-wrap:wrap;
-max-width:95%;
-justify-content:center;
+flex-wrap:nowrap;
+justify-content:flex-start;
+}
+
+.comms-log{
+display:none;
 }
 
 }
@@ -503,11 +514,7 @@ SECURE CHANNEL READY
 🎤 LIVE
 </div>
 
-<div
-class="user-badge"
-id="local-hand-icon"
-style="display:none;color:#facc15;"
->
+<div class="user-badge" id="local-hand-icon" style="display:none;color:#facc15;">
 ✋ HAND
 </div>
 
@@ -535,19 +542,8 @@ ONLINE
 
 <div class="card-controls">
 
-<button
-class="small-btn"
-onclick="pinParticipant('local-user-card')"
->
-📌
-</button>
-
-<button
-class="small-btn"
-onclick="toggleRaiseHand()"
->
-✋
-</button>
+<button class="small-btn" onclick="pinParticipant('local-user-card')">📌</button>
+<button class="small-btn" onclick="toggleRaiseHand()">✋</button>
 
 </div>
 
@@ -561,29 +557,20 @@ onclick="toggleRaiseHand()"
 
 <!-- ===== CHAT ===== -->
 
-<div class="chat-panel">
+<div class="chat-panel" id="chatPanel">
 
 <div class="chat-header">
 TACTICAL CHAT
+<button class="small-btn" onclick="toggleChat()">✖</button>
 </div>
 
 <div class="chat-messages" id="chat-messages"></div>
 
 <div class="chat-input-area">
 
-<input
-type="text"
-id="chat-input"
-class="chat-input"
-placeholder="Send tactical message..."
->
+<input type="text" id="chat-input" class="chat-input" placeholder="Send tactical message...">
 
-<button
-class="send-btn"
-onclick="sendChatMessage()"
->
-SEND
-</button>
+<button class="send-btn" onclick="sendChatMessage()">SEND</button>
 
 </div>
 
@@ -622,108 +609,64 @@ SYSTEM :: Encryption layer active
 
 <div class="bottom-controls">
 
-<button
-class="control-btn"
-id="joinBtn"
-onclick="initializeComms()"
->
-📡
-<div class="control-label">JOIN</div>
-</button>
+<button class="control-btn" id="joinBtn" onclick="initializeComms()">📡<div class="control-label">JOIN</div></button>
 
-<button
-class="control-btn"
-id="muteBtn"
-onclick="toggleMute()"
-style="display:none;"
->
-🎤
-<div class="control-label">MIC</div>
-</button>
+<button class="control-btn" id="muteBtn" onclick="toggleMute()" style="display:none;">🎤<div class="control-label">MIC</div></button>
 
-<button
-class="control-btn"
-onclick="toggleRaiseHand()"
->
-✋
-<div class="control-label">HAND</div>
-</button>
+<button class="control-btn" onclick="toggleRaiseHand()">✋<div class="control-label">HAND</div></button>
 
-<button
-class="control-btn"
-onclick="toggleReactionPicker()"
->
-😊
-<div class="control-label">REACT</div>
-</button>
+<button class="control-btn" onclick="toggleReactionPicker()">😊<div class="control-label">REACT</div></button>
 
-<button
-class="control-btn">
-💬
-<div class="control-label">CHAT</div>
-</button>
+<button class="control-btn" onclick="toggleChat()">💬<div class="control-label">CHAT</div></button>
 
-<button
-class="control-btn">
-👥
-<div class="control-label">USERS</div>
-</button>
+<button class="control-btn" onclick="alert('Users panel coming soon')">👥<div class="control-label">USERS</div></button>
 
-<button
-class="control-btn">
-🖥️
-<div class="control-label">SHARE</div>
-</button>
+<button class="control-btn" onclick="shareScreen()">🖥️<div class="control-label">SHARE</div></button>
 
-<button
-class="control-btn">
-⏺️
-<div class="control-label">REC</div>
-</button>
+<button class="control-btn" onclick="toggleRecord()">⏺️<div class="control-label">REC</div></button>
 
-<button
-class="control-btn leave-btn"
-id="leaveBtn"
-onclick="terminateComms()"
-style="display:none;"
->
-📞
-<div class="control-label">LEAVE</div>
-</button>
+<button class="control-btn leave-btn" id="leaveBtn" onclick="terminateComms()" style="display:none;">📞<div class="control-label">LEAVE</div></button>
 
 </div>
 
 <script>
 
-const supabaseUrl =
-'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-const supabaseKey =
-'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-
-const sbClient =
-supabase.createClient(supabaseUrl, supabaseKey);
-
-let currentSessionOfficer =
-JSON.parse(localStorage.getItem("session_user"));
-
-/* ===== AGORA ===== */
+let currentSessionOfficer = JSON.parse(localStorage.getItem("session_user"));
 
 const APP_ID = "8f88034e0a9545868b55af604b268e1e";
-
 const CHANNEL = "GROUP_CALL_ALPHA";
-
 const TOKEN = null;
 
-const client = AgoraRTC.createClient({
-mode:"rtc",
-codec:"vp8"
-});
+const client = AgoraRTC.createClient({ mode:"rtc", codec:"vp8" });
 
 let localAudioTrack;
 let activeStream = false;
 let isMuted = false;
 let handRaised = false;
+let isRecording = false;
+
+/* ===== UI TOGGLES ===== */
+
+function toggleChat(){
+document.getElementById("chatPanel").classList.toggle("open");
+}
+
+function toggleRecord(){
+isRecording = !isRecording;
+addLog(isRecording ? "REC :: Recording started" : "REC :: Recording stopped");
+}
+
+function shareScreen(){
+if(navigator.share){
+navigator.share({title:"CADRE CALL"});
+}else{
+addLog("SHARE :: Not supported on this device");
+}
+}
 
 /* ===== LOCAL INFO ===== */
 
@@ -736,24 +679,11 @@ currentSessionOfficer?.rank || "UNIT";
 /* ===== LOG ===== */
 
 function addLog(message){
-
-const logContainer =
-document.getElementById("comms-log");
-
-const log =
-document.createElement("div");
-
-log.className =
-"log-entry";
-
-const time =
-new Date().toLocaleTimeString();
-
-log.innerHTML =
-`[${time}] ${message}`;
-
+const logContainer = document.getElementById("comms-log");
+const log = document.createElement("div");
+log.className = "log-entry";
+log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
 logContainer.prepend(log);
-
 }
 
 /* ===== JOIN ===== */
@@ -766,29 +696,16 @@ try{
 
 activeStream = true;
 
-document.getElementById("connection-status").textContent =
-"LIVE SECURE CHANNEL ACTIVE";
-
-document.getElementById("joinBtn").style.display =
-"none";
-
-document.getElementById("leaveBtn").style.display =
-"block";
-
-document.getElementById("muteBtn").style.display =
-"block";
+document.getElementById("connection-status").textContent = "LIVE SECURE CHANNEL ACTIVE";
+document.getElementById("joinBtn").style.display = "none";
+document.getElementById("leaveBtn").style.display = "block";
+document.getElementById("muteBtn").style.display = "block";
 
 addLog("SYSTEM :: Initializing secure audio bridge");
 
-await client.join(
-APP_ID,
-CHANNEL,
-TOKEN,
-currentSessionOfficer.phone || null
-);
+await client.join(APP_ID, CHANNEL, TOKEN, currentSessionOfficer.phone || null);
 
-localAudioTrack =
-await AgoraRTC.createMicrophoneAudioTrack({
+localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
 AEC:true,
 ANS:true,
 AGC:true
@@ -798,9 +715,7 @@ await client.publish([localAudioTrack]);
 
 addLog("VOICE LINK :: Connected to tactical channel");
 
-await sbClient
-.from('group_call_members')
-.upsert({
+await sbClient.from('group_call_members').upsert({
 phone: currentSessionOfficer.phone,
 name: currentSessionOfficer.name,
 rank: currentSessionOfficer.rank,
@@ -809,7 +724,6 @@ joined_at: Date.now()
 });
 
 loadMembers();
-
 listenForMembers();
 
 client.on("user-published", async (user, mediaType) => {
@@ -817,37 +731,22 @@ client.on("user-published", async (user, mediaType) => {
 await client.subscribe(user, mediaType);
 
 if(mediaType === "audio"){
-
 user.audioTrack.play();
-
 createRemoteCard(user.uid);
-
-addLog(
-`VOICE LINK :: ${user.uid} connected`
-);
-
+addLog(`VOICE LINK :: ${user.uid} connected`);
 }
 
 });
 
 client.on("user-left", (user) => {
-
 removeRemoteCard(user.uid);
-
-addLog(
-`VOICE LINK :: ${user.uid} disconnected`
-);
-
+addLog(`VOICE LINK :: ${user.uid} disconnected`);
 });
 
 }catch(error){
-
 console.error(error);
-
 alert("Failed to connect");
-
 terminateComms();
-
 }
 
 }
@@ -855,35 +754,19 @@ terminateComms();
 /* ===== MEMBERS ===== */
 
 async function loadMembers(){
-
-const { data } = await sbClient
-.from('group_call_members')
-.select('*');
-
+const { data } = await sbClient.from('group_call_members').select('*');
 if(!data) return;
 
 document.getElementById("member-count").textContent =
 `${data.length} OPERATORS CONNECTED`;
-
 }
 
 function listenForMembers(){
-
-sbClient
-.channel('group_call_members_changes')
-.on(
-'postgres_changes',
-{
-event:'*',
-schema:'public',
-table:'group_call_members'
-},
-payload => {
+sbClient.channel('group_call_members_changes')
+.on('postgres_changes',{event:'*',schema:'public',table:'group_call_members'},payload=>{
 loadMembers();
-}
-)
+})
 .subscribe();
-
 }
 
 /* ===== REMOTE CARDS ===== */
@@ -892,231 +775,110 @@ function createRemoteCard(uid){
 
 if(document.getElementById(`remote-${uid}`)) return;
 
-const grid =
-document.getElementById("participant-grid");
+const grid = document.getElementById("participant-grid");
 
-const card =
-document.createElement("div");
-
-card.className =
-"user-card speaking";
-
-card.id =
-`remote-${uid}`;
+const card = document.createElement("div");
+card.className = "user-card speaking";
+card.id = `remote-${uid}`;
 
 card.innerHTML = `
-
 <div class="user-top-icons">
-
-<div class="user-badge">
-🎤 LIVE
+<div class="user-badge">🎤 LIVE</div>
 </div>
 
-</div>
+<img src="https://ui-avatars.com/api/?name=${uid}&background=0f172a&color=00f0ff" class="user-avatar">
 
-<img
-src="https://ui-avatars.com/api/?name=${uid}&background=0f172a&color=00f0ff"
-class="user-avatar"
->
-
-<div class="user-name">
-${uid}
-</div>
-
-<div class="user-rank">
-REMOTE OPERATOR
-</div>
+<div class="user-name">${uid}</div>
+<div class="user-rank">REMOTE OPERATOR</div>
 
 <div class="user-footer">
-
-<div class="connection-status">
-CONNECTED
-</div>
+<div class="connection-status">CONNECTED</div>
 
 <div class="card-controls">
-
-<button
-class="small-btn"
-onclick="pinParticipant('remote-${uid}')"
->
-📌
-</button>
-
-<button
-class="small-btn"
-onclick="remoteMute('${uid}')"
->
-🔇
-</button>
-
+<button class="small-btn" onclick="pinParticipant('remote-${uid}')">📌</button>
+<button class="small-btn" onclick="remoteMute('${uid}')">🔇</button>
 </div>
-
 </div>
 `;
 
 grid.appendChild(card);
-
 }
-
-/* ===== REMOVE ===== */
 
 function removeRemoteCard(uid){
-
-const el =
-document.getElementById(`remote-${uid}`);
-
-if(el){
-el.remove();
+const el = document.getElementById(`remote-${uid}`);
+if(el) el.remove();
 }
-
-}
-
-/* ===== PIN ===== */
 
 function pinParticipant(id){
-
-document
-.querySelectorAll(".user-card")
-.forEach(card => {
-card.style.order = 0;
-});
-
-const target =
-document.getElementById(id);
-
-if(target){
-target.style.order = -1;
+document.querySelectorAll(".user-card").forEach(c=>c.style.order=0);
+const target = document.getElementById(id);
+if(target) target.style.order=-1;
 }
-
-}
-
-/* ===== REMOTE MUTE ===== */
 
 function remoteMute(uid){
-
-addLog(
-`ADMIN ACTION :: Mute request sent to ${uid}`
-);
-
+addLog(`ADMIN ACTION :: Mute request sent to ${uid}`);
 }
 
-/* ===== MUTE ===== */
+/* ===== CONTROLS ===== */
 
 async function toggleMute(){
-
 if(!localAudioTrack) return;
 
 isMuted = !isMuted;
-
 await localAudioTrack.setEnabled(!isMuted);
 
 document.getElementById("muteBtn").innerHTML =
-isMuted
-? '🔇<div class="control-label">MUTED</div>'
-: '🎤<div class="control-label">MIC</div>';
+isMuted ? '🔇<div class="control-label">MUTED</div>' : '🎤<div class="control-label">MIC</div>';
 
 document.getElementById("local-mic-icon").textContent =
-isMuted
-? "🔇 MUTED"
-: "🎤 LIVE";
+isMuted ? "🔇 MUTED" : "🎤 LIVE";
 
-addLog(
-isMuted
-? "VOICE CHANNEL :: Microphone muted"
-: "VOICE CHANNEL :: Microphone unmuted"
-);
-
+addLog(isMuted ? "VOICE CHANNEL :: Microphone muted" : "VOICE CHANNEL :: Microphone unmuted");
 }
 
-/* ===== HAND ===== */
-
 function toggleRaiseHand(){
-
 handRaised = !handRaised;
-
 document.getElementById("local-hand-icon").style.display =
-handRaised
-? "block"
-: "none";
-
+handRaised ? "block" : "none";
 }
 
 /* ===== CHAT ===== */
 
 function sendChatMessage(){
-
-const input =
-document.getElementById("chat-input");
-
-const text =
-input.value.trim();
-
+const input = document.getElementById("chat-input");
+const text = input.value.trim();
 if(!text) return;
 
-const container =
-document.getElementById("chat-messages");
+const container = document.getElementById("chat-messages");
 
-const div =
-document.createElement("div");
-
-div.className =
-"chat-message";
+const div = document.createElement("div");
+div.className = "chat-message";
 
 div.innerHTML = `
-<div class="chat-user">
-${currentSessionOfficer.name}
-</div>
-
-<div class="chat-text">
-${text}
-</div>
-
-<div class="chat-time">
-${new Date().toLocaleTimeString()}
-</div>
+<div class="chat-user">${currentSessionOfficer.name}</div>
+<div class="chat-text">${text}</div>
+<div class="chat-time">${new Date().toLocaleTimeString()}</div>
 `;
 
 container.appendChild(div);
-
-container.scrollTop =
-container.scrollHeight;
-
+container.scrollTop = container.scrollHeight;
 input.value = "";
-
 }
 
-/* ===== REACTION ===== */
+/* ===== REACTIONS ===== */
 
 function toggleReactionPicker(){
-
-document
-.getElementById("reactionPicker")
-.classList.toggle("active");
-
+document.getElementById("reactionPicker").classList.toggle("active");
 }
 
 function sendReaction(emoji){
-
-const reaction =
-document.createElement("div");
-
-reaction.className =
-"floating-reaction";
-
-reaction.textContent =
-emoji;
-
-reaction.style.left =
-(Math.random() * 80 + 10) + "%";
-
+const reaction = document.createElement("div");
+reaction.className = "floating-reaction";
+reaction.textContent = emoji;
+reaction.style.left = (Math.random()*80+10)+"%";
 document.body.appendChild(reaction);
-
-setTimeout(() => {
-reaction.remove();
-}, 3000);
-
+setTimeout(()=>reaction.remove(),3000);
 toggleReactionPicker();
-
 }
 
 /* ===== LEAVE ===== */
@@ -1125,52 +887,27 @@ async function terminateComms(){
 
 activeStream = false;
 
-document.getElementById("connection-status").textContent =
-"CHANNEL OFFLINE";
+document.getElementById("connection-status").textContent = "CHANNEL OFFLINE";
+document.getElementById("joinBtn").style.display = "block";
+document.getElementById("leaveBtn").style.display = "none";
+document.getElementById("muteBtn").style.display = "none";
 
-document.getElementById("joinBtn").style.display =
-"block";
-
-document.getElementById("leaveBtn").style.display =
-"none";
-
-document.getElementById("muteBtn").style.display =
-"none";
-
-if(localAudioTrack){
-
-localAudioTrack.close();
-
-}
+if(localAudioTrack) localAudioTrack.close();
 
 await client.leave();
 
 if(currentSessionOfficer?.phone){
-
-await sbClient
-.from('group_call_members')
-.delete()
-.eq('phone', currentSessionOfficer.phone);
-
+await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
 }
 
 loadMembers();
-
 addLog("SYSTEM :: Tactical stream terminated");
-
 }
 
-window.addEventListener("beforeunload", async () => {
-
+window.addEventListener("beforeunload", async ()=>{
 if(currentSessionOfficer?.phone){
-
-await sbClient
-.from('group_call_members')
-.delete()
-.eq('phone', currentSessionOfficer.phone);
-
+await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
 }
-
 });
 
 </script>
