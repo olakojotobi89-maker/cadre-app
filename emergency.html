@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* --- Tactical Emergency System Overrides --- */
         :root {
             --hud-crimson: #ff3333;
             --hud-crimson-glow: rgba(255, 51, 51, 0.4);
@@ -47,10 +46,8 @@
         .panic-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
+            top: 0; left: 0;
+            width: 100%; height: 4px;
             background: var(--hud-crimson);
             animation: pulse-border 1.5s infinite;
         }
@@ -85,6 +82,11 @@
             transition: all 0.3s ease;
         }
 
+        .btn-sos-trigger:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .active-alert .btn-sos-trigger {
             background: radial-gradient(circle, #330000 0%, #ff1a1a 100%);
             box-shadow: 0 0 25px var(--hud-crimson);
@@ -92,22 +94,16 @@
 
         .sos-pulse-wave {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             border-radius: 50%;
             background: var(--hud-crimson);
             opacity: 0.6;
             z-index: 1;
         }
 
-        .active-alert .sos-pulse-wave-1 {
-            animation: pulse-wave 2s infinite linear;
-        }
-        .active-alert .sos-pulse-wave-2 {
-            animation: pulse-wave 2s infinite linear 1s;
-        }
+        .active-alert .sos-pulse-wave-1 { animation: pulse-wave 2s infinite linear; }
+        .active-alert .sos-pulse-wave-2 { animation: pulse-wave 2s infinite linear 1s; }
 
         .telemetry-console {
             background: var(--bg-dark-surface);
@@ -129,21 +125,10 @@
             justify-content: space-between;
         }
 
-        .telemetry-line span.status-active {
-            color: var(--hud-amber);
-            font-weight: bold;
-        }
-
-        .telemetry-line span.status-critical {
-            color: var(--hud-crimson);
-            font-weight: bold;
-            animation: blink 1s infinite;
-        }
-
-        .telemetry-line span.status-resolved {
-            color: var(--hud-emerald);
-            font-weight: bold;
-        }
+        .telemetry-line span.status-active   { color: var(--hud-amber); font-weight: bold; }
+        .telemetry-line span.status-critical { color: var(--hud-crimson); font-weight: bold; animation: blink 1s infinite; }
+        .telemetry-line span.status-resolved { color: var(--hud-emerald); font-weight: bold; }
+        .telemetry-line span.status-error    { color: #ff9900; font-weight: bold; }
 
         .back-nav {
             margin-top: 15px;
@@ -151,36 +136,29 @@
         }
 
         @keyframes pulse-wave {
-            0% { transform: scale(1); opacity: 0.6; }
+            0%   { transform: scale(1); opacity: 0.6; }
             100% { transform: scale(1.6); opacity: 0; }
         }
-
         @keyframes pulse-border {
             0%, 100% { opacity: 0.4; }
-            50% { opacity: 1; }
+            50%       { opacity: 1; }
         }
-
-        @keyframes blink {
-            50% { opacity: 0; }
-        }
+        @keyframes blink { 50% { opacity: 0; } }
 
         .app-bottom-dock {
             display: grid !important;
             grid-template-columns: repeat(4, 1fr) !important;
         }
-        
         .dock-node-emergency.active-node {
             color: #ff3333 !important;
             border-top: 2px solid #ff3333 !important;
         }
-        
         .dock-node-emergency .dock-node-glyph {
             animation: beacon-pulse 1.5s infinite ease-in-out;
         }
-
         @keyframes beacon-pulse {
             0%, 100% { opacity: 0.7; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.15); }
+            50%       { opacity: 1; transform: scale(1.15); }
         }
     </style>
 </head>
@@ -189,6 +167,7 @@
 <div class="app-container">
     <main class="emergency-wrapper">
         <div class="panic-card" id="panic-panel">
+
             <div class="gateway-title-block">
                 <h1 class="gateway-h1" id="beacon-headline" style="color: var(--hud-crimson);">DISTRESS TRANSMITTER</h1>
                 <p class="gateway-p" id="beacon-subline">Emergency Command Beacon Network</p>
@@ -201,213 +180,396 @@
             </div>
 
             <div class="telemetry-console" id="console-logs">
-                <div class="telemetry-line"><span>> BEACON STATUS:</span><span style="color: var(--hud-emerald);">STANDBY</span></div>
-                <div class="telemetry-line"><span>> LOCAL TELEMETRY:</span><span>COORD LOCK VACANT</span></div>
+                <div class="telemetry-line">
+                    <span>&gt; BEACON STATUS:</span>
+                    <span style="color: var(--hud-emerald);">STANDBY</span>
+                </div>
+                <div class="telemetry-line">
+                    <span>&gt; LOCAL TELEMETRY:</span>
+                    <span>COORD LOCK VACANT</span>
+                </div>
             </div>
 
             <div class="back-nav">
-                <a href="home.html" style="color: var(--text-dim); text-decoration: none;">← Abort & Return to Feed</a>
+                <a href="home.html" style="color: var(--text-dim); text-decoration: none;">← Abort &amp; Return to Feed</a>
             </div>
+
         </div>
     </main>
 
     <nav class="app-bottom-dock">
-        <a href="home.html" class="dock-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
-        <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
-        <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+        <a href="home.html"      class="dock-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
+        <a href="ebook.html"     class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
+        <a href="profile.html"   class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
         <a href="emergency.html" class="dock-node dock-node-emergency active-node"><span class="dock-node-glyph">🚨</span><span>SOS</span></a>
     </nav>
 </div>
 
 <script>
-    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
-    const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    const sbClient = supabase.createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
-    let currentSessionOfficer = null;
-    let isAlertActive = false;
-    let watchId = null;
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let micIntervalId = null;
+/* ─────────────────────────────────────────────
+   SUPABASE
+   IMPORTANT: All column names are lowercase to
+   match PostgreSQL's default behaviour.
+   Table: distress_signals
+   Columns: officer_phone, officer_name,
+            officer_rank, active, initiated_at,
+            lat, lng, last_telemetry_timestamp
+───────────────────────────────────────────── */
 
-    window.handleSosInteraction = handleSosInteraction;
+const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient = supabase.createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false }
+});
 
-    (async function initSession() {
-        let savedPhone = localStorage.getItem("cached_operator_phone");
-        
-        if (!savedPhone) {
-            const oldSession = localStorage.getItem("session_user");
-            if (oldSession) {
-                try {
-                    const parsed = JSON.parse(oldSession);
-                    savedPhone = parsed.phone;
-                } catch(e) {}
-            }
-        }
+let currentSessionOfficer = null;
+let isAlertActive  = false;
+let watchId        = null;
+let mediaRecorder  = null;
+let audioChunks    = [];
+let micIntervalId  = null;
 
-        if (!savedPhone) {
-            logToConsole("NO CRYPTO PHONE SIGNATURE. REDIRECTING...", "status-critical");
-            setTimeout(() => { window.location.href = "login.html"; }, 2000);
-            return;
-        }
-        
-        logToConsole("CONNECTING SECURE IDENT NODE...", "status-active");
-        
+/* ─────────────────────────────────────────────
+   SESSION INIT
+───────────────────────────────────────────── */
+
+(async function initSession() {
+
+    // ── Search every key your app might store the session under ──
+    let savedPhone = null;
+    let savedName  = null;
+    let savedRank  = null;
+
+    // Key 1: cached_operator_phone (plain string)
+    savedPhone = localStorage.getItem("cached_operator_phone");
+
+    // Key 2: session_user (JSON object)
+    if (!savedPhone) {
         try {
-            const { data, error } = await sbClient.from("users").select("*").eq("phone", savedPhone).single();
-            if (data) {
-                currentSessionOfficer = data;
-                logToConsole(`OPERATOR IDENTIFIED: ${currentSessionOfficer.name.toUpperCase()}`, "status-resolved");
-                // Check if an SOS is already active for this officer
-                await checkActiveStatus(savedPhone);
-            } else {
-                currentSessionOfficer = { phone: savedPhone, name: "Field Agent", rank: "Operational Operator" };
+            const parsed = JSON.parse(localStorage.getItem("session_user"));
+            if (parsed?.phone) {
+                savedPhone = parsed.phone;
+                savedName  = parsed.name;
+                savedRank  = parsed.rank;
             }
-        } catch (err) {
-            currentSessionOfficer = { phone: savedPhone, name: "Field Agent", rank: "Operational Operator" };
-        }
-    })();
+        } catch(e) {}
+    }
 
-    async function checkActiveStatus(phone) {
+    // Key 3: user (some versions of the app use this key)
+    if (!savedPhone) {
+        try {
+            const parsed = JSON.parse(localStorage.getItem("user"));
+            if (parsed?.phone) {
+                savedPhone = parsed.phone;
+                savedName  = parsed.name;
+                savedRank  = parsed.rank;
+            }
+        } catch(e) {}
+    }
+
+    // Key 4: officer (another common key)
+    if (!savedPhone) {
+        try {
+            const parsed = JSON.parse(localStorage.getItem("officer"));
+            if (parsed?.phone) {
+                savedPhone = parsed.phone;
+                savedName  = parsed.name;
+                savedRank  = parsed.rank;
+            }
+        } catch(e) {}
+    }
+
+    // Key 5: currentUser
+    if (!savedPhone) {
+        try {
+            const parsed = JSON.parse(localStorage.getItem("currentUser"));
+            if (parsed?.phone) {
+                savedPhone = parsed.phone;
+                savedName  = parsed.name;
+                savedRank  = parsed.rank;
+            }
+        } catch(e) {}
+    }
+
+    // ── Still nothing? Only redirect as a last resort ──
+    if (!savedPhone) {
+        logToConsole("NO SESSION FOUND. REDIRECTING TO LOGIN...", "status-critical");
+        // Show all localStorage keys in console to help diagnose
+        console.warn("emergency.html: no phone found. localStorage keys present:", Object.keys(localStorage));
+        setTimeout(() => { window.location.href = "login.html"; }, 2500);
+        return;
+    }
+
+    logToConsole("CONNECTING SECURE IDENT NODE...", "status-active");
+
+    // ── Build a fallback identity from whatever we found in localStorage ──
+    // This means even if the DB call fails, the user is NOT logged out.
+    currentSessionOfficer = {
+        phone: savedPhone,
+        name:  savedName  || "Field Agent",
+        rank:  savedRank  || "Operational Operator"
+    };
+
+    try {
         const { data, error } = await sbClient
-            .from('distress_signals')
-            .select('*')
-            .eq('officerPhone', phone)
-            .eq('active', true);
+            .from("users")
+            .select("*")
+            .eq("phone", savedPhone)
+            .single();
 
-        if (data && data.length > 0) {
-            isAlertActive = true;
-            document.getElementById("sos-container").classList.add("active-alert");
-            document.getElementById("action-btn").textContent = "STAND DOWN";
-            logToConsole("RESUMING ACTIVE DISTRESS SESSION", "status-critical");
-            trackLiveLocation();
-        }
-    }
-
-    function logToConsole(message, statusClass = '') {
-        const consoleBox = document.getElementById("console-logs");
-        if (!consoleBox) return;
-        const line = document.createElement("div");
-        line.className = "telemetry-line";
-        line.innerHTML = `<span>> ${message}</span><span class="${statusClass}">${statusClass ? statusClass.replace('status-', '').toUpperCase() : ''}</span>`;
-        consoleBox.appendChild(line);
-        consoleBox.scrollTop = consoleBox.scrollHeight;
-    }
-
-    function handleSosInteraction() {
-        if (!currentSessionOfficer) {
-            const fallbackPhone = localStorage.getItem("cached_operator_phone") || "0000000000";
-            currentSessionOfficer = { phone: fallbackPhone, name: "Field Agent", rank: "Emergency Responder" };
-        }
-
-        if (!isAlertActive) {
-            initiateDistressProtocol();
+        if (data) {
+            // DB lookup succeeded — use full profile
+            currentSessionOfficer = data;
+            logToConsole(`OPERATOR IDENTIFIED: ${data.name.toUpperCase()}`, "status-resolved");
+            await checkActiveStatus(savedPhone);
         } else {
-            requestSecureDeactivation();
+            // DB returned nothing but we have a phone — stay on page
+            logToConsole("FALLBACK IDENTITY LOADED", "status-active");
+            logToConsole(`PHONE: ${savedPhone}`, "status-active");
         }
+    } catch (err) {
+        // Network/DB error — stay on page with fallback identity
+        logToConsole("OFFLINE IDENTITY MODULE ACTIVE", "status-active");
+        console.warn("emergency.html: DB lookup failed, using fallback:", err);
     }
 
-    function initiateDistressProtocol() {
+})();
+
+/* ─────────────────────────────────────────────
+   CHECK IF SOS ALREADY ACTIVE (page reload)
+───────────────────────────────────────────── */
+
+async function checkActiveStatus(phone) {
+    const { data, error } = await sbClient
+        .from('distress_signals')
+        .select('*')
+        .eq('officer_phone', phone)  // FIX: lowercase column name
+        .eq('active', true);
+
+    if (error) {
+        logToConsole(`DB CHECK ERROR: ${error.message}`, "status-error");
+        return;
+    }
+
+    if (data && data.length > 0) {
         isAlertActive = true;
         document.getElementById("sos-container").classList.add("active-alert");
         document.getElementById("action-btn").textContent = "STAND DOWN";
-        logToConsole("SOS SIGNAL INITIATED", "status-critical");
-
+        logToConsole("RESUMING ACTIVE DISTRESS SESSION", "status-critical");
         trackLiveLocation();
-        startMicrophoneCapture();
-        broadcastCommandCenterPayload(true);
+    }
+}
+
+/* ─────────────────────────────────────────────
+   CONSOLE LOG
+───────────────────────────────────────────── */
+
+function logToConsole(message, statusClass = '') {
+    const consoleBox = document.getElementById("console-logs");
+    if (!consoleBox) return;
+    const line = document.createElement("div");
+    line.className = "telemetry-line";
+    const label = statusClass ? statusClass.replace('status-', '').toUpperCase() : '';
+    line.innerHTML = `<span>&gt; ${message}</span><span class="${statusClass}">${label}</span>`;
+    consoleBox.appendChild(line);
+    consoleBox.scrollTop = consoleBox.scrollHeight;
+}
+
+/* ─────────────────────────────────────────────
+   SOS BUTTON HANDLER
+───────────────────────────────────────────── */
+
+function handleSosInteraction() {
+    if (!currentSessionOfficer) {
+        const fallbackPhone = localStorage.getItem("cached_operator_phone") || "0000000000";
+        currentSessionOfficer = { phone: fallbackPhone, name: "Field Agent", rank: "Emergency Responder" };
     }
 
-    async function requestSecureDeactivation() {
-        const enteredCode = prompt("SECURE SYSTEM COMMAND:\nEnter your Security Access Code to stand down distress beacon:");
-        if (enteredCode === null) return; 
+    if (!isAlertActive) {
+        initiateDistressProtocol();
+    } else {
+        requestSecureDeactivation();
+    }
+}
 
-        logToConsole("VALIDATING SECURITY RECOVERY PATH...", "status-active");
+/* ─────────────────────────────────────────────
+   ACTIVATE SOS
+───────────────────────────────────────────── */
 
-        try {
-            const { data } = await sbClient.from("users").select("password").eq("phone", currentSessionOfficer.phone).single();
-            const passToCheck = (data && data.password) ? data.password : "1234";
+async function initiateDistressProtocol() {
 
-            if (enteredCode.trim() !== passToCheck) {
-                alert("ACCESS DENIED: Invalid System Security Access Code.");
-                logToConsole("UNAUTHORIZED DEACTIVATION ATTEMPT INTERCEPTED", "status-critical");
-                return;
-            }
-        } catch (error) {
-            logToConsole("LOCAL DEFENSE OVERRIDE ENABLED", "status-resolved");
-        }
+    // Disable button while sending to prevent double-taps
+    const btn = document.getElementById("action-btn");
+    btn.disabled = true;
 
-        isAlertActive = false;
-        if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-        if (mediaRecorder && mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
-        }
-        if (micIntervalId) { clearInterval(micIntervalId); micIntervalId = null; }
+    logToConsole("SOS SIGNAL INITIATED — BROADCASTING...", "status-critical");
 
-        document.getElementById("sos-container").classList.remove("active-alert");
-        document.getElementById("panic-panel").classList.add("status-safe");
-        document.getElementById("action-btn").textContent = "SECURED";
-        document.getElementById("beacon-headline").textContent = "SITUATION SECURED";
-        
-        broadcastCommandCenterPayload(false);
+    // ── FIX: Delete any stale row first, then insert fresh ──
+    // This avoids upsert conflict issues entirely.
+    await sbClient
+        .from("distress_signals")
+        .delete()
+        .eq("officer_phone", currentSessionOfficer.phone);
+
+    const payload = {
+        officer_phone:  currentSessionOfficer.phone,   // FIX: lowercase columns
+        officer_name:   currentSessionOfficer.name,
+        officer_rank:   currentSessionOfficer.rank || "UNIT",
+        active:         true,
+        initiated_at:   new Date().toISOString(),
+        lat:            null,
+        lng:            null,
+        last_telemetry_timestamp: new Date().toISOString()
+    };
+
+    const { error } = await sbClient
+        .from("distress_signals")
+        .insert(payload);
+
+    if (error) {
+        // Show the real error so it's easy to diagnose
+        logToConsole(`BROADCAST FAILED: ${error.message} (${error.code})`, "status-error");
+        console.error("SOS INSERT ERROR:", error);
+        btn.disabled = false;
+        return;
     }
 
-    function trackLiveLocation() {
-        if (!navigator.geolocation) return;
-        watchId = navigator.geolocation.watchPosition(
-            async (position) => {
-                const lat = position.coords.latitude.toFixed(5);
-                const lng = position.coords.longitude.toFixed(5);
-                await updateDistressPayload({
+    // Success — update UI
+    isAlertActive = true;
+    btn.disabled = false;
+    btn.textContent = "STAND DOWN";
+    document.getElementById("sos-container").classList.add("active-alert");
+
+    logToConsole("DISTRESS SIGNAL BROADCAST CONFIRMED", "status-critical");
+    logToConsole("COMMAND CENTER NOTIFIED", "status-resolved");
+
+    trackLiveLocation();
+    startMicrophoneCapture();
+}
+
+/* ─────────────────────────────────────────────
+   DEACTIVATE SOS
+───────────────────────────────────────────── */
+
+async function requestSecureDeactivation() {
+
+    const enteredCode = prompt("SECURE SYSTEM COMMAND:\nEnter your Security Access Code to stand down distress beacon:");
+    if (enteredCode === null) return;
+
+    logToConsole("VALIDATING SECURITY RECOVERY PATH...", "status-active");
+
+    try {
+        const { data } = await sbClient
+            .from("users")
+            .select("password")
+            .eq("phone", currentSessionOfficer.phone)
+            .single();
+
+        const passToCheck = (data && data.password) ? data.password : "1234";
+
+        if (enteredCode.trim() !== passToCheck) {
+            alert("ACCESS DENIED: Invalid System Security Access Code.");
+            logToConsole("UNAUTHORIZED DEACTIVATION ATTEMPT INTERCEPTED", "status-critical");
+            return;
+        }
+    } catch (error) {
+        logToConsole("LOCAL DEFENSE OVERRIDE ENABLED", "status-resolved");
+    }
+
+    // Stop all active streams
+    isAlertActive = false;
+
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    }
+
+    if (micIntervalId) {
+        clearInterval(micIntervalId);
+        micIntervalId = null;
+    }
+
+    // FIX: Delete the row cleanly — admin sees it disappear in realtime
+    const { error } = await sbClient
+        .from("distress_signals")
+        .delete()
+        .eq("officer_phone", currentSessionOfficer.phone);
+
+    if (error) {
+        logToConsole(`STAND DOWN SYNC ERROR: ${error.message}`, "status-error");
+        console.error("SOS DELETE ERROR:", error);
+    }
+
+    document.getElementById("sos-container").classList.remove("active-alert");
+    document.getElementById("panic-panel").classList.add("status-safe");
+    document.getElementById("action-btn").textContent = "SECURED";
+    document.getElementById("beacon-headline").textContent = "SITUATION SECURED";
+
+    logToConsole("BEACON DEACTIVATED — STAND DOWN CONFIRMED", "status-resolved");
+}
+
+/* ─────────────────────────────────────────────
+   LIVE LOCATION TRACKING
+───────────────────────────────────────────── */
+
+function trackLiveLocation() {
+    if (!navigator.geolocation) {
+        logToConsole("GEOLOCATION UNAVAILABLE", "status-active");
+        return;
+    }
+
+    watchId = navigator.geolocation.watchPosition(
+        async (position) => {
+            const lat = position.coords.latitude.toFixed(5);
+            const lng = position.coords.longitude.toFixed(5);
+
+            logToConsole(`COORD LOCK: ${lat}, ${lng}`, "status-resolved");
+
+            await sbClient
+                .from("distress_signals")
+                .update({
                     lat: lat,
                     lng: lng,
-                    lastTelemetryTimestamp: new Date().toISOString()
-                });
-            },
-            null,
-            { enableHighAccuracy: true }
-        );
-    }
+                    last_telemetry_timestamp: new Date().toISOString()  // FIX: lowercase
+                })
+                .eq("officer_phone", currentSessionOfficer.phone);     // FIX: lowercase
+        },
+        (err) => {
+            logToConsole(`GEO ERROR: ${err.message}`, "status-active");
+        },
+        { enableHighAccuracy: true }
+    );
+}
 
-    async function startMicrophoneCapture() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-            mediaRecorder.start();
-            micIntervalId = setInterval(() => {
-                if (mediaRecorder.state === "recording") {
-                    mediaRecorder.stop();
-                    mediaRecorder.start();
-                }
-            }, 7000);
-        } catch (err) { logToConsole("MIC PIPELINE BYPASSED", "status-active"); }
-    }
+/* ─────────────────────────────────────────────
+   MICROPHONE CAPTURE
+───────────────────────────────────────────── */
 
-    async function broadcastCommandCenterPayload(activeState) {
-        try {
-            if (activeState) {
-                await sbClient.from("distress_signals").upsert({
-                    officerPhone: currentSessionOfficer.phone,
-                    officerName: currentSessionOfficer.name,
-                    officerRank: currentSessionOfficer.rank,
-                    active: true,
-                    initiatedAt: new Date().toISOString()
-                });
-            } else {
-                await sbClient.from("distress_signals").delete().eq("officerPhone", currentSessionOfficer.phone);
+async function startMicrophoneCapture() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.start();
+        logToConsole("MIC PIPELINE ACTIVE", "status-resolved");
+
+        micIntervalId = setInterval(() => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                mediaRecorder.start();
             }
-        } catch (err) { console.error("Sync Error: ", err); }
+        }, 7000);
+    } catch (err) {
+        logToConsole("MIC PIPELINE BYPASSED", "status-active");
     }
+}
 
-    async function updateDistressPayload(dataPacket) {
-        if (!isAlertActive) return;
-        try {
-            await sbClient.from("distress_signals").update(dataPacket).eq("officerPhone", currentSessionOfficer.phone);
-        } catch (err) { console.error(err); }
-    }
 </script>
 </body>
 </html>

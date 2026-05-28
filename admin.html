@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* --- Advanced Modern Tactical HUD Matrix --- */
         :root {
             --hud-crimson: #ff3333;
             --hud-crimson-glow: rgba(255, 51, 51, 0.25);
@@ -23,24 +22,23 @@
 
         body {
             background-color: #020408;
-            background-image: 
+            background-image:
                 linear-gradient(rgba(18, 24, 38, 0.4) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(18, 24, 38, 0.4) 1px, transparent 1px);
             background-size: 20px 20px;
             color: var(--text-main);
             font-family: system-ui, -apple-system, sans-serif;
-            position: relative;
             margin: 0;
             padding: 0;
         }
 
-        /* Ambient scanline HUD effect overlay */
         body::before {
             content: " ";
             display: block;
             position: fixed;
             top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 255, 0, 0.04));
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                        linear-gradient(90deg, rgba(255,0,0,0.04), rgba(0,255,0,0.01), rgba(0,255,0,0.04));
             z-index: 99999;
             background-size: 100% 4px, 6px 100%;
             pointer-events: none;
@@ -56,12 +54,8 @@
         }
 
         @media (min-width: 992px) {
-            .admin-grid {
-                grid-template-columns: 2fr 1fr;
-            }
-            .full-width-panel {
-                grid-column: span 2;
-            }
+            .admin-grid { grid-template-columns: 2fr 1fr; }
+            .full-width-panel { grid-column: span 2; }
             .split-column-row {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
@@ -168,6 +162,48 @@
             background: rgba(74, 222, 128, 0.05);
         }
 
+        /* ── SOS Alert Cards ── */
+        .sos-alert-card {
+            background: rgba(255, 51, 51, 0.08);
+            border: 1px solid var(--hud-crimson);
+            border-left: 4px solid var(--hud-crimson);
+            border-radius: 4px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            font-family: var(--tech-font);
+            font-size: 0.82rem;
+            color: #f87171;
+            animation: flash-badge 1s infinite alternate;
+        }
+
+        .sos-alert-card .sos-name {
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--hud-crimson);
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+        }
+
+        .sos-alert-card .sos-detail {
+            color: #94a3b8;
+            margin-bottom: 4px;
+            font-size: 0.78rem;
+        }
+
+        .sos-alert-card .sos-coords {
+            color: var(--hud-amber);
+            margin-top: 8px;
+            font-size: 0.8rem;
+        }
+
+        .sos-empty {
+            text-align: center;
+            padding: 24px;
+            color: #334155;
+            font-family: var(--tech-font);
+            font-size: 0.8rem;
+        }
+
         .audio-intercept-container {
             background: #04080f;
             border: 1px dashed #243b61;
@@ -223,10 +259,7 @@
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .unit-badge strong {
-            color: var(--hud-cyan);
-            letter-spacing: 1px;
-        }
+        .unit-badge strong { color: var(--hud-cyan); letter-spacing: 1px; }
 
         .unit-badge.active-distress {
             border-color: var(--hud-crimson);
@@ -242,7 +275,7 @@
             gap: 10px;
             margin-top: 8px;
         }
-        
+
         .hud-icon-btn {
             background: rgba(14, 26, 45, 0.6);
             border: 1px solid #1e293b;
@@ -262,8 +295,7 @@
         }
 
         .hud-icon-btn svg {
-            width: 22px;
-            height: 22px;
+            width: 22px; height: 22px;
             margin-bottom: 6px;
             fill: none;
             stroke: var(--hud-cyan);
@@ -280,100 +312,56 @@
             box-shadow: 0 0 10px var(--hud-cyan-glow);
         }
 
-        .hud-icon-btn:hover svg {
-            transform: scale(1.1);
-        }
+        .hud-icon-btn:hover svg { transform: scale(1.1); }
 
-        .alert-active .hud-icon-btn {
-            border-color: #451217;
-            background: rgba(42, 8, 13, 0.3);
-        }
-        .alert-active .hud-icon-btn svg {
-            stroke: var(--hud-crimson);
-        }
-        .alert-active .hud-icon-btn:hover {
-            border-color: var(--hud-crimson);
-            box-shadow: 0 0 10px var(--hud-crimson-glow);
-        }
+        .alert-active .hud-icon-btn { border-color: #451217; background: rgba(42, 8, 13, 0.3); }
+        .alert-active .hud-icon-btn svg { stroke: var(--hud-crimson); }
+        .alert-active .hud-icon-btn:hover { border-color: var(--hud-crimson); box-shadow: 0 0 10px var(--hud-crimson-glow); }
 
         @media (max-width: 768px) {
-            .admin-grid {
-                padding: 10px;
-                gap: 14px;
-            }
-            .status-banner {
-                padding: 16px;
-                clip-path: polygon(0 0, 95% 0, 100% 20%, 100% 100%, 5% 100%, 0 80%);
-            }
-            .status-banner h2 {
-                font-size: 1.15rem !important;
-                letter-spacing: 1px !important;
-            }
-            .dashboard-panel {
-                padding: 14px;
-            }
-            .admin-terminal {
-                height: 220px;
-                font-size: 0.78rem;
-                padding: 10px;
-            }
-            .split-column-row {
-                display: flex;
-                flex-direction: column;
-                gap: 14px;
-            }
-            .units-roster {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-            }
-            .unit-badge {
-                padding: 10px 6px;
-                font-size: 0.75rem;
-            }
-            .hud-icon-nav-matrix {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-            }
+            .admin-grid { padding: 10px; gap: 14px; }
+            .status-banner { padding: 16px; clip-path: polygon(0 0, 95% 0, 100% 20%, 100% 100%, 5% 100%, 0 80%); }
+            .status-banner h2 { font-size: 1.15rem !important; letter-spacing: 1px !important; }
+            .dashboard-panel { padding: 14px; }
+            .admin-terminal { height: 220px; font-size: 0.78rem; padding: 10px; }
+            .split-column-row { display: flex; flex-direction: column; gap: 14px; }
+            .units-roster { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .unit-badge { padding: 10px 6px; font-size: 0.75rem; }
+            .hud-icon-nav-matrix { grid-template-columns: repeat(2, 1fr); gap: 8px; }
         }
 
         @keyframes warning-pulse {
-            0% { box-shadow: 0 0 15px rgba(255, 51, 51, 0.1); border-left-color: #990000; }
-            100% { box-shadow: 0 0 35px rgba(255, 51, 51, 0.5); border-left-color: #ff3333; }
+            0%   { box-shadow: 0 0 15px rgba(255,51,51,0.1); border-left-color: #990000; }
+            100% { box-shadow: 0 0 35px rgba(255,51,51,0.5); border-left-color: #ff3333; }
         }
-
         @keyframes glitch-alert-shake {
-            0% { transform: translate(0, 0) skewX(0deg); }
-            20% { transform: translate(-1.5px, 1px) skewX(-1deg); background: rgba(42, 8, 13, 0.95); }
-            40% { transform: translate(1px, -1px) skewX(1deg); }
-            60% { transform: translate(-1px, -1px) skewX(0deg); background: #1f0508; }
-            80% { transform: translate(1.5px, 1px) skewX(0deg); }
-            100% { transform: translate(0, 0) skewX(0deg); }
+            0%   { transform: translate(0,0) skewX(0deg); }
+            20%  { transform: translate(-1.5px,1px) skewX(-1deg); background: rgba(42,8,13,0.95); }
+            40%  { transform: translate(1px,-1px) skewX(1deg); }
+            60%  { transform: translate(-1px,-1px) skewX(0deg); background: #1f0508; }
+            80%  { transform: translate(1.5px,1px) skewX(0deg); }
+            100% { transform: translate(0,0) skewX(0deg); }
         }
-
         @keyframes flash-badge {
-            0% { opacity: 0.7; transform: scale(0.98); }
-            100% { opacity: 1; transform: scale(1); }
+            0%   { opacity: 0.7; transform: scale(0.98); }
+            100% { opacity: 1;   transform: scale(1); }
         }
-
         @keyframes wave-bounce {
-            0% { height: 20%; }
+            0%   { height: 20%; }
             100% { height: 100%; }
         }
-
         @keyframes append-row {
             from { opacity: 0; transform: translateX(-5px); }
-            to { opacity: 1; transform: translateX(0); }
+            to   { opacity: 1; transform: translateX(0); }
         }
-
         @keyframes heartbeat {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.3); opacity: 1; }
+            0%, 100% { transform: scale(1);   opacity: 0.5; }
+            50%       { transform: scale(1.3); opacity: 1; }
         }
 
         .pulse-dot {
             display: inline-block;
-            width: 8px;
-            height: 8px;
+            width: 8px; height: 8px;
             background-color: var(--hud-emerald);
             border-radius: 50%;
             margin-right: 6px;
@@ -401,7 +389,7 @@
             text-align: center;
             max-width: 450px;
             width: 85%;
-            box-shadow: 0 0 30px rgba(0, 240, 255, 0.05);
+            box-shadow: 0 0 30px rgba(0,240,255,0.05);
             position: relative;
         }
         .lock-container::after {
@@ -413,7 +401,7 @@
             border-right: 3px solid var(--hud-cyan);
         }
         #initialize-audio-btn {
-            background: rgba(0, 240, 255, 0.05);
+            background: rgba(0,240,255,0.05);
             border: 1px solid var(--hud-cyan);
             color: #fff;
             font-family: var(--tech-font);
@@ -433,6 +421,7 @@
 </head>
 <body>
 
+<!-- Audio unlock overlay — required by browsers before AudioContext works -->
 <div id="audio-lock-overlay">
     <div class="lock-container">
         <div style="font-family: var(--tech-font); color: var(--hud-cyan); font-size: 0.75rem; margin-bottom: 5px;">[SECURITY REQUISITION NODE]</div>
@@ -443,7 +432,7 @@
 </div>
 
 <div class="app-container" style="padding-bottom: 0;">
-    
+
     <header class="app-header" style="border-bottom: 1px solid #142238;">
         <div class="brand-wrapper">
             <span class="brand-text" style="font-family: var(--tech-font); letter-spacing: 3px;">CADRE NEST_NODE</span>
@@ -452,7 +441,8 @@
     </header>
 
     <main class="admin-grid">
-        
+
+        <!-- ── MASTER STATUS BANNER ── -->
         <div class="status-banner full-width-panel alert-secure" id="master-status-banner">
             <div style="font-family: var(--tech-font); font-size: 0.75rem; color: var(--hud-cyan); margin-bottom: 4px;">SYS_SAFETY_OVERVIEW // MATRIX_ONLINE</div>
             <h2 id="master-status-title" style="margin: 0; font-size: clamp(1.1rem, 4vw, 1.6rem); letter-spacing: 3px; font-weight: 900;">SYSTEMS STATUS: NOMINAL</h2>
@@ -460,7 +450,8 @@
         </div>
 
         <div class="split-column-row">
-            
+
+            <!-- ── TERMINAL FEED ── -->
             <div class="dashboard-panel">
                 <div class="panel-header">
                     <span><span class="pulse-dot" id="ticker-dot"></span>Intercepted Telemetry Stream Feed</span>
@@ -469,18 +460,29 @@
                 <div class="admin-terminal" id="terminal-feed">
                     <div class="terminal-row ok">[INFO] Main server command cluster initialized. Establishing pipeline trace vectors...</div>
                 </div>
+
+                <!-- ── LIVE SOS ALERTS PANEL (new) ── -->
+                <div class="panel-header" style="margin-top: 20px; padding-bottom: 6px; border-bottom: 1px dashed #1e293b;">
+                    <span>🚨 Active Distress Signals</span>
+                    <span id="sos-count-tag" style="color: var(--hud-crimson); font-family: var(--tech-font);">0 ACTIVE</span>
+                </div>
+                <div id="sos-alerts-container">
+                    <div class="sos-empty">NO ACTIVE DISTRESS SIGNALS — ALL UNITS NOMINAL</div>
+                </div>
             </div>
 
+            <!-- ── SIDEBAR ── -->
             <div class="dashboard-panel" id="sidebar-interactive-panel">
                 <div class="panel-header">
                     <span>Surveillance Audio Wire Intercept</span>
                     <span id="audio-status-tag" style="color: #64748b; font-family: var(--tech-font);">STANDBY_DISPATCH</span>
                 </div>
                 <p style="font-size: 0.8rem; color: #64748b; margin-top: 0; line-height: 1.4;">Automated 7-second audio data loops route directly here upon emergency beacon triggers.</p>
-                
+
                 <div class="audio-intercept-container" id="audio-container-wrapper">
                     <div class="audio-wave-sim">
-                        <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+                        <div></div><div></div><div></div><div></div><div></div>
+                        <div></div><div></div><div></div><div></div><div></div>
                     </div>
                     <span id="audio-placeholder" style="font-size: 0.8rem; color: #475569; font-family: var(--tech-font);">AWAITING_STREAM_PAYLOAD_BUFFER</span>
                     <audio id="surveillance-player" controls style="display: none;"></audio>
@@ -515,9 +517,10 @@
                     VIBRATION_MODULE: IDLE
                 </div>
             </div>
-            
+
         </div>
 
+        <!-- ── ROSTER ── -->
         <div class="dashboard-panel full-width-panel">
             <div class="panel-header">
                 <span>Field Fleet Units Active Roster Array Matrix</span>
@@ -530,152 +533,322 @@
 </div>
 
 <script>
-    // --- UPDATED SUPABASE INITIALIZATION ---
-    const sbClient = supabase.createClient(
-        'https://ihroattnnnsckvvbosfz.supabase.co', 
-        'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX',
-        {
-            auth: {
-                persistSession: false 
-            }
+
+/* ─────────────────────────────────────────────
+   SUPABASE
+   Column names match emergency.html exactly:
+   officer_phone, officer_name, officer_rank,
+   active, initiated_at, lat, lng,
+   last_telemetry_timestamp
+───────────────────────────────────────────── */
+
+const sbClient = supabase.createClient(
+    'https://ihroattnnnsckvvbosfz.supabase.co',
+    'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX',
+    { auth: { persistSession: false } }
+);
+
+let activeEmergencySignals = {};
+let audioCtx       = null;
+let mainOscillator = null;
+let mainGainNode   = null;
+
+/* ─────────────────────────────────────────────
+   BOOT
+───────────────────────────────────────────── */
+
+window.addEventListener('DOMContentLoaded', () => {
+
+    initiateAdminRosterGrid();
+
+    // FIX: Subscribe to realtime FIRST, then do initial fetch.
+    // This way no INSERT/DELETE between subscribe() and the fetch is missed.
+    subscribeToDistressSignals();
+    refreshDistressSignals();
+
+    const audioOverlay = document.getElementById('audio-lock-overlay');
+    const initBtn      = document.getElementById('initialize-audio-btn');
+
+    initBtn.addEventListener('click', () => {
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            audioOverlay.style.display = 'none';
+            addTerminalLog("[SYS] Sound frequency synthesis arrays safely initialized and armed.", "ok");
+        } catch(e) {
+            console.error("Audio Context Init failure:", e);
         }
-    );
-
-    let activeEmergencySignals = {};
-    let audioCtx = null;
-    let mainOscillator = null;
-    let mainGainNode = null;
-
-    window.addEventListener('DOMContentLoaded', () => {
-        initiateAdminRosterGrid();
-        listenToDistressSignals();
-        
-        // --- Forced state refresh on load ---
-        refreshDistressSignals();
-
-        const audioOverlay = document.getElementById('audio-lock-overlay');
-        const initBtn = document.getElementById('initialize-audio-btn');
-
-        initBtn.addEventListener('click', () => {
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
-                audioOverlay.style.display = 'none';
-                refreshDistressSignals();
-                addTerminalLog("[SYS] Sound frequency synthesis arrays safely initialized and armed.", "ok");
-            } catch (e) {
-                console.error("Audio Context Init failure:", e);
-            }
-        });
     });
 
-    async function listenToDistressSignals() {
-        // Subscribe to real-time changes
-        sbClient.channel('distress_signals_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'distress_signals' }, payload => {
-                addTerminalLog(`[UPDATE] Signal table update detected.`, "ok");
+});
+
+/* ─────────────────────────────────────────────
+   REALTIME SUBSCRIPTION
+   FIX: Use a unique channel name tied to the
+   table. Listen for INSERT, UPDATE, and DELETE
+   separately so every event type is handled.
+───────────────────────────────────────────── */
+
+function subscribeToDistressSignals() {
+
+    sbClient
+        .channel('realtime:distress_signals')  // unique channel name
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'distress_signals' },
+            (payload) => {
+                addTerminalLog(`[🚨 SOS] INSERT — ${payload.new?.officer_name || 'Unknown'} triggered distress!`, "crit");
                 refreshDistressSignals();
-            })
-            .subscribe();
-    }
-
-    async function refreshDistressSignals() {
-        const { data: signals, error } = await sbClient.from("distress_signals").select("*");
-        if (error) { console.error(error); return; }
-        
-        const activeCount = signals ? signals.length : 0;
-        
-        const banner = document.getElementById("master-status-banner");
-        const title = document.getElementById("master-status-title");
-        const desc = document.getElementById("master-status-desc");
-        const vibrationBox = document.getElementById("vibration-relay-box");
-        const audioContainer = document.getElementById("audio-container-wrapper");
-        const interactiveSidebar = document.getElementById("sidebar-interactive-panel");
-
-        if (activeCount > 0) {
-            banner.className = "status-banner full-width-panel alert-active";
-            audioContainer.classList.add("alert-active");
-            interactiveSidebar.classList.add("alert-active");
-            title.textContent = "CRITICAL DISTRESS SIGNAL INTERCEPTED";
-            
-            if (audioCtx) {
-                triggerTacticalSirenAudio(true);
             }
-            
-            vibrationBox.textContent = "🚨 ALARM RELAY ACTIVE - PAYLOAD INBOUND";
-            vibrationBox.style.color = "var(--hud-crimson)";
-            vibrationBox.style.backgroundColor = "rgba(255, 51, 51, 0.1)";
-            vibrationBox.style.borderColor = "var(--hud-crimson)";
-            if (navigator.vibrate) navigator.vibrate([150, 75, 150]);
+        )
+        .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'distress_signals' },
+            (payload) => {
+                addTerminalLog(`[UPDATE] Telemetry update from ${payload.new?.officer_name || 'Unknown'}`, "ok");
+                refreshDistressSignals();
+            }
+        )
+        .on(
+            'postgres_changes',
+            { event: 'DELETE', schema: 'public', table: 'distress_signals' },
+            (payload) => {
+                addTerminalLog(`[✅ CLEAR] Signal stood down — ${payload.old?.officer_name || 'Unknown'}`, "ok");
+                refreshDistressSignals();
+            }
+        )
+        .subscribe((status) => {
+            addTerminalLog(`[SYS] Realtime subscription status: ${status}`, "ok");
+        });
+}
 
-            signals.forEach(data => {
-                const phone = data.officerPhone;
-                activeEmergencySignals[phone] = data;
-                desc.textContent = `Active alert vector triggered by operator: ${data.officerName || 'Unknown Agent'}`;
-                
-                const badgeNode = document.getElementById(`badge-unit-${phone}`);
-                if (badgeNode) badgeNode.classList.add("active-distress");
-            });
-        } else {
-            banner.className = "status-banner full-width-panel alert-secure";
-            audioContainer.classList.remove("alert-active");
-            interactiveSidebar.classList.remove("alert-active");
-            title.textContent = "SYSTEMS STATUS: NOMINAL";
-            triggerTacticalSirenAudio(false);
-            
-            vibrationBox.textContent = "VIBRATION_MODULE: IDLE";
-            vibrationBox.style.color = "#475569";
-            vibrationBox.style.backgroundColor = "#04080f";
-            vibrationBox.style.borderColor = "#14213d";
+/* ─────────────────────────────────────────────
+   REFRESH — fetch all active signals and
+   update every UI element
+───────────────────────────────────────────── */
+
+async function refreshDistressSignals() {
+
+    const { data: signals, error } = await sbClient
+        .from("distress_signals")
+        .select("*");
+
+    if (error) {
+        addTerminalLog(`[ERROR] Failed to fetch signals: ${error.message}`, "crit");
+        console.error("refreshDistressSignals error:", error);
+        return;
+    }
+
+    const activeCount = signals ? signals.length : 0;
+    activeEmergencySignals = {};
+    if (signals) signals.forEach(s => { activeEmergencySignals[s.officer_phone] = s; });
+
+    updateBanner(activeCount, signals);
+    renderSosAlertCards(signals);
+    syncRosterBadges();
+}
+
+/* ─────────────────────────────────────────────
+   UPDATE BANNER
+───────────────────────────────────────────── */
+
+function updateBanner(activeCount, signals) {
+
+    const banner       = document.getElementById("master-status-banner");
+    const title        = document.getElementById("master-status-title");
+    const desc         = document.getElementById("master-status-desc");
+    const vibrationBox = document.getElementById("vibration-relay-box");
+    const audioWrapper = document.getElementById("audio-container-wrapper");
+    const sidebar      = document.getElementById("sidebar-interactive-panel");
+
+    if (activeCount > 0) {
+
+        banner.className = "status-banner full-width-panel alert-active";
+        audioWrapper.classList.add("alert-active");
+        sidebar.classList.add("alert-active");
+
+        title.textContent = `🚨 CRITICAL DISTRESS SIGNAL — ${activeCount} UNIT${activeCount > 1 ? 'S' : ''}`;
+
+        // Show all operator names
+        const names = signals.map(s => s.officer_name || 'Unknown').join(', ');
+        desc.textContent = `Active alert from: ${names}`;
+
+        if (audioCtx) triggerTacticalSirenAudio(true);
+
+        vibrationBox.textContent     = "🚨 ALARM RELAY ACTIVE — DISTRESS PAYLOAD INBOUND";
+        vibrationBox.style.color     = "var(--hud-crimson)";
+        vibrationBox.style.backgroundColor = "rgba(255, 51, 51, 0.1)";
+        vibrationBox.style.borderColor     = "var(--hud-crimson)";
+
+        if (navigator.vibrate) navigator.vibrate([150, 75, 150]);
+
+    } else {
+
+        banner.className = "status-banner full-width-panel alert-secure";
+        audioWrapper.classList.remove("alert-active");
+        sidebar.classList.remove("alert-active");
+
+        title.textContent = "SYSTEMS STATUS: NOMINAL";
+        desc.textContent  = "All operational field fleet trackers displaying nominal telemetry data configurations.";
+
+        triggerTacticalSirenAudio(false);
+
+        vibrationBox.textContent           = "VIBRATION_MODULE: IDLE";
+        vibrationBox.style.color           = "#475569";
+        vibrationBox.style.backgroundColor = "#04080f";
+        vibrationBox.style.borderColor     = "#14213d";
+    }
+}
+
+/* ─────────────────────────────────────────────
+   RENDER SOS ALERT CARDS
+   FIX: New dedicated panel shows each active
+   SOS with name, rank, phone, time, and coords
+───────────────────────────────────────────── */
+
+function renderSosAlertCards(signals) {
+
+    const container  = document.getElementById("sos-alerts-container");
+    const countTag   = document.getElementById("sos-count-tag");
+
+    countTag.textContent = `${signals ? signals.length : 0} ACTIVE`;
+
+    if (!signals || signals.length === 0) {
+        container.innerHTML = '<div class="sos-empty">NO ACTIVE DISTRESS SIGNALS — ALL UNITS NOMINAL</div>';
+        return;
+    }
+
+    const frag = document.createDocumentFragment();
+
+    signals.forEach(signal => {
+
+        const card = document.createElement("div");
+        card.className = "sos-alert-card";
+        card.id = `sos-card-${signal.officer_phone}`;
+
+        const time = signal.initiated_at
+            ? new Date(signal.initiated_at).toLocaleTimeString()
+            : 'UNKNOWN';
+
+        const coords = (signal.lat && signal.lng)
+            ? `${signal.lat}, ${signal.lng}`
+            : 'AWAITING COORD LOCK...';
+
+        card.innerHTML = `
+            <div class="sos-name">🚨 ${(signal.officer_name || 'UNKNOWN').toUpperCase()}</div>
+            <div class="sos-detail">RANK: ${signal.officer_rank || 'UNIT'}</div>
+            <div class="sos-detail">PHONE: ${signal.officer_phone || '—'}</div>
+            <div class="sos-detail">TRIGGERED: ${time}</div>
+            <div class="sos-coords">📍 COORDS: ${coords}</div>
+        `;
+
+        frag.appendChild(card);
+    });
+
+    container.innerHTML = '';
+    container.appendChild(frag);
+}
+
+/* ─────────────────────────────────────────────
+   SYNC ROSTER BADGES
+   Highlight badges for officers in distress
+───────────────────────────────────────────── */
+
+function syncRosterBadges() {
+    document.querySelectorAll(".unit-badge").forEach(badge => {
+        badge.classList.remove("active-distress");
+    });
+
+    Object.keys(activeEmergencySignals).forEach(phone => {
+        const badge = document.getElementById(`badge-unit-${phone}`);
+        if (badge) badge.classList.add("active-distress");
+    });
+}
+
+/* ─────────────────────────────────────────────
+   ROSTER GRID
+───────────────────────────────────────────── */
+
+async function initiateAdminRosterGrid() {
+
+    const rosterGrid = document.getElementById("roster-grid");
+    const countTag   = document.getElementById("unit-count-tag");
+
+    const { data: users, error } = await sbClient
+        .from("users")
+        .select("*")
+        .eq("role", "operator");
+
+    rosterGrid.innerHTML = "";
+
+    if (error) {
+        addTerminalLog(`[ERROR] Roster load failed: ${error.message}`, "crit");
+        return;
+    }
+
+    if (users) {
+        const frag = document.createDocumentFragment();
+        users.forEach(user => {
+            const badge = document.createElement("div");
+            badge.className = "unit-badge";
+            badge.id = `badge-unit-${user.phone}`;
+            badge.innerHTML = `
+                <strong>${(user.rank || 'UNIT').toUpperCase()}</strong>
+                <br>
+                <span style="color:#94a3b8">${user.name || '—'}</span>
+            `;
+            frag.appendChild(badge);
+        });
+        rosterGrid.appendChild(frag);
+        countTag.textContent = `${users.length} PACKETS REGISTERED ON NODE`;
+    }
+}
+
+/* ─────────────────────────────────────────────
+   TERMINAL LOG
+───────────────────────────────────────────── */
+
+function addTerminalLog(msg, type) {
+    const feed = document.getElementById("terminal-feed");
+    const row  = document.createElement("div");
+    row.className = `terminal-row ${type}`;
+    const time = new Date().toLocaleTimeString();
+    row.textContent = `[${time}] ${msg}`;
+    feed.prepend(row);
+
+    // Keep terminal from growing unbounded
+    while (feed.children.length > 60) {
+        feed.removeChild(feed.lastChild);
+    }
+}
+
+/* ─────────────────────────────────────────────
+   TACTICAL SIREN
+───────────────────────────────────────────── */
+
+function triggerTacticalSirenAudio(start) {
+    if (!start) {
+        if (mainOscillator) {
+            try { mainOscillator.stop(); } catch(e) {}
+            mainOscillator = null;
         }
+        return;
     }
 
-    async function initiateAdminRosterGrid() {
-        const rosterGrid = document.getElementById("roster-grid");
-        const countTag = document.getElementById("unit-count-tag");
-        
-        const { data: users } = await sbClient.from("users").select("*").eq("role", "operator");
-        
-        rosterGrid.innerHTML = "";
-        if(users) {
-            users.forEach(user => {
-                const badge = document.createElement("div");
-                badge.className = "unit-badge";
-                badge.id = `badge-unit-${user.phone}`;
-                badge.innerHTML = `<strong>${user.rank?.toUpperCase() || 'UNIT'}</strong><br><span style="color:#94a3b8">${user.name}</span>`;
-                rosterGrid.appendChild(badge);
-            });
-            countTag.textContent = `${users.length} PACKETS REGISTERED ON NODE`;
-        }
-    }
+    if (mainOscillator || !audioCtx) return;
 
-    function addTerminalLog(msg, type) {
-        const feed = document.getElementById("terminal-feed");
-        const row = document.createElement("div");
-        row.className = `terminal-row ${type}`;
-        row.textContent = msg;
-        feed.prepend(row);
-    }
+    try {
+        mainOscillator = audioCtx.createOscillator();
+        mainGainNode   = audioCtx.createGain();
+        mainOscillator.type = 'sawtooth';
+        mainOscillator.frequency.value = 650;
+        mainGainNode.gain.value = 0.25;
+        mainOscillator.connect(mainGainNode);
+        mainGainNode.connect(audioCtx.destination);
+        mainOscillator.start();
+    } catch(e) { console.error(e); }
+}
 
-    function triggerTacticalSirenAudio(start) {
-        if (!start) {
-            if (mainOscillator) { try { mainOscillator.stop(); } catch(e){} mainOscillator = null; }
-            return;
-        }
-        if (mainOscillator || !audioCtx) return;
-        try {
-            mainOscillator = audioCtx.createOscillator();
-            mainGainNode = audioCtx.createGain();
-            mainOscillator.type = 'sawtooth';
-            mainOscillator.frequency.value = 650;
-            mainGainNode.gain.value = 0.25;
-            mainOscillator.connect(mainGainNode);
-            mainGainNode.connect(audioCtx.destination);
-            mainOscillator.start();
-        } catch (e) { console.error(e); }
-    }
 </script>
 </body>
 </html>
