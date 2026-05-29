@@ -228,8 +228,8 @@ if (!sessionUser) {
 const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
 
 console.log('🔍 Session user:', sessionUser);
-console.log('📋 Session keys:', Object.keys(sessionUser));
-console.log('� Current name:', currentName);
+console.log('📋 Session keys:', Object.keys(sessionUser || {}));
+console.log('🔎 Current name:', currentName);
 console.log('🔑 Current ID:', currentId);
 console.log('📧 Current email:', currentEmail);
 console.log('🎯 Target name from URL:', targetName);
@@ -247,15 +247,13 @@ function fileToDataUrl(file) {
 function getUserLookupKey() {
   if (currentName) return { field: 'name', value: currentName };
   if (currentId) return { field: 'id', value: currentId };
+  if (currentEmail) return { field: 'email', value: currentEmail };
   return null;
 }
 
 async function getProfileImageUrl(pfp) {
   if (!pfp) return null;
   if (pfp.startsWith('http') || pfp.startsWith('data:')) return pfp;
-
-
-
   return null;
 }
 
@@ -270,6 +268,7 @@ async function loadProfile() {
   let searchField = null;
   let searchValue = null;
 
+  // Try name first, then id, then email (fallback)
   if (profileName) {
     searchField = 'name';
     searchValue = profileName;
@@ -278,8 +277,16 @@ async function loadProfile() {
     searchField = 'id';
     searchValue = currentId;
     query = query.eq('id', currentId);
-  } else {
-    console.error('❌ No profile identifier found (no name, no id)');
+  } else if (currentEmail) {
+    // NEW: Use email as fallback to find profile
+    searchField = 'email';
+    searchValue = currentEmail;
+    query = query.eq('email', currentEmail);
+  }
+
+  // If still no valid search field, show error
+  if (!searchField) {
+    console.error('❌ No profile identifier found (no name, no id, no email)');
     document.getElementById("terminal-status-pill").textContent = "SESSION ERROR";
     setProfilePicture(null);
     return;
@@ -302,6 +309,23 @@ async function loadProfile() {
     return;
   }
 
+  // NEW: If we found by email, it means this is our own profile
+  // Store the Name and ID back to session for future use
+  if (searchField === 'email' && data.name) {
+    console.log('💾 Syncing user data from email lookup to session');
+    const updatedUser = {
+      ...sessionUser,
+      name: data.name,
+      id: data.id,
+      email: data.email || currentEmail
+    };
+    localStorage.setItem("session_user", JSON.stringify(updatedUser));
+    sessionUser = updatedUser;
+  }
+
+  // Check if this is our own profile based on the loaded data
+  const isOwn = (data.name === currentName) || (data.id === currentId) || (data.email?.toLowerCase() === currentEmail);
+
   console.log('✅ Profile loaded:', data);
   const nameEl = document.getElementById("id-name");
   const rankEl = document.getElementById("id-rank");
@@ -311,12 +335,12 @@ async function loadProfile() {
   if (nameEl) nameEl.textContent = data.name || "UNKNOWN";
   if (rankEl) rankEl.textContent = data.rank || "UNIT";
   if (phoneEl) phoneEl.textContent = data.phone || "—";
-  if (statusEl) statusEl.textContent = isOwnProfile ? "ACTIVE" : "VIEW ONLY";
+  if (statusEl) statusEl.textContent = isOwn ? "ACTIVE" : "VIEW ONLY";
 
   const imageSrc = await getProfileImageUrl(data.pfp);
   setProfilePicture(imageSrc);
 
-  if (!isOwnProfile) {
+  if (!isOwn) {
     const avatarZone = document.querySelector(".radar-avatar-zone");
     if (avatarZone) avatarZone.style.cursor = "default";
   }
@@ -324,20 +348,15 @@ async function loadProfile() {
 
 /* UPLOAD PFP */
 async function uploadPfp(file) {
-  if (!isOwnProfile) {
-    console.warn('⚠️ Cannot upload PFP: viewing another user\'s profile');
+  // Use the resolved isOwn status from loadProfile
+  const userKey = getUserLookupKey();
+  if (!userKey) {
+    console.warn('⚠️ Cannot upload PFP: viewing another user\'s profile or session error');
     return;
   }
 
   const fileExt = file.name.split('.').pop();
-  const userKey = getUserLookupKey();
-
-  if (!userKey) {
-    console.error('❌ Unable to upload profile picture: no valid user session key');
-    alert('Session error: cannot identify user');
-    return;
-  }
-
+  
   console.log(`📸 Uploading profile picture for ${userKey.field}=${userKey.value}`);
   const base64Image = await fileToDataUrl(file);
   
@@ -380,7 +399,8 @@ document.getElementById("logout-trigger-node")
   });
 
 function triggerPfpInput() {
-  if (!isOwnProfile) return;
+  const userKey = getUserLookupKey();
+  if (!userKey) return;
   document.getElementById("pfp-file-controller").click();
 }
 
