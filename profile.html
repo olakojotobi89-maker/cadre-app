@@ -391,6 +391,14 @@ const sbClient = supabase.createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false }
 });
 
+function tryParseJson(value) {
+    try {
+        return JSON.parse(value);
+    } catch (err) {
+        return null;
+    }
+}
+
 /* ─────────────────────────────────────────────
    SESSION — check all possible keys
 ───────────────────────────────────────────── */
@@ -398,13 +406,17 @@ const sbClient = supabase.createClient(supabaseUrl, supabaseKey, {
 let sessionUser = null;
 const sessionKeys = ["session_user", "user", "officer", "currentUser"];
 for (const key of sessionKeys) {
-    try {
-        const parsed = JSON.parse(localStorage.getItem(key));
-        if (parsed?.phone) { sessionUser = parsed; break; }
-    } catch(e) {}
+    const parsed = tryParseJson(localStorage.getItem(key));
+    if (parsed?.phone || parsed?.email || parsed?.id) {
+        sessionUser = parsed;
+        break;
+    }
 }
 
+const cachedProfile = tryParseJson(localStorage.getItem("cached_profile")) || {};
 const myPhone = sessionUser?.phone || localStorage.getItem("cached_operator_phone");
+const myEmail = sessionUser?.email || cachedProfile.email;
+const myId = sessionUser?.id || cachedProfile.id;
 
 /* ─────────────────────────────────────────────
    DETERMINE WHOSE PROFILE TO SHOW
@@ -412,13 +424,23 @@ const myPhone = sessionUser?.phone || localStorage.getItem("cached_operator_phon
    no param    → own profile
 ───────────────────────────────────────────── */
 
-const urlParams    = new URLSearchParams(window.location.search);
-const targetPhone  = urlParams.get("phone");
-const profilePhone = targetPhone || myPhone;
+const urlParams = new URLSearchParams(window.location.search);
+const targetPhone = urlParams.get("phone");
+const profileIdentifier = targetPhone || myPhone || myEmail || myId;
+const profileLookupKey = targetPhone
+    ? "phone"
+    : myPhone
+        ? "phone"
+        : myEmail
+            ? "email"
+            : myId
+                ? "id"
+                : null;
+const profilePhone = profileIdentifier;
 const isOwnProfile = !targetPhone || targetPhone === myPhone;
 
 // No session and no target → redirect
-if (!profilePhone) {
+if (!profileIdentifier) {
     window.location.href = "login.html";
 }
 
@@ -442,21 +464,46 @@ if (isOwnProfile) {
 ───────────────────────────────────────────── */
 
 async function loadProfile() {
+    let query = sbClient.from('users').select('*');
+    if (profileLookupKey === 'email') {
+        query = query.eq('email', profileIdentifier);
+    } else if (profileLookupKey === 'id') {
+        query = query.eq('id', profileIdentifier);
+    } else {
+        query = query.eq('phone', profileIdentifier);
+    }
 
-    const { data, error } = await sbClient
-        .from('users')
-        .select('*')
-        .eq('phone', profilePhone)
-        .single();
+    const { data, error } = await query.single();
 
     const dataCard = document.getElementById("data-card");
     const pill     = document.getElementById("terminal-status-pill");
 
     if (error || !data) {
+        if (isOwnProfile && sessionUser) {
+            const fallbackName = sessionUser.name || cachedProfile.name || 'UNKNOWN';
+            const fallbackRank = sessionUser.rank || cachedProfile.rank || 'UNIT';
+            const fallbackEmail = sessionUser.email || cachedProfile.email || '—';
+            const fallbackPhone = myPhone || '—';
+
+            dataCard.innerHTML = `
+                <div><label>Name</label><span>${escHtml(fallbackName)}</span></div>
+                <div><label>Rank</label><span>${escHtml(fallbackRank)}</span></div>
+                <div><label>Phone</label><span>${escHtml(fallbackPhone)}</span></div>
+                ${fallbackEmail ? `<div><label>Email</label><span>${escHtml(fallbackEmail)}</span></div>` : ''}
+            `;
+
+            pill.textContent = "YOUR PROFILE — ACTIVE";
+            pill.classList.add("online");
+            document.title = `CADRE — ${fallbackName}`;
+            document.getElementById("profile-posts-container").innerHTML =
+                '<div class="no-posts-msg">Transmissions unavailable until profile data is complete.</div>';
+            return;
+        }
+
         dataCard.innerHTML = `
             <div class="profile-error">
                 <p style="color:#ff6b6b;">OPERATOR NOT FOUND<br>
-                <span style="font-size:11px;color:#475569;">Phone: ${escHtml(profilePhone || '—')}</span></p>
+                <span style="font-size:11px;color:#475569;">${escHtml(profileIdentifier || '—')}</span></p>
             </div>`;
         pill.textContent = "NOT FOUND";
         document.getElementById("profile-posts-container").innerHTML =
@@ -488,7 +535,13 @@ async function loadProfile() {
     document.title = `CADRE — ${data.name || 'Operator'}`;
 
     /* ── Load this user's posts ── */
-    await loadUserPosts(profilePhone);
+    const postsPhone = data?.phone || (profileLookupKey === 'phone' ? profileIdentifier : null);
+    if (postsPhone) {
+        await loadUserPosts(postsPhone);
+    } else {
+        document.getElementById("profile-posts-container").innerHTML =
+            '<div class="no-posts-msg">No transmissions available.</div>';
+    }
 }
 
 /* ─────────────────────────────────────────────
