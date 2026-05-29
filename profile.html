@@ -18,308 +18,96 @@
     --text:#e5e7eb;
     --muted:#94a3b8;
 }
-
 body{
     margin:0;
-    font-family:system-ui, Arial;
-    background:radial-gradient(circle at top, #0b1220, #050812);
+    font-family:system-ui,Arial;
+    background:radial-gradient(circle at top,#0b1220,#050812);
     color:var(--text);
     padding-bottom:80px;
 }
-
 .app-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:15px;
-    border-bottom:1px solid var(--line);
-    background:rgba(0,0,0,0.3);
+    display:flex;justify-content:space-between;align-items:center;
+    padding:15px;border-bottom:1px solid var(--line);background:rgba(0,0,0,0.3);
 }
-
-.brand-wrapper{
-    display:flex;
-    align-items:center;
-    gap:10px;
-}
-
-.brand-logo{
-    width:35px;
-    height:35px;
-    border-radius:8px;
-}
-
-.brand-text{
-    font-weight:700;
-    color:var(--accent);
-}
-
+.brand-wrapper{display:flex;align-items:center;gap:10px;}
+.brand-logo{width:35px;height:35px;border-radius:8px;}
+.brand-text{font-weight:700;color:var(--accent);}
 .back-btn{
-    background:none;
-    border:1px solid var(--line);
-    color:var(--muted);
-    padding:6px 14px;
-    border-radius:8px;
-    cursor:pointer;
-    font-size:13px;
-    width:auto;
-    margin:0;
+    background:none;border:1px solid var(--line);color:var(--muted);
+    padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;width:auto;margin:0;
 }
-
-.back-btn:hover{
-    border-color:var(--accent);
-    color:var(--accent);
-}
-
+.back-btn:hover{border-color:var(--accent);color:var(--accent);}
 .viewing-banner{
-    background:#0b1220;
-    border-bottom:1px solid var(--line);
-    border-left:3px solid var(--accent);
-    padding:10px 16px;
-    font-size:12px;
-    color:var(--muted);
-    display:none;
-    font-family:monospace;
-    letter-spacing:1px;
+    background:#0b1220;border-bottom:1px solid var(--line);border-left:3px solid var(--accent);
+    padding:10px 16px;font-size:12px;color:var(--muted);display:none;
+    font-family:monospace;letter-spacing:1px;
 }
-
-.viewing-banner.visible{
-    display:block;
-}
-
-.profile-wrapper{
-    max-width:500px;
-    margin:auto;
-    padding:20px;
-}
-
-.radar-avatar-zone{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    margin-top:20px;
-}
-
+.viewing-banner.visible{display:block;}
+.profile-wrapper{max-width:500px;margin:auto;padding:20px;}
+.radar-avatar-zone{display:flex;flex-direction:column;align-items:center;margin-top:20px;}
 .radar-ring{
-    width:130px;
-    height:130px;
-    border-radius:50%;
-    border:2px solid var(--accent);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    box-shadow:0 0 15px rgba(0,240,255,0.3);
-    position:relative;
+    width:130px;height:130px;border-radius:50%;border:2px solid var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 15px rgba(0,240,255,0.3);position:relative;
 }
-
-.radar-ring.own-profile{
-    cursor:pointer;
-}
-
-.radar-ring.own-profile:hover{
-    box-shadow:0 0 25px rgba(0,240,255,0.55);
-}
-
+.radar-ring.own-profile{cursor:pointer;}
+.radar-ring.own-profile:hover{box-shadow:0 0 25px rgba(0,240,255,0.55);}
 .radar-ring.own-profile::after{
-    content:'📷';
-    position:absolute;
-    bottom:4px;
-    right:4px;
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:50%;
-    width:28px;
-    height:28px;
-    font-size:13px;
-    line-height:28px;
-    text-align:center;
+    content:'📷';position:absolute;bottom:4px;right:4px;background:var(--panel);
+    border:1px solid var(--line);border-radius:50%;width:28px;height:28px;
+    font-size:13px;line-height:28px;text-align:center;
 }
-
-.pfp-display{
-    width:115px;
-    height:115px;
-    border-radius:50%;
-    object-fit:cover;
-    background:#0b1220;
-}
-
+.pfp-display{width:115px;height:115px;border-radius:50%;object-fit:cover;background:#0b1220;}
 .status-pill-badge{
-    margin-top:10px;
-    padding:5px 12px;
-    font-size:12px;
-    border:1px solid var(--line);
-    border-radius:20px;
-    color:var(--muted);
+    margin-top:10px;padding:5px 12px;font-size:12px;
+    border:1px solid var(--line);border-radius:20px;color:var(--muted);
 }
-
-.status-pill-badge.online{
-    border-color:#10b981;
-    color:#10b981;
-}
-
+.status-pill-badge.online{border-color:#10b981;color:#10b981;}
 .terminal-data-card{
-    margin-top:25px;
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:12px;
-    padding:15px;
+    margin-top:25px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:15px;
 }
-
 .terminal-data-card div{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:10px 0;
-    border-bottom:1px solid rgba(255,255,255,0.05);
-    gap:12px;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:12px;
 }
-
-.terminal-data-card div:last-child{
-    border-bottom:none;
-}
-
-.terminal-data-card label{
-    color:var(--muted);
-    font-size:13px;
-    flex-shrink:0;
-}
-
-.terminal-data-card span{
-    color:var(--text);
-    font-weight:600;
-    text-align:right;
-    word-break:break-word;
-}
-
-/* Posts section */
-.posts-section{
-    margin-top:25px;
-}
-
+.terminal-data-card div:last-child{border-bottom:none;}
+.terminal-data-card label{color:var(--muted);font-size:13px;flex-shrink:0;}
+.terminal-data-card span{color:var(--text);font-weight:600;text-align:right;word-break:break-word;}
+.posts-section{margin-top:25px;}
 .posts-section-header{
-    font-size:13px;
-    color:var(--muted);
-    font-family:monospace;
-    letter-spacing:1px;
-    margin-bottom:12px;
-    padding-bottom:8px;
-    border-bottom:1px solid var(--line);
+    font-size:13px;color:var(--muted);font-family:monospace;letter-spacing:1px;
+    margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line);
 }
-
 .profile-post-card{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:10px;
-    padding:14px;
-    margin-bottom:12px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px;margin-bottom:12px;
 }
-
-.profile-post-caption{
-    font-size:14px;
-    line-height:1.5;
-    color:var(--text);
-    word-break:break-word;
-}
-
-.profile-post-image{
-    width:100%;
-    border-radius:8px;
-    margin-top:10px;
-    max-height:300px;
-    object-fit:cover;
-    display:block;
-}
-
-.profile-post-meta{
-    margin-top:8px;
-    font-size:11px;
-    color:var(--muted);
-    display:flex;
-    gap:12px;
-}
-
-.no-posts-msg{
-    text-align:center;
-    padding:30px;
-    color:var(--muted);
-    font-size:13px;
-    font-family:monospace;
-}
-
-/* Skeleton */
+.profile-post-caption{font-size:14px;line-height:1.5;color:var(--text);word-break:break-word;}
+.profile-post-image{width:100%;border-radius:8px;margin-top:10px;max-height:300px;object-fit:cover;display:block;}
+.profile-post-meta{margin-top:8px;font-size:11px;color:var(--muted);display:flex;gap:12px;}
+.no-posts-msg{text-align:center;padding:30px;color:var(--muted);font-size:13px;font-family:monospace;}
 .skeleton-line{
     background:linear-gradient(90deg,#1e293b 25%,#2d3f55 50%,#1e293b 75%);
-    background-size:200% 100%;
-    animation:shimmer 1.4s infinite;
-    border-radius:6px;
-    height:14px;
-    margin-bottom:8px;
+    background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px;
+    height:14px;margin-bottom:8px;
 }
-
-.skeleton-avatar{
-    width:115px;
-    height:115px;
-    border-radius:50%;
-    background:linear-gradient(90deg,#1e293b 25%,#2d3f55 50%,#1e293b 75%);
-    background-size:200% 100%;
-    animation:shimmer 1.4s infinite;
-}
-
-@keyframes shimmer{
-    0%{background-position:200% 0;}
-    100%{background-position:-200% 0;}
-}
-
-/* Upload progress */
+@keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 .upload-status{
-    font-size:11px;
-    color:var(--accent);
-    font-family:monospace;
-    margin-top:6px;
-    min-height:16px;
-    text-align:center;
+    font-size:11px;color:var(--accent);font-family:monospace;
+    margin-top:6px;min-height:16px;text-align:center;
 }
-
-/* Logout — own profile only */
 .logout-btn{
-    width:100%;
-    margin-top:20px;
-    padding:12px;
-    border:none;
-    border-radius:10px;
-    background:var(--danger);
-    color:white;
-    font-weight:bold;
-    cursor:pointer;
-    display:none;
+    width:100%;margin-top:20px;padding:12px;border:none;border-radius:10px;
+    background:var(--danger);color:white;font-weight:bold;cursor:pointer;display:none;
 }
-
-.logout-btn.visible{
-    display:block;
-}
-
+.logout-btn.visible{display:block;}
 .app-bottom-dock{
-    position:fixed;
-    bottom:0;
-    width:100%;
-    display:flex;
-    justify-content:space-around;
-    padding:10px;
-    background:#050812;
-    border-top:1px solid var(--line);
-    z-index:100;
+    position:fixed;bottom:0;width:100%;display:flex;justify-content:space-around;
+    padding:10px;background:#050812;border-top:1px solid var(--line);z-index:100;
 }
-
-.app-bottom-dock a{
-    color:var(--muted);
-    text-decoration:none;
-    font-size:14px;
-}
-
-.profile-error{
-    text-align:center;
-    padding:40px 20px;
-    color:var(--muted);
-}
+.app-bottom-dock a{color:var(--muted);text-decoration:none;font-size:14px;}
+.profile-error{text-align:center;padding:40px 20px;color:var(--muted);}
 </style>
 </head>
 
@@ -339,7 +127,6 @@ body{
 </div>
 
 <main class="profile-wrapper">
-
     <div class="radar-avatar-zone">
         <div class="radar-ring" id="radar-ring">
             <img id="pfp-view-target" class="pfp-display" alt="Profile Picture"
@@ -351,11 +138,10 @@ body{
 
     <input type="file" id="pfp-file-controller" accept="image/*" style="display:none;">
 
-    <!-- Skeleton shown while loading -->
     <section class="terminal-data-card" id="data-card">
         <div><label>Name</label><span class="skeleton-line" style="width:120px;height:13px;display:inline-block;"></span></div>
         <div><label>Rank</label><span class="skeleton-line" style="width:80px;height:13px;display:inline-block;"></span></div>
-        <div><label>Phone</label><span class="skeleton-line" style="width:100px;height:13px;display:inline-block;"></span></div>
+        <div><label>Email</label><span class="skeleton-line" style="width:140px;height:13px;display:inline-block;"></span></div>
     </section>
 
     <section class="posts-section">
@@ -368,7 +154,6 @@ body{
     <button class="logout-btn" id="logout-trigger-node">
         Clear Access Session 🔒
     </button>
-
 </main>
 
 <nav class="app-bottom-dock">
@@ -380,348 +165,13 @@ body{
 </div>
 
 <script>
+/* ── Supabase ── */
+const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient    = supabase.createClient(supabaseUrl, supabaseKey);
 
-/* ─────────────────────────────────────────────
-   SUPABASE — no persistSession override so auth
-   headers are sent correctly (fixes 406 errors)
-───────────────────────────────────────────── */
-
-const supabaseUrl  = 'https://ihroattnnnsckvvbosfz.supabase.co';
-const supabaseKey  = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const sbClient     = supabase.createClient(supabaseUrl, supabaseKey);
-
-function tryParseJson(value) {
-    try { return JSON.parse(value); } catch { return null; }
-}
-
-/* ─────────────────────────────────────────────
-   SESSION — check all possible keys
-   IMPORTANT: only treat a value as "phone" if it
-   looks like a phone number (not an email address)
-───────────────────────────────────────────── */
-
-let sessionUser = null;
-const sessionKeys = ["session_user", "user", "officer", "currentUser"];
-
-for (const key of sessionKeys) {
-    const parsed = tryParseJson(localStorage.getItem(key));
-    if (parsed?.phone || parsed?.email || parsed?.id) {
-        sessionUser = parsed;
-        break;
-    }
-}
-
-const cachedProfile = tryParseJson(localStorage.getItem("cached_profile")) || {};
-
-/* Only use a stored value as myPhone if it's actually a phone number */
-function isPhoneNumber(val) {
-    return val && /^[+\d][\d\s\-().]{5,}$/.test(String(val).trim());
-}
-
-const rawPhone = sessionUser?.phone
-    || localStorage.getItem("cached_operator_phone")
-    || cachedProfile.phone;
-
-const myPhone = isPhoneNumber(rawPhone) ? rawPhone : null;
-const myEmail = sessionUser?.email || cachedProfile.email || null;
-const myId    = sessionUser?.id    || cachedProfile.id    || null;
-
-/* ─────────────────────────────────────────────
-   DETERMINE WHOSE PROFILE TO SHOW
-   ?phone=XXX  → viewing someone else
-   no param    → own profile
-───────────────────────────────────────────── */
-
-const urlParams        = new URLSearchParams(window.location.search);
-const targetPhone      = urlParams.get("phone");
-
-/* Choose identifier + lookup key */
-let profileIdentifier, profileLookupKey;
-
-if (targetPhone) {
-    profileIdentifier = targetPhone;
-    profileLookupKey  = "phone";
-} else if (myPhone) {
-    profileIdentifier = myPhone;
-    profileLookupKey  = "phone";
-} else if (myEmail) {
-    profileIdentifier = myEmail;
-    profileLookupKey  = "email";
-} else if (myId) {
-    profileIdentifier = myId;
-    profileLookupKey  = "id";
-} else {
-    profileIdentifier = null;
-    profileLookupKey  = null;
-}
-
-const isOwnProfile = !targetPhone || targetPhone === myPhone;
-
-/* No session and no target → redirect */
-if (!profileIdentifier) {
-    window.location.href = "login.html";
-}
-
-const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
-
-/* ─────────────────────────────────────────────
-   SETUP UI MODE
-───────────────────────────────────────────── */
-
-if (isOwnProfile) {
-    document.getElementById("radar-ring").classList.add("own-profile");
-    document.getElementById("radar-ring").onclick = triggerPfpInput;
-    document.getElementById("logout-trigger-node").classList.add("visible");
-} else {
-    document.getElementById("back-btn").style.display = "block";
-    document.getElementById("viewing-banner").classList.add("visible");
-}
-
-/* ─────────────────────────────────────────────
-   LOAD PROFILE — 100% from Supabase DB
-───────────────────────────────────────────── */
-
-async function loadProfile() {
-    let query = sbClient.from('users').select('*');
-
-    if (profileLookupKey === 'email') {
-        query = query.eq('email', profileIdentifier);
-    } else if (profileLookupKey === 'id') {
-        query = query.eq('id', profileIdentifier);
-    } else {
-        query = query.eq('phone', profileIdentifier);
-    }
-
-    const { data, error } = await query.single();
-
-    const dataCard = document.getElementById("data-card");
-    const pill     = document.getElementById("terminal-status-pill");
-
-    if (error || !data) {
-        /* Fallback for own profile when DB record not found */
-        if (isOwnProfile && (sessionUser || cachedProfile.name)) {
-            const fallbackName  = cachedProfile.name  || sessionUser?.name  || 'UNKNOWN';
-            const fallbackRank  = cachedProfile.rank  || sessionUser?.rank  || 'UNIT';
-            const fallbackEmail = cachedProfile.email || sessionUser?.email || '—';
-            const fallbackPhone = myPhone || '—';
-
-            dataCard.innerHTML = `
-                <div><label>Name</label><span>${escHtml(fallbackName)}</span></div>
-                <div><label>Rank</label><span>${escHtml(fallbackRank)}</span></div>
-                <div><label>Phone</label><span>${escHtml(fallbackPhone)}</span></div>
-                ${fallbackEmail !== '—' ? `<div><label>Email</label><span>${escHtml(fallbackEmail)}</span></div>` : ''}
-            `;
-
-            pill.textContent = "YOUR PROFILE — ACTIVE";
-            pill.classList.add("online");
-            document.title = `CADRE — ${fallbackName}`;
-            document.getElementById("profile-posts-container").innerHTML =
-                '<div class="no-posts-msg">Transmissions unavailable until profile data is complete.</div>';
-            return;
-        }
-
-        dataCard.innerHTML = `
-            <div class="profile-error">
-                <p style="color:#ff6b6b;">OPERATOR NOT FOUND<br>
-                <span style="font-size:11px;color:#475569;">${escHtml(profileIdentifier || '—')}</span></p>
-            </div>`;
-        pill.textContent = "NOT FOUND";
-        document.getElementById("profile-posts-container").innerHTML =
-            '<div class="no-posts-msg">No records found.</div>';
-        return;
-    }
-
-    /* ── Profile picture from DB ── */
-    if (data.pfp) {
-        document.getElementById("pfp-view-target").src = data.pfp;
-    }
-
-    /* ── Data card ── */
-    dataCard.innerHTML = `
-        <div><label>Name</label><span>${escHtml(data.name  || 'UNKNOWN')}</span></div>
-        <div><label>Rank</label><span>${escHtml(data.rank  || 'UNIT')}</span></div>
-        <div><label>Phone</label><span>${escHtml(data.phone || '—')}</span></div>
-        ${data.unit  ? `<div><label>Unit</label><span>${escHtml(data.unit)}</span></div>`  : ''}
-        ${data.email ? `<div><label>Email</label><span>${escHtml(data.email)}</span></div>` : ''}
-    `;
-
-    /* ── Status pill ── */
-    pill.textContent = isOwnProfile
-        ? "YOUR PROFILE — ACTIVE"
-        : `OPERATOR — ${escHtml(data.rank || 'UNIT')}`;
-    pill.classList.add("online");
-
-    document.title = `CADRE — ${data.name || 'Operator'}`;
-
-    /* ── Load posts ── */
-    const postsPhone = data.phone || (profileLookupKey === 'phone' ? profileIdentifier : null);
-    if (postsPhone) {
-        await loadUserPosts(postsPhone);
-    } else {
-        document.getElementById("profile-posts-container").innerHTML =
-            '<div class="no-posts-msg">No transmissions available.</div>';
-    }
-}
-
-/* ─────────────────────────────────────────────
-   LOAD USER POSTS — from Supabase DB
-───────────────────────────────────────────── */
-
-async function loadUserPosts(phone) {
-    const container = document.getElementById("profile-posts-container");
-
-    const { data: posts, error } = await sbClient
-        .from('ig_feed_posts')
-        .select('id, caption, image, likes, comments, timestamp')
-        .eq('phone', phone)
-        .order('timestamp', { ascending: false })
-        .limit(20);
-
-    if (error) {
-        container.innerHTML = '<div class="no-posts-msg">Failed to load transmissions.</div>';
-        console.error("Posts error:", error);
-        return;
-    }
-
-    if (!posts || posts.length === 0) {
-        container.innerHTML = '<div class="no-posts-msg">NO TRANSMISSIONS ON RECORD.</div>';
-        return;
-    }
-
-    const frag = document.createDocumentFragment();
-
-    posts.forEach(post => {
-        const card = document.createElement("div");
-        card.className = "profile-post-card";
-
-        const time     = post.timestamp ? new Date(post.timestamp).toLocaleString() : '';
-        const likes    = Number(post.likes ?? 0);
-        const comments = Array.isArray(post.comments) ? post.comments.length : 0;
-
-        card.innerHTML = `
-            ${post.caption ? `<div class="profile-post-caption">${escHtml(post.caption)}</div>` : ''}
-            ${post.image   ? `<img src="${post.image}" class="profile-post-image" loading="lazy" decoding="async" alt="Post">` : ''}
-            <div class="profile-post-meta">
-                <span>👍 ${likes}</span>
-                <span>💬 ${comments}</span>
-                ${time ? `<span>🕒 ${time}</span>` : ''}
-            </div>
-        `;
-
-        frag.appendChild(card);
-    });
-
-    container.innerHTML = '';
-    container.appendChild(frag);
-}
-
-/* ─────────────────────────────────────────────
-   UPLOAD PROFILE PICTURE
-   - Requires myPhone to be a real phone number
-   - Uses timestamp suffix to avoid 400 on re-upload
-   - Saves public URL to DB; no base64, no localStorage
-───────────────────────────────────────────── */
-
-async function uploadPfp(file) {
-    if (!isOwnProfile) return;
-
-    const statusEl = document.getElementById("upload-status");
-    const pill     = document.getElementById("terminal-status-pill");
-
-    /* Must have a phone number to name the file */
-    if (!myPhone) {
-        statusEl.textContent = "UPLOAD FAILED: Phone number not found in session.";
-        return;
-    }
-
-    statusEl.textContent = "UPLOADING...";
-
-    const fileExt  = file.name.split('.').pop().toLowerCase() || 'jpg';
-    /* Timestamp suffix prevents Supabase 400 "already exists" on re-upload
-       even though upsert:true is set — belt and braces */
-    const filePath = `${myPhone}_${Date.now()}.${fileExt}`;
-
-    /* 1. Upload to Storage bucket 'profile_pictures' */
-    const { error: uploadError } = await sbClient.storage
-        .from('profile_pictures')
-        .upload(filePath, file, {
-            upsert: true,
-            contentType: file.type || 'image/jpeg'
-        });
-
-    if (uploadError) {
-        console.error("Storage upload error:", uploadError);
-        statusEl.textContent = `UPLOAD FAILED: ${uploadError.message}`;
-        return;
-    }
-
-    /* 2. Get public URL */
-    const { data: urlData } = sbClient.storage
-        .from('profile_pictures')
-        .getPublicUrl(filePath);
-
-    const publicUrl = urlData?.publicUrl;
-    if (!publicUrl) {
-        statusEl.textContent = "URL FETCH FAILED";
-        return;
-    }
-
-    /* 3. Save URL to users table */
-    const { error: updateError } = await sbClient
-        .from('users')
-        .update({ pfp: publicUrl })
-        .eq('phone', myPhone);
-
-    if (updateError) {
-        console.error("DB update error:", updateError);
-        statusEl.textContent = `SAVE FAILED: ${updateError.message}`;
-        return;
-    }
-
-    /* 4. Update displayed image */
-    document.getElementById("pfp-view-target").src = publicUrl;
-    statusEl.textContent = "✓ PROFILE PICTURE UPDATED";
-    pill.textContent = "YOUR PROFILE — ACTIVE";
-
-    /* 5. Update in-memory sessionUser and any matching localStorage session key */
-    if (sessionUser) {
-        sessionUser.pfp = publicUrl;
-        for (const key of sessionKeys) {
-            try {
-                const stored = localStorage.getItem(key);
-                if (!stored) continue;
-                const p = JSON.parse(stored);
-                if (p?.phone === myPhone) {
-                    p.pfp = publicUrl;
-                    localStorage.setItem(key, JSON.stringify(p));
-                }
-            } catch(e) { /* ignore */ }
-        }
-    }
-
-    setTimeout(() => { statusEl.textContent = ''; }, 3000);
-}
-
-/* ─────────────────────────────────────────────
-   EVENTS
-───────────────────────────────────────────── */
-
-document.getElementById("pfp-file-controller")
-    .addEventListener("change", (e) => {
-        if (e.target.files[0]) uploadPfp(e.target.files[0]);
-    });
-
-document.getElementById("logout-trigger-node")
-    .addEventListener("click", () => {
-        ["session_user","user","officer","currentUser",
-         "cached_operator_phone","cached_profile"]
-            .forEach(k => localStorage.removeItem(k));
-        window.location.href = "login.html";
-    });
-
-function triggerPfpInput() {
-    if (isOwnProfile) document.getElementById("pfp-file-controller").click();
-}
+/* ── Helpers ── */
+function tryParse(val) { try { return JSON.parse(val); } catch { return null; } }
 
 function escHtml(str) {
     return String(str)
@@ -730,9 +180,207 @@ function escHtml(str) {
         .replace(/'/g,"&#039;");
 }
 
-/* ── INIT ── */
-loadProfile();
+/* ── Profile picture upload ── */
+async function uploadPfp(file) {
+    const myUid = window._myUid;
+    if (!window._isOwnProfile || !myUid) return;
 
+    const statusEl = document.getElementById("upload-status");
+    statusEl.textContent = "UPLOADING...";
+
+    const fileExt  = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const filePath = myUid + '_' + Date.now() + '.' + fileExt;
+
+    const { error: uploadError } = await sbClient.storage
+        .from('profile_pictures')
+        .upload(filePath, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+
+    if (uploadError) {
+        statusEl.textContent = 'UPLOAD FAILED: ' + uploadError.message;
+        console.error("Storage upload error:", uploadError);
+        return;
+    }
+
+    const { data: urlData } = sbClient.storage.from('profile_pictures').getPublicUrl(filePath);
+    const publicUrl = urlData && urlData.publicUrl;
+    if (!publicUrl) { statusEl.textContent = "URL FETCH FAILED"; return; }
+
+    const { error: updateError } = await sbClient
+        .from('users').update({ pfp: publicUrl }).eq('id', myUid);
+
+    if (updateError) {
+        statusEl.textContent = 'SAVE FAILED: ' + updateError.message;
+        console.error("DB update error:", updateError);
+        return;
+    }
+
+    document.getElementById("pfp-view-target").src = publicUrl;
+    statusEl.textContent = "✓ PROFILE PICTURE UPDATED";
+    setTimeout(function() { statusEl.textContent = ''; }, 3000);
+}
+
+function triggerPfpInput() {
+    if (window._isOwnProfile) document.getElementById("pfp-file-controller").click();
+}
+
+/* ── Load profile from DB ── */
+async function loadProfile(lookupId, isOwnProfile) {
+    const dataCard = document.getElementById("data-card");
+    const pill     = document.getElementById("terminal-status-pill");
+
+    const { data, error } = await sbClient
+        .from('users').select('*').eq('id', lookupId).single();
+
+    if (error || !data) {
+        dataCard.innerHTML = '<div class="profile-error"><p style="color:#ff6b6b;">OPERATOR NOT FOUND</p></div>';
+        pill.textContent = "NOT FOUND";
+        document.getElementById("profile-posts-container").innerHTML =
+            '<div class="no-posts-msg">No records found.</div>';
+        return;
+    }
+
+    if (data.pfp) document.getElementById("pfp-view-target").src = data.pfp;
+
+    dataCard.innerHTML =
+        '<div><label>Name</label><span>'  + escHtml(data.name  || 'UNKNOWN') + '</span></div>' +
+        '<div><label>Rank</label><span>'  + escHtml(data.rank  || 'UNIT')    + '</span></div>' +
+        (data.email ? '<div><label>Email</label><span>' + escHtml(data.email) + '</span></div>' : '') +
+        (data.phone ? '<div><label>Phone</label><span>' + escHtml(data.phone) + '</span></div>' : '') +
+        (data.unit  ? '<div><label>Unit</label><span>'  + escHtml(data.unit)  + '</span></div>' : '');
+
+    pill.textContent = isOwnProfile
+        ? "YOUR PROFILE — ACTIVE"
+        : "OPERATOR — " + escHtml(data.rank || 'UNIT');
+    pill.classList.add("online");
+    document.title = 'CADRE — ' + (data.name || 'Operator');
+
+    await loadUserPosts(data.id);
+}
+
+/* ── Load posts ── */
+async function loadUserPosts(userId) {
+    const container = document.getElementById("profile-posts-container");
+
+    const { data: posts, error } = await sbClient
+        .from('ig_feed_posts')
+        .select('id, caption, image, likes, comments, timestamp')
+        .eq('user_id', userId)
+        .order('timestamp', { ascending: false })
+        .limit(20);
+
+    if (error) {
+        container.innerHTML = '<div class="no-posts-msg">Failed to load transmissions.</div>';
+        return;
+    }
+    if (!posts || posts.length === 0) {
+        container.innerHTML = '<div class="no-posts-msg">NO TRANSMISSIONS ON RECORD.</div>';
+        return;
+    }
+
+    const frag = document.createDocumentFragment();
+    posts.forEach(function(post) {
+        const card = document.createElement("div");
+        card.className = "profile-post-card";
+        const time     = post.timestamp ? new Date(post.timestamp).toLocaleString() : '';
+        const likes    = Number(post.likes || 0);
+        const comments = Array.isArray(post.comments) ? post.comments.length : 0;
+        card.innerHTML =
+            (post.caption ? '<div class="profile-post-caption">' + escHtml(post.caption) + '</div>' : '') +
+            (post.image   ? '<img src="' + post.image + '" class="profile-post-image" loading="lazy" alt="Post">' : '') +
+            '<div class="profile-post-meta">' +
+                '<span>👍 ' + likes + '</span>' +
+                '<span>💬 ' + comments + '</span>' +
+                (time ? '<span>🕒 ' + time + '</span>' : '') +
+            '</div>';
+        frag.appendChild(card);
+    });
+    container.innerHTML = '';
+    container.appendChild(frag);
+}
+
+/* ── Events ── */
+document.getElementById("pfp-file-controller")
+    .addEventListener("change", function(e) {
+        if (e.target.files[0]) uploadPfp(e.target.files[0]);
+    });
+
+document.getElementById("logout-trigger-node")
+    .addEventListener("click", function() {
+        localStorage.removeItem("cadre_uid");
+        window.location.href = "login.html";
+    });
+
+/* ────────────────────────────────────────────
+   ASYNC INIT
+   Resolves session from any stored key, then
+   boots the app. Runs inside an async IIFE so
+   we can await sbClient.auth.getSession().
+──────────────────────────────────────────── */
+(async function init() {
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetId  = urlParams.get("uid");
+
+    /* 1. New key */
+    let myUid = localStorage.getItem("cadre_uid");
+
+    /* 2. Old session object keys (migration) */
+    if (!myUid) {
+        var oldKeys = ["session_user","user","officer","currentUser"];
+        for (var i = 0; i < oldKeys.length; i++) {
+            var parsed = tryParse(localStorage.getItem(oldKeys[i]));
+            if (parsed && parsed.id) { myUid = parsed.id; break; }
+        }
+    }
+
+    /* 3. Stored supabase_session token (migration) */
+    if (!myUid) {
+        var storedSession = tryParse(localStorage.getItem("supabase_session"));
+        if (storedSession && storedSession.user && storedSession.user.id) {
+            myUid = storedSession.user.id;
+        }
+    }
+
+    /* 4. Live Supabase auth session (works if tab was never fully cleared) */
+    if (!myUid) {
+        try {
+            var sessionResult = await sbClient.auth.getSession();
+            if (sessionResult.data && sessionResult.data.session && sessionResult.data.session.user) {
+                myUid = sessionResult.data.session.user.id;
+            }
+        } catch(e) { /* ignore */ }
+    }
+
+    /* Persist resolved uid for all future visits */
+    if (myUid) localStorage.setItem("cadre_uid", myUid);
+
+    var isOwnProfile = !targetId || targetId === myUid;
+    var lookupId     = targetId || myUid;
+
+    /* Expose to uploadPfp / triggerPfpInput */
+    window._myUid        = myUid;
+    window._isOwnProfile = isOwnProfile;
+
+    /* No session at all → go to login */
+    if (!lookupId) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    /* Set up UI mode */
+    if (isOwnProfile) {
+        document.getElementById("radar-ring").classList.add("own-profile");
+        document.getElementById("radar-ring").onclick = triggerPfpInput;
+        document.getElementById("logout-trigger-node").classList.add("visible");
+    } else {
+        document.getElementById("back-btn").style.display = "block";
+        document.getElementById("viewing-banner").classList.add("visible");
+    }
+
+    /* Load data */
+    await loadProfile(lookupId, isOwnProfile);
+
+})();
 </script>
 </body>
 </html>

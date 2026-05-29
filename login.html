@@ -4,176 +4,106 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CADRE - System Access Portal</title>
-
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
-
 <div class="app-container">
-
     <main class="gateway-wrapper">
-
         <div class="gateway-card">
-
             <div class="gateway-title-block">
                 <img src="Cadre logo png.jpg" alt="CADRE Emblem" class="gateway-emblem">
-
-                <h1 class="gateway-h1">
-                    CADRE Secure
-                </h1>
-
-                <p class="gateway-p">
-                    Authentication Protocol Required
-                </p>
+                <h1 class="gateway-h1">CADRE Secure</h1>
+                <p class="gateway-p">Authentication Protocol Required</p>
             </div>
 
             <form id="portal-login-form">
-
                 <div class="form-group">
                     <label>Email Address</label>
-
-                    <input
-                        type="email"
-                        id="login-email"
-                        class="form-field"
-                        placeholder="operator@cadre.com"
-                        required
-                    >
+                    <input type="email" id="login-email" class="form-field" placeholder="operator@cadre.com" required>
                 </div>
-
                 <div class="form-group">
                     <label>Security Access Code</label>
-
-                    <input
-                        type="password"
-                        id="login-password"
-                        class="form-field"
-                        placeholder="••••••••"
-                        required
-                    >
+                    <input type="password" id="login-password" class="form-field" placeholder="••••••••" required>
                 </div>
-
-                <button type="submit" class="btn-auth-action">
-                    Verify Credentials
-                </button>
-
+                <button type="submit" class="btn-auth-action">Verify Credentials</button>
             </form>
 
             <div class="gateway-footer-link">
-                <span style="color: var(--text-dim);">
-                    New Personnel?
-                </span>
-
-                <a href="index.html">
-                    Initialize Profile
-                </a>
+                <span style="color:var(--text-dim);">New Personnel?</span>
+                <a href="index.html">Initialize Profile</a>
             </div>
-
         </div>
-
     </main>
-
 </div>
 
 <script>
+const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient    = supabase.createClient(supabaseUrl, supabaseKey);
 
-const supabaseUrl =
-'https://ihroattnnnsckvvbosfz.supabase.co';
-
-const supabaseKey =
-'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-
-const sbClient =
-supabase.createClient(
-    supabaseUrl,
-    supabaseKey
-);
-
-document
-.getElementById("portal-login-form")
-.addEventListener("submit", async (e) => {
-
+document.getElementById("portal-login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const email =
-        document.getElementById("login-email").value.trim();
+    const email    = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const btn      = document.querySelector(".btn-auth-action");
 
-    const password =
-        document.getElementById("login-password").value;
-
-    const loginButton =
-        document.querySelector(".btn-auth-action");
-
-    loginButton.disabled = true;
-    loginButton.innerText = "VERIFYING...";
+    btn.disabled  = true;
+    btn.innerText = "VERIFYING...";
 
     try {
+        /* Step 1: Sign in with Supabase Auth */
+        const { data: authData, error: authError } =
+            await sbClient.auth.signInWithPassword({ email, password });
 
-        const { data, error } =
-            await sbClient.auth.signInWithPassword({
-                email: email,
-                password: password
-            });
-
-        if (error) {
-
-            alert("ACCESS DENIED: " + error.message);
-
-            loginButton.disabled = false;
-            loginButton.innerText = "Verify Credentials";
-
+        if (authError) {
+            alert("ACCESS DENIED: " + authError.message);
+            btn.disabled  = false;
+            btn.innerText = "Verify Credentials";
             return;
         }
 
-        const userId = data.user.id;
+        const userId = authData.user.id;
 
-        const { data: userData, error: userError } =
-            await sbClient
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single();
+        /* Step 2: Fetch full profile from users table using auth ID */
+        const { data: profile, error: profileError } =
+            await sbClient.from('users').select('*').eq('id', userId).single();
 
-        if (userError || !userData) {
+        if (profileError || !profile) {
+            /*
+             * Row missing — could happen for users registered before the
+             * index.html fix was deployed. Auto-create it now so they
+             * don't get stuck.
+             */
+            const fallbackName  = authData.user.user_metadata?.name  || 'UNKNOWN';
+            const fallbackRank  = authData.user.user_metadata?.rank  || 'UNIT';
 
-            localStorage.setItem(
-                "session_user",
-                JSON.stringify({
-                    email: data.user.email
-                })
-            );
-
-        } else {
-
-            localStorage.setItem(
-                "session_user",
-                JSON.stringify(userData)
-            );
+            await sbClient.from('users').insert({
+                id:    userId,
+                name:  fallbackName,
+                rank:  fallbackRank,
+                email: authData.user.email
+            });
         }
 
-        localStorage.setItem(
-            "supabase_session",
-            JSON.stringify(data.session)
-        );
+        /*
+         * Store ONLY the Supabase auth user ID in localStorage.
+         * All profile data (name, rank, pfp) is always fetched live
+         * from the users table — nothing is cached locally.
+         */
+        localStorage.setItem("cadre_uid", userId);
 
         window.location.href = "home.html";
 
     } catch (err) {
-
         console.error(err);
-
         alert("SYSTEM ERROR DURING LOGIN");
-
+        btn.disabled  = false;
+        btn.innerText = "Verify Credentials";
     }
-
-    loginButton.disabled = false;
-    loginButton.innerText = "Verify Credentials";
-
 });
-
 </script>
-
 </body>
 </html>

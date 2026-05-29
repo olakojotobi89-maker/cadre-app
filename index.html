@@ -38,14 +38,14 @@
                 <button type="submit" class="btn-auth-action">Generate System Preview</button>
             </form>
 
-            <div id="preview-gate-shield" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ccc;">
+            <div id="preview-gate-shield" style="display:none; margin-top:20px; padding:15px; border:1px solid #ccc;">
                 <h3>Preview: <span id="preview-target-name"></span></h3>
                 <p>Rank: <span id="preview-target-rank"></span></p>
-                <button id="confirm-deploy-btn" class="btn-auth-action" style="background: green;">Confirm & Initialize</button>
+                <button id="confirm-deploy-btn" class="btn-auth-action" style="background:green;">Confirm & Initialize</button>
             </div>
 
             <div class="gateway-footer-link">
-                <span style="color: var(--text-dim);">Already Registered?</span> 
+                <span style="color:var(--text-dim);">Already Registered?</span>
                 <a href="login.html">Access System</a>
             </div>
         </div>
@@ -62,12 +62,11 @@
     document.getElementById("profile-registration-form").addEventListener("submit", (e) => {
         e.preventDefault();
         stagedData = {
-            name: document.getElementById("reg-name").value,
-            rank: document.getElementById("reg-rank").value,
-            email: document.getElementById("reg-email").value,
+            name:     document.getElementById("reg-name").value.trim(),
+            rank:     document.getElementById("reg-rank").value.trim(),
+            email:    document.getElementById("reg-email").value.toLowerCase().trim(),
             password: document.getElementById("reg-password").value
         };
-        
         document.getElementById("preview-target-name").textContent = stagedData.name;
         document.getElementById("preview-target-rank").textContent = stagedData.rank;
         document.getElementById("preview-gate-shield").style.display = "block";
@@ -78,44 +77,56 @@
         button.disabled = true;
         button.textContent = "Initializing...";
 
-        const { data, error } = await sbClient.auth.signUp({
+        /* Step 1: Create auth account */
+        const { data: authData, error: authError } = await sbClient.auth.signUp({
             email: stagedData.email,
             password: stagedData.password,
             options: {
-                data: {
-                    name: stagedData.name,
-                    rank: stagedData.rank
-                }
+                data: { name: stagedData.name, rank: stagedData.rank }
             }
         });
 
-        if (error) {
-            alert("DEPLOYMENT CRASH: " + error.message);
+        if (authError) {
+            alert("DEPLOYMENT CRASH: " + authError.message);
             button.disabled = false;
             button.textContent = "Confirm & Initialize";
-        } else {
-            // NEW: Save user data to localStorage after successful signup
-            const userSession = {
-                name: stagedData.name,
-                rank: stagedData.rank,
-                email: stagedData.email.toLowerCase().trim()
-            };
-            
-            const userProfile = {
-                name: stagedData.name,
-                rank: stagedData.rank,
-                email: stagedData.email.toLowerCase().trim()
-            };
-            
-            // Store both session and profile in localStorage
-            localStorage.setItem("session_user", JSON.stringify(userSession));
-            localStorage.setItem("cached_profile", JSON.stringify(userProfile));
-            
-            console.log("✅ User registered and saved:", userSession);
-            
-            alert("SUCCESS: Profile initialized.");
-            window.location.href = "login.html";
+            return;
         }
+
+        const userId = authData.user?.id;
+        if (!userId) {
+            alert("DEPLOYMENT CRASH: Could not retrieve user ID.");
+            button.disabled = false;
+            button.textContent = "Confirm & Initialize";
+            return;
+        }
+
+        /* Step 2: Insert into users table — this is what profile.html reads */
+        const { error: insertError } = await sbClient.from('users').insert({
+            id:    userId,
+            name:  stagedData.name,
+            rank:  stagedData.rank,
+            email: stagedData.email
+        });
+
+        if (insertError) {
+            /* If row already exists (duplicate signup attempt), try update instead */
+            if (insertError.code === '23505') {
+                await sbClient.from('users')
+                    .update({ name: stagedData.name, rank: stagedData.rank })
+                    .eq('id', userId);
+            } else {
+                console.error("DB insert error:", insertError);
+                alert("PROFILE SAVE FAILED: " + insertError.message);
+                button.disabled = false;
+                button.textContent = "Confirm & Initialize";
+                return;
+            }
+        }
+
+        /* No localStorage — everything lives in Supabase */
+        alert("SUCCESS: Profile initialized. Please log in.");
+        window.location.href = "login.html";
     });
 </script>
 </body>
