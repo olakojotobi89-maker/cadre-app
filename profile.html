@@ -213,13 +213,13 @@ try {
   sessionUser = null;
 }
 const urlParams = new URLSearchParams(window.location.search);
-const targetPhone = urlParams.get("phone");
+const targetName = urlParams.get("name");
 
-const currentPhone = sessionUser?.phone;
+const currentName = sessionUser?.name;
 const currentId = sessionUser?.id;
 const currentEmail = sessionUser?.email?.toString().trim().toLowerCase();
-const profilePhone = targetPhone || currentPhone;
-const isOwnProfile = profilePhone ? profilePhone === currentPhone : !!currentId;
+const profileName = targetName || currentName;
+const isOwnProfile = profileName ? profileName === currentName : !!currentId;
 
 if (!sessionUser) {
   window.location.href = "login.html";
@@ -228,9 +228,12 @@ if (!sessionUser) {
 const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
 
 console.log('🔍 Session user:', sessionUser);
-console.log('🔗 Query params - phone:', targetPhone);
-console.log('📱 Current phone:', currentPhone);
-console.log('🆔 Current ID:', currentId);
+console.log('📋 Session keys:', Object.keys(sessionUser));
+console.log('� Current name:', currentName);
+console.log('🔑 Current ID:', currentId);
+console.log('📧 Current email:', currentEmail);
+console.log('🎯 Target name from URL:', targetName);
+console.log('🔎 Profile name (target or current):', profileName);
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -242,8 +245,8 @@ function fileToDataUrl(file) {
 }
 
 function getUserLookupKey() {
+  if (currentName) return { field: 'name', value: currentName };
   if (currentId) return { field: 'id', value: currentId };
-  if (currentPhone) return { field: 'phone', value: currentPhone };
   return null;
 }
 
@@ -267,16 +270,16 @@ async function loadProfile() {
   let searchField = null;
   let searchValue = null;
 
-  if (profilePhone) {
-    searchField = 'phone';
-    searchValue = profilePhone;
-    query = query.eq('phone', profilePhone);
+  if (profileName) {
+    searchField = 'name';
+    searchValue = profileName;
+    query = query.eq('name', profileName);
   } else if (currentId) {
     searchField = 'id';
     searchValue = currentId;
     query = query.eq('id', currentId);
   } else {
-    console.error('❌ No profile identifier found (no phone, no id)');
+    console.error('❌ No profile identifier found (no name, no id)');
     document.getElementById("terminal-status-pill").textContent = "SESSION ERROR";
     setProfilePicture(null);
     return;

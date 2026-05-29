@@ -509,7 +509,7 @@ function buildPostCard(post) {
 
   const userDiv = document.createElement('div');
   userDiv.className = 'feed-post-user';
-  userDiv.onclick = () => openProfile(post.phone);
+  userDiv.onclick = () => openProfile(post.name);
   userDiv.innerHTML = `
     <span class="feed-post-rank">${escHtml(post.rank || 'UNIT')}</span>
     <span class="feed-post-name">${escHtml(post.name || 'UNKNOWN')}</span>
@@ -797,8 +797,8 @@ async function addComment(postId) {
    HELPERS
 ───────────────────────────────────────────── */
 
-function openProfile(phone) {
-  window.location.href = `profile.html?phone=${phone}`;
+function openProfile(name) {
+  window.location.href = `profile.html?name=${encodeURIComponent(name)}`;
 }
 
 function checkAdminAccess(event) {
