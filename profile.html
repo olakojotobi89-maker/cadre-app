@@ -355,7 +355,7 @@ body{
     <section class="terminal-data-card" id="data-card">
         <div><label>Name</label><span class="skeleton-line" style="width:120px;height:13px;display:inline-block;"></span></div>
         <div><label>Rank</label><span class="skeleton-line" style="width:80px;height:13px;display:inline-block;"></span></div>
-        <div><label>Email</label><span class="skeleton-line" style="width:140px;height:13px;display:inline-block;"></span></div>
+        <div><label>Phone</label><span class="skeleton-line" style="width:100px;height:13px;display:inline-block;"></span></div>
     </section>
 
     <section class="posts-section">
@@ -382,29 +382,27 @@ body{
 <script>
 
 /* ─────────────────────────────────────────────
-   SUPABASE
+   SUPABASE — no persistSession override so auth
+   headers are sent correctly (fixes 406 errors)
 ───────────────────────────────────────────── */
 
-const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
-const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const sbClient = supabase.createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false }
-});
+const supabaseUrl  = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const supabaseKey  = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient     = supabase.createClient(supabaseUrl, supabaseKey);
 
 function tryParseJson(value) {
-    try {
-        return JSON.parse(value);
-    } catch (err) {
-        return null;
-    }
+    try { return JSON.parse(value); } catch { return null; }
 }
 
 /* ─────────────────────────────────────────────
    SESSION — check all possible keys
+   IMPORTANT: only treat a value as "phone" if it
+   looks like a phone number (not an email address)
 ───────────────────────────────────────────── */
 
 let sessionUser = null;
 const sessionKeys = ["session_user", "user", "officer", "currentUser"];
+
 for (const key of sessionKeys) {
     const parsed = tryParseJson(localStorage.getItem(key));
     if (parsed?.phone || parsed?.email || parsed?.id) {
@@ -414,9 +412,19 @@ for (const key of sessionKeys) {
 }
 
 const cachedProfile = tryParseJson(localStorage.getItem("cached_profile")) || {};
-const myPhone = sessionUser?.phone || localStorage.getItem("cached_operator_phone");
-const myEmail = (sessionUser?.email || cachedProfile.email || '').toString().toLowerCase() || null;
-const myId = sessionUser?.id || cachedProfile.id;
+
+/* Only use a stored value as myPhone if it's actually a phone number */
+function isPhoneNumber(val) {
+    return val && /^[+\d][\d\s\-().]{5,}$/.test(String(val).trim());
+}
+
+const rawPhone = sessionUser?.phone
+    || localStorage.getItem("cached_operator_phone")
+    || cachedProfile.phone;
+
+const myPhone = isPhoneNumber(rawPhone) ? rawPhone : null;
+const myEmail = sessionUser?.email || cachedProfile.email || null;
+const myId    = sessionUser?.id    || cachedProfile.id    || null;
 
 /* ─────────────────────────────────────────────
    DETERMINE WHOSE PROFILE TO SHOW
@@ -424,22 +432,32 @@ const myId = sessionUser?.id || cachedProfile.id;
    no param    → own profile
 ───────────────────────────────────────────── */
 
-const urlParams = new URLSearchParams(window.location.search);
-const targetPhone = urlParams.get("phone");
-const profileIdentifier = targetPhone || myPhone || myEmail || myId;
-const profileLookupKey = targetPhone
-    ? "phone"
-    : myPhone
-        ? "phone"
-        : myEmail
-            ? "email"
-            : myId
-                ? "id"
-                : null;
-const profilePhone = profileIdentifier;
-const isOwnProfile = !targetPhone || (myPhone && targetPhone === myPhone);
+const urlParams        = new URLSearchParams(window.location.search);
+const targetPhone      = urlParams.get("phone");
 
-// No session and no target → redirect
+/* Choose identifier + lookup key */
+let profileIdentifier, profileLookupKey;
+
+if (targetPhone) {
+    profileIdentifier = targetPhone;
+    profileLookupKey  = "phone";
+} else if (myPhone) {
+    profileIdentifier = myPhone;
+    profileLookupKey  = "phone";
+} else if (myEmail) {
+    profileIdentifier = myEmail;
+    profileLookupKey  = "email";
+} else if (myId) {
+    profileIdentifier = myId;
+    profileLookupKey  = "id";
+} else {
+    profileIdentifier = null;
+    profileLookupKey  = null;
+}
+
+const isOwnProfile = !targetPhone || targetPhone === myPhone;
+
+/* No session and no target → redirect */
 if (!profileIdentifier) {
     window.location.href = "login.html";
 }
@@ -465,6 +483,7 @@ if (isOwnProfile) {
 
 async function loadProfile() {
     let query = sbClient.from('users').select('*');
+
     if (profileLookupKey === 'email') {
         query = query.eq('email', profileIdentifier);
     } else if (profileLookupKey === 'id') {
@@ -479,23 +498,18 @@ async function loadProfile() {
     const pill     = document.getElementById("terminal-status-pill");
 
     if (error || !data) {
-        if (isOwnProfile && (sessionUser || cachedProfile.name || cachedProfile.rank || cachedProfile.email)) {
-            const fallbackName = cachedProfile.name || sessionUser?.name || 'UNKNOWN';
-            const fallbackRank = cachedProfile.rank || sessionUser?.rank || 'UNIT';
+        /* Fallback for own profile when DB record not found */
+        if (isOwnProfile && (sessionUser || cachedProfile.name)) {
+            const fallbackName  = cachedProfile.name  || sessionUser?.name  || 'UNKNOWN';
+            const fallbackRank  = cachedProfile.rank  || sessionUser?.rank  || 'UNIT';
             const fallbackEmail = cachedProfile.email || sessionUser?.email || '—';
-
-            const globalFallback = {
-                ...cachedProfile,
-                name: fallbackName,
-                rank: fallbackRank,
-                email: fallbackEmail
-            };
-            localStorage.setItem("cached_profile", JSON.stringify(globalFallback));
+            const fallbackPhone = myPhone || '—';
 
             dataCard.innerHTML = `
                 <div><label>Name</label><span>${escHtml(fallbackName)}</span></div>
                 <div><label>Rank</label><span>${escHtml(fallbackRank)}</span></div>
-                ${fallbackEmail ? `<div><label>Email</label><span>${escHtml(fallbackEmail)}</span></div>` : ''}
+                <div><label>Phone</label><span>${escHtml(fallbackPhone)}</span></div>
+                ${fallbackEmail !== '—' ? `<div><label>Email</label><span>${escHtml(fallbackEmail)}</span></div>` : ''}
             `;
 
             pill.textContent = "YOUR PROFILE — ACTIVE";
@@ -517,15 +531,18 @@ async function loadProfile() {
         return;
     }
 
-    /* ── Profile picture — from DB or cached profile ── */
-    document.getElementById("pfp-view-target").src = data.pfp || sessionUser?.pfp || cachedProfile.pfp || DEFAULT_AVATAR;
+    /* ── Profile picture from DB ── */
+    if (data.pfp) {
+        document.getElementById("pfp-view-target").src = data.pfp;
+    }
 
-    /* ── Data card — all fields from DB ── */
+    /* ── Data card ── */
     dataCard.innerHTML = `
         <div><label>Name</label><span>${escHtml(data.name  || 'UNKNOWN')}</span></div>
         <div><label>Rank</label><span>${escHtml(data.rank  || 'UNIT')}</span></div>
-        ${data.email ? `<div><label>Email</label><span>${escHtml(data.email)}</span></div>` : ''}
+        <div><label>Phone</label><span>${escHtml(data.phone || '—')}</span></div>
         ${data.unit  ? `<div><label>Unit</label><span>${escHtml(data.unit)}</span></div>`  : ''}
+        ${data.email ? `<div><label>Email</label><span>${escHtml(data.email)}</span></div>` : ''}
     `;
 
     /* ── Status pill ── */
@@ -534,11 +551,10 @@ async function loadProfile() {
         : `OPERATOR — ${escHtml(data.rank || 'UNIT')}`;
     pill.classList.add("online");
 
-    /* ── Page title ── */
     document.title = `CADRE — ${data.name || 'Operator'}`;
 
-    /* ── Load this user's posts ── */
-    const postsPhone = data?.phone || null;
+    /* ── Load posts ── */
+    const postsPhone = data.phone || (profileLookupKey === 'phone' ? profileIdentifier : null);
     if (postsPhone) {
         await loadUserPosts(postsPhone);
     } else {
@@ -552,7 +568,6 @@ async function loadProfile() {
 ───────────────────────────────────────────── */
 
 async function loadUserPosts(phone) {
-
     const container = document.getElementById("profile-posts-container");
 
     const { data: posts, error } = await sbClient
@@ -602,28 +617,37 @@ async function loadUserPosts(phone) {
 
 /* ─────────────────────────────────────────────
    UPLOAD PROFILE PICTURE
-   Uploads file to Supabase Storage bucket
-   'profile_pictures', then saves the public URL
-   to the users table. No base64, no localStorage.
+   - Requires myPhone to be a real phone number
+   - Uses timestamp suffix to avoid 400 on re-upload
+   - Saves public URL to DB; no base64, no localStorage
 ───────────────────────────────────────────── */
 
 async function uploadPfp(file) {
-
-    if (!isOwnProfile || !profileIdentifier || !profileLookupKey) return;
+    if (!isOwnProfile) return;
 
     const statusEl = document.getElementById("upload-status");
     const pill     = document.getElementById("terminal-status-pill");
 
+    /* Must have a phone number to name the file */
+    if (!myPhone) {
+        statusEl.textContent = "UPLOAD FAILED: Phone number not found in session.";
+        return;
+    }
+
     statusEl.textContent = "UPLOADING...";
 
-    const fileExt = file.name.split('.').pop().toLowerCase();
-    const safeIdentifier = encodeURIComponent(profileIdentifier);
-    const filePath = `${profileLookupKey}_${safeIdentifier}.${fileExt}`;
+    const fileExt  = file.name.split('.').pop().toLowerCase() || 'jpg';
+    /* Timestamp suffix prevents Supabase 400 "already exists" on re-upload
+       even though upsert:true is set — belt and braces */
+    const filePath = `${myPhone}_${Date.now()}.${fileExt}`;
 
-    /* 1. Upload file to Storage */
+    /* 1. Upload to Storage bucket 'profile_pictures' */
     const { error: uploadError } = await sbClient.storage
         .from('profile_pictures')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, {
+            upsert: true,
+            contentType: file.type || 'image/jpeg'
+        });
 
     if (uploadError) {
         console.error("Storage upload error:", uploadError);
@@ -642,9 +666,11 @@ async function uploadPfp(file) {
         return;
     }
 
-    /* 3. Save URL to users table in DB */
-    const updateQuery = sbClient.from('users').update({ pfp: publicUrl });
-    const { error: updateError } = await updateQuery.eq(profileLookupKey, profileIdentifier);
+    /* 3. Save URL to users table */
+    const { error: updateError } = await sbClient
+        .from('users')
+        .update({ pfp: publicUrl })
+        .eq('phone', myPhone);
 
     if (updateError) {
         console.error("DB update error:", updateError);
@@ -652,36 +678,26 @@ async function uploadPfp(file) {
         return;
     }
 
-    /* 4. Update displayed image immediately */
+    /* 4. Update displayed image */
     document.getElementById("pfp-view-target").src = publicUrl;
     statusEl.textContent = "✓ PROFILE PICTURE UPDATED";
     pill.textContent = "YOUR PROFILE — ACTIVE";
 
-    /* 5. Update session cache so other pages (e.g. home.html
-          composer avatar) reflect the new picture without reload */
+    /* 5. Update in-memory sessionUser and any matching localStorage session key */
     if (sessionUser) {
         sessionUser.pfp = publicUrl;
         for (const key of sessionKeys) {
-            if (localStorage.getItem(key)) {
-                try {
-                    const p = JSON.parse(localStorage.getItem(key));
-                    if (p?.[profileLookupKey] === profileIdentifier) {
-                        p.pfp = publicUrl;
-                        localStorage.setItem(key, JSON.stringify(p));
-                    }
-                } catch(e) {}
-            }
+            try {
+                const stored = localStorage.getItem(key);
+                if (!stored) continue;
+                const p = JSON.parse(stored);
+                if (p?.phone === myPhone) {
+                    p.pfp = publicUrl;
+                    localStorage.setItem(key, JSON.stringify(p));
+                }
+            } catch(e) { /* ignore */ }
         }
-        localStorage.setItem("session_user", JSON.stringify(sessionUser));
     }
-
-    localStorage.setItem("cached_profile", JSON.stringify({
-        ...cachedProfile,
-        pfp: publicUrl,
-        name: sessionUser?.name || cachedProfile.name,
-        rank: sessionUser?.rank || cachedProfile.rank,
-        email: sessionUser?.email || cachedProfile.email
-    }));
 
     setTimeout(() => { statusEl.textContent = ''; }, 3000);
 }
@@ -697,8 +713,8 @@ document.getElementById("pfp-file-controller")
 
 document.getElementById("logout-trigger-node")
     .addEventListener("click", () => {
-        // Clear all known session keys
-        ["session_user","user","officer","currentUser","cached_operator_phone","cached_profile"]
+        ["session_user","user","officer","currentUser",
+         "cached_operator_phone","cached_profile"]
             .forEach(k => localStorage.removeItem(k));
         window.location.href = "login.html";
     });
@@ -709,17 +725,12 @@ function triggerPfpInput() {
 
 function escHtml(str) {
     return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
 }
 
-/* ─────────────────────────────────────────────
-   INIT
-───────────────────────────────────────────── */
-
+/* ── INIT ── */
 loadProfile();
 
 </script>
