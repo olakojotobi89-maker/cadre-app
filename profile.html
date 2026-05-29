@@ -205,77 +205,99 @@ const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
 const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /* fallback session (for your current system) */
-let sessionUser = JSON.parse(localStorage.getItem("session_user"));
+let sessionUser = null;
+try {
+  sessionUser = JSON.parse(localStorage.getItem("session_user"));
+} catch (err) {
+  sessionUser = null;
+}
+const urlParams = new URLSearchParams(window.location.search);
+const targetPhone = urlParams.get("phone");
 
-/* optional future Supabase auth support */
-let currentPhone = sessionUser?.phone;
+const currentPhone = sessionUser?.phone;
+const currentEmail = sessionUser?.email;
+const profilePhone = targetPhone || currentPhone;
+const isOwnProfile = profilePhone ? profilePhone === currentPhone : !!currentEmail;
 
-if(!sessionUser){
-window.location.href = "login.html";
+if (!sessionUser) {
+  window.location.href = "login.html";
 }
 
 /* LOAD PROFILE */
-async function loadProfile(){
+async function loadProfile() {
+  let query = sbClient.from('users').select('*');
 
-const { data, error } = await sbClient
-.from('users')
-.select('*')
-.eq('phone', currentPhone)
-.single();
+  if (profilePhone) {
+    query = query.eq('phone', profilePhone);
+  } else if (currentEmail) {
+    query = query.eq('email', currentEmail);
+  } else {
+    document.getElementById("terminal-status-pill").textContent = "PROFILE NOT FOUND";
+    return;
+  }
 
-if(data){
+  const { data, error } = await query.single();
 
-document.getElementById("id-name").textContent = data.name || "UNKNOWN";
-document.getElementById("id-rank").textContent = data.rank || "UNIT";
-document.getElementById("id-phone").textContent = data.phone || "—";
+  if (error || !data) {
+    document.getElementById("terminal-status-pill").textContent = "PROFILE NOT FOUND";
+    return;
+  }
 
-document.getElementById("terminal-status-pill").textContent = "ACTIVE";
+  document.getElementById("id-name").textContent = data.name || "UNKNOWN";
+  document.getElementById("id-rank").textContent = data.rank || "UNIT";
+  document.getElementById("id-phone").textContent = data.phone || "—";
 
-if(data.pfp){
-document.getElementById("pfp-view-target").src = data.pfp;
-}
+  document.getElementById("terminal-status-pill").textContent = isOwnProfile ? "ACTIVE" : "VIEW ONLY";
 
-}
+  if (data.pfp) {
+    document.getElementById("pfp-view-target").src = data.pfp;
+  }
+
+  if (!isOwnProfile) {
+    document.querySelector(".radar-avatar-zone").style.cursor = "default";
+  }
 }
 
 /* UPLOAD PFP */
-async function uploadPfp(file){
+async function uploadPfp(file) {
+  if (!isOwnProfile) return;
 
-const fileExt = file.name.split('.').pop();
-const filePath = `${currentPhone}.${fileExt}`;
+  const fileExt = file.name.split('.').pop();
+  const filePath = `${currentPhone}.${fileExt}`;
 
-await sbClient.storage
-.from('profile_pictures')
-.upload(filePath, file, { upsert:true });
+  await sbClient.storage
+    .from('profile_pictures')
+    .upload(filePath, file, { upsert: true });
 
-const { data } = sbClient.storage
-.from('profile_pictures')
-.getPublicUrl(filePath);
+  const { data } = sbClient.storage
+    .from('profile_pictures')
+    .getPublicUrl(filePath);
 
-await sbClient
-.from('users')
-.update({ pfp: data.publicUrl })
-.eq('phone', currentPhone);
+  await sbClient
+    .from('users')
+    .update({ pfp: data.publicUrl })
+    .eq('phone', currentPhone);
 
-document.getElementById("pfp-view-target").src = data.publicUrl;
+  document.getElementById("pfp-view-target").src = data.publicUrl;
 }
 
 /* EVENTS */
 document.getElementById("pfp-file-controller")
-.addEventListener("change", (e)=>{
-if(e.target.files[0]){
-uploadPfp(e.target.files[0]);
-}
-});
+  .addEventListener("change", (e) => {
+    if (e.target.files[0]) {
+      uploadPfp(e.target.files[0]);
+    }
+  });
 
 document.getElementById("logout-trigger-node")
-.addEventListener("click", ()=>{
-localStorage.removeItem("session_user");
-window.location.href = "login.html";
-});
+  .addEventListener("click", () => {
+    localStorage.removeItem("session_user");
+    window.location.href = "login.html";
+  });
 
-function triggerPfpInput(){
-document.getElementById("pfp-file-controller").click();
+function triggerPfpInput() {
+  if (!isOwnProfile) return;
+  document.getElementById("pfp-file-controller").click();
 }
 
 loadProfile();
