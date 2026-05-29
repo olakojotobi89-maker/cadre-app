@@ -355,7 +355,7 @@ body{
     <section class="terminal-data-card" id="data-card">
         <div><label>Name</label><span class="skeleton-line" style="width:120px;height:13px;display:inline-block;"></span></div>
         <div><label>Rank</label><span class="skeleton-line" style="width:80px;height:13px;display:inline-block;"></span></div>
-        <div><label>Phone</label><span class="skeleton-line" style="width:100px;height:13px;display:inline-block;"></span></div>
+        <div><label>Email</label><span class="skeleton-line" style="width:140px;height:13px;display:inline-block;"></span></div>
     </section>
 
     <section class="posts-section">
@@ -415,7 +415,7 @@ for (const key of sessionKeys) {
 
 const cachedProfile = tryParseJson(localStorage.getItem("cached_profile")) || {};
 const myPhone = sessionUser?.phone || localStorage.getItem("cached_operator_phone");
-const myEmail = sessionUser?.email || cachedProfile.email;
+const myEmail = (sessionUser?.email || cachedProfile.email || '').toString().toLowerCase() || null;
 const myId = sessionUser?.id || cachedProfile.id;
 
 /* ─────────────────────────────────────────────
@@ -437,7 +437,7 @@ const profileLookupKey = targetPhone
                 ? "id"
                 : null;
 const profilePhone = profileIdentifier;
-const isOwnProfile = !targetPhone || targetPhone === myPhone;
+const isOwnProfile = !targetPhone || (myPhone && targetPhone === myPhone);
 
 // No session and no target → redirect
 if (!profileIdentifier) {
@@ -483,7 +483,6 @@ async function loadProfile() {
             const fallbackName = cachedProfile.name || sessionUser?.name || 'UNKNOWN';
             const fallbackRank = cachedProfile.rank || sessionUser?.rank || 'UNIT';
             const fallbackEmail = cachedProfile.email || sessionUser?.email || '—';
-            const fallbackPhone = myPhone || localStorage.getItem("cached_operator_phone") || '—';
 
             const globalFallback = {
                 ...cachedProfile,
@@ -496,7 +495,6 @@ async function loadProfile() {
             dataCard.innerHTML = `
                 <div><label>Name</label><span>${escHtml(fallbackName)}</span></div>
                 <div><label>Rank</label><span>${escHtml(fallbackRank)}</span></div>
-                <div><label>Phone</label><span>${escHtml(fallbackPhone)}</span></div>
                 ${fallbackEmail ? `<div><label>Email</label><span>${escHtml(fallbackEmail)}</span></div>` : ''}
             `;
 
@@ -519,18 +517,15 @@ async function loadProfile() {
         return;
     }
 
-    /* ── Profile picture — from DB ── */
-    if (data.pfp) {
-        document.getElementById("pfp-view-target").src = data.pfp;
-    }
+    /* ── Profile picture — from DB or cached profile ── */
+    document.getElementById("pfp-view-target").src = data.pfp || sessionUser?.pfp || cachedProfile.pfp || DEFAULT_AVATAR;
 
     /* ── Data card — all fields from DB ── */
     dataCard.innerHTML = `
         <div><label>Name</label><span>${escHtml(data.name  || 'UNKNOWN')}</span></div>
         <div><label>Rank</label><span>${escHtml(data.rank  || 'UNIT')}</span></div>
-        <div><label>Phone</label><span>${escHtml(data.phone || '—')}</span></div>
-        ${data.unit  ? `<div><label>Unit</label><span>${escHtml(data.unit)}</span></div>`  : ''}
         ${data.email ? `<div><label>Email</label><span>${escHtml(data.email)}</span></div>` : ''}
+        ${data.unit  ? `<div><label>Unit</label><span>${escHtml(data.unit)}</span></div>`  : ''}
     `;
 
     /* ── Status pill ── */
@@ -543,7 +538,7 @@ async function loadProfile() {
     document.title = `CADRE — ${data.name || 'Operator'}`;
 
     /* ── Load this user's posts ── */
-    const postsPhone = data?.phone || (profileLookupKey === 'phone' ? profileIdentifier : null);
+    const postsPhone = data?.phone || null;
     if (postsPhone) {
         await loadUserPosts(postsPhone);
     } else {
@@ -614,15 +609,16 @@ async function loadUserPosts(phone) {
 
 async function uploadPfp(file) {
 
-    if (!isOwnProfile || !myPhone) return;
+    if (!isOwnProfile || !profileIdentifier || !profileLookupKey) return;
 
     const statusEl = document.getElementById("upload-status");
     const pill     = document.getElementById("terminal-status-pill");
 
     statusEl.textContent = "UPLOADING...";
 
-    const fileExt  = file.name.split('.').pop().toLowerCase();
-    const filePath = `${myPhone}.${fileExt}`;
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    const safeIdentifier = encodeURIComponent(profileIdentifier);
+    const filePath = `${profileLookupKey}_${safeIdentifier}.${fileExt}`;
 
     /* 1. Upload file to Storage */
     const { error: uploadError } = await sbClient.storage
@@ -647,10 +643,8 @@ async function uploadPfp(file) {
     }
 
     /* 3. Save URL to users table in DB */
-    const { error: updateError } = await sbClient
-        .from('users')
-        .update({ pfp: publicUrl })
-        .eq('phone', myPhone);
+    const updateQuery = sbClient.from('users').update({ pfp: publicUrl });
+    const { error: updateError } = await updateQuery.eq(profileLookupKey, profileIdentifier);
 
     if (updateError) {
         console.error("DB update error:", updateError);
@@ -667,19 +661,27 @@ async function uploadPfp(file) {
           composer avatar) reflect the new picture without reload */
     if (sessionUser) {
         sessionUser.pfp = publicUrl;
-        // Update whichever key was used
         for (const key of sessionKeys) {
             if (localStorage.getItem(key)) {
                 try {
                     const p = JSON.parse(localStorage.getItem(key));
-                    if (p?.phone === myPhone) {
+                    if (p?.[profileLookupKey] === profileIdentifier) {
                         p.pfp = publicUrl;
                         localStorage.setItem(key, JSON.stringify(p));
                     }
                 } catch(e) {}
             }
         }
+        localStorage.setItem("session_user", JSON.stringify(sessionUser));
     }
+
+    localStorage.setItem("cached_profile", JSON.stringify({
+        ...cachedProfile,
+        pfp: publicUrl,
+        name: sessionUser?.name || cachedProfile.name,
+        rank: sessionUser?.rank || cachedProfile.rank,
+        email: sessionUser?.email || cachedProfile.email
+    }));
 
     setTimeout(() => { statusEl.textContent = ''; }, 3000);
 }
