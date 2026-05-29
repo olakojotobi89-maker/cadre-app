@@ -225,16 +225,30 @@ if (!sessionUser) {
 }
 
 const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
+const STORAGE_BUCKET = 'profile_pictures';
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function getUserLookupKey() {
+  if (currentPhone) return { field: 'phone', value: currentPhone };
+  if (currentEmail) return { field: 'email', value: currentEmail };
+  return null;
+}
 
 async function getProfileImageUrl(pfp) {
   if (!pfp) return null;
   if (pfp.startsWith('http') || pfp.startsWith('data:')) return pfp;
 
-  const { data } = sbClient.storage
-    .from('profile_pictures')
-    .getPublicUrl(pfp);
 
-  return data?.publicUrl || null;
+
+  return null;
 }
 
 function setProfilePicture(src) {
@@ -283,33 +297,34 @@ async function uploadPfp(file) {
   if (!isOwnProfile) return;
 
   const fileExt = file.name.split('.').pop();
-  const filePath = `${currentPhone}.${fileExt}`;
+  const userKey = getUserLookupKey();
 
-  const { error: uploadError } = await sbClient.storage
-    .from('profile_pictures')
-    .upload(filePath, file, { upsert: true });
 
-  if (uploadError) {
-    console.error('Upload error:', uploadError);
+
+
+
+
+  if (!userKey) {
+    console.error('Unable to upload profile picture: no valid user session key');
     return;
   }
 
-  const { data } = sbClient.storage
-    .from('profile_pictures')
-    .getPublicUrl(filePath);
-
-  const publicUrl = data?.publicUrl;
-  if (!publicUrl) {
-    console.error('Failed to resolve public URL for profile picture');
-    return;
-  }
-
+  const base64Image = await fileToDataUrl(file);
   await sbClient
     .from('users')
-    .update({ pfp: publicUrl })
-    .eq('phone', currentPhone);
+    .update({ pfp: base64Image })
+    .eq(userKey.field, userKey.value);
 
-  setProfilePicture(publicUrl);
+  setProfilePicture(base64Image);
+}
+
+async function updateUserProfilePicture(src) {
+  const userKey = getUserLookupKey();
+  if (!userKey) return;
+  await sbClient
+    .from('users')
+    .update({ pfp: src })
+    .eq(userKey.field, userKey.value);
 }
 
 /* EVENTS */
