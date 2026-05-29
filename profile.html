@@ -216,9 +216,10 @@ const urlParams = new URLSearchParams(window.location.search);
 const targetPhone = urlParams.get("phone");
 
 const currentPhone = sessionUser?.phone;
+const currentId = sessionUser?.id;
 const currentEmail = sessionUser?.email?.toString().trim().toLowerCase();
 const profilePhone = targetPhone || currentPhone;
-const isOwnProfile = profilePhone ? profilePhone === currentPhone : !!currentEmail;
+const isOwnProfile = profilePhone ? profilePhone === currentPhone : !!currentId;
 
 if (!sessionUser) {
   window.location.href = "login.html";
@@ -237,8 +238,8 @@ function fileToDataUrl(file) {
 }
 
 function getUserLookupKey() {
+  if (currentId) return { field: 'id', value: currentId };
   if (currentPhone) return { field: 'phone', value: currentPhone };
-  if (currentEmail) return { field: 'email', value: currentEmail };
   return null;
 }
 
@@ -262,8 +263,8 @@ async function loadProfile() {
 
   if (profilePhone) {
     query = query.eq('phone', profilePhone);
-  } else if (currentEmail) {
-    query = query.eq('email', currentEmail);
+  } else if (currentId) {
+    query = query.eq('id', currentId);
   } else {
     document.getElementById("terminal-status-pill").textContent = "PROFILE NOT FOUND";
     setProfilePicture(null);
