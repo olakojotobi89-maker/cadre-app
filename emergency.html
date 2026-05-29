@@ -236,102 +236,87 @@ let micIntervalId  = null;
 
 (async function initSession() {
 
-    // ── Search every key your app might store the session under ──
+    // Try multiple storage locations for a stable identifier
     let savedPhone = null;
     let savedName  = null;
     let savedRank  = null;
+    let savedEmail = null;
 
-    // Key 1: cached_operator_phone (plain string)
-    savedPhone = localStorage.getItem("cached_operator_phone");
+    function tryParse(key) {
+        try { return JSON.parse(localStorage.getItem(key)); } catch(e) { return null; }
+    }
 
-    // Key 2: session_user (JSON object)
+    // Priority: explicit cached_operator_phone, session_user, user, officer, currentUser
+    savedPhone = localStorage.getItem('cached_operator_phone') || null;
+
+    const keys = ['session_user','user','officer','currentUser'];
+    for (const k of keys) {
+        const p = tryParse(k);
+        if (!p) continue;
+        if (!savedPhone && p.phone) savedPhone = p.phone;
+        if (!savedName && p.name) savedName = p.name;
+        if (!savedRank && p.rank) savedRank = p.rank;
+        if (!savedEmail && p.email) savedEmail = p.email;
+    }
+
+    // fallback to cached_profile (registration data)
+    const cachedProfile = tryParse('cached_profile');
+    if (cachedProfile) {
+        if (!savedPhone && cachedProfile.phone) savedPhone = cachedProfile.phone;
+        if (!savedName && cachedProfile.name) savedName = cachedProfile.name;
+        if (!savedRank && cachedProfile.rank) savedRank = cachedProfile.rank;
+        if (!savedEmail && cachedProfile.email) savedEmail = cachedProfile.email;
+    }
+
+    // If still no phone, create a stable identifier using email or anon id
     if (!savedPhone) {
-        try {
-            const parsed = JSON.parse(localStorage.getItem("session_user"));
-            if (parsed?.phone) {
-                savedPhone = parsed.phone;
-                savedName  = parsed.name;
-                savedRank  = parsed.rank;
+        if (savedEmail) {
+            savedPhone = `email:${savedEmail.toLowerCase()}`;
+            localStorage.setItem('cached_operator_phone', savedPhone);
+            logToConsole('NO PHONE — using email-derived identifier', 'status-active');
+        } else {
+            const existing = localStorage.getItem('cached_operator_phone');
+            if (existing) {
+                savedPhone = existing;
+            } else {
+                savedPhone = `anon_${Math.random().toString(36).slice(2,9)}`;
+                localStorage.setItem('cached_operator_phone', savedPhone);
+                logToConsole('NO IDENTIFIERS — created persistent anon id', 'status-active');
             }
-        } catch(e) {}
+        }
     }
 
-    // Key 3: user (some versions of the app use this key)
-    if (!savedPhone) {
-        try {
-            const parsed = JSON.parse(localStorage.getItem("user"));
-            if (parsed?.phone) {
-                savedPhone = parsed.phone;
-                savedName  = parsed.name;
-                savedRank  = parsed.rank;
-            }
-        } catch(e) {}
-    }
+    logToConsole('CONNECTING SECURE IDENT NODE...', 'status-active');
 
-    // Key 4: officer (another common key)
-    if (!savedPhone) {
-        try {
-            const parsed = JSON.parse(localStorage.getItem("officer"));
-            if (parsed?.phone) {
-                savedPhone = parsed.phone;
-                savedName  = parsed.name;
-                savedRank  = parsed.rank;
-            }
-        } catch(e) {}
-    }
-
-    // Key 5: currentUser
-    if (!savedPhone) {
-        try {
-            const parsed = JSON.parse(localStorage.getItem("currentUser"));
-            if (parsed?.phone) {
-                savedPhone = parsed.phone;
-                savedName  = parsed.name;
-                savedRank  = parsed.rank;
-            }
-        } catch(e) {}
-    }
-
-    // ── Still nothing? Only redirect as a last resort ──
-    if (!savedPhone) {
-        logToConsole("NO SESSION FOUND. REDIRECTING TO LOGIN...", "status-critical");
-        // Show all localStorage keys in console to help diagnose
-        console.warn("emergency.html: no phone found. localStorage keys present:", Object.keys(localStorage));
-        setTimeout(() => { window.location.href = "login.html"; }, 2500);
-        return;
-    }
-
-    logToConsole("CONNECTING SECURE IDENT NODE...", "status-active");
-
-    // ── Build a fallback identity from whatever we found in localStorage ──
-    // This means even if the DB call fails, the user is NOT logged out.
     currentSessionOfficer = {
         phone: savedPhone,
-        name:  savedName  || "Field Agent",
-        rank:  savedRank  || "Operational Operator"
+        name:  savedName || (cachedProfile && cachedProfile.name) || 'Field Agent',
+        rank:  savedRank || (cachedProfile && cachedProfile.rank) || 'UNIT',
+        email: savedEmail || (cachedProfile && cachedProfile.email) || null
     };
 
+    // Try to enrich identity from DB by phone OR email (if phone is email:... strip prefix)
     try {
-        const { data, error } = await sbClient
-            .from("users")
-            .select("*")
-            .eq("phone", savedPhone)
-            .single();
-
-        if (data) {
-            // DB lookup succeeded — use full profile
-            currentSessionOfficer = data;
-            logToConsole(`OPERATOR IDENTIFIED: ${data.name.toUpperCase()}`, "status-resolved");
-            await checkActiveStatus(savedPhone);
+        let query = sbClient.from('users').select('*');
+        if (currentSessionOfficer.phone && currentSessionOfficer.phone.startsWith('email:')) {
+            const e = currentSessionOfficer.phone.split(':')[1];
+            query = query.eq('email', e).maybeSingle();
         } else {
-            // DB returned nothing but we have a phone — stay on page
-            logToConsole("FALLBACK IDENTITY LOADED", "status-active");
-            logToConsole(`PHONE: ${savedPhone}`, "status-active");
+            query = query.eq('phone', currentSessionOfficer.phone).maybeSingle();
+        }
+
+        const res = await query;
+        if (res && res.data) {
+            currentSessionOfficer = res.data;
+            if (currentSessionOfficer.phone) localStorage.setItem('cached_operator_phone', currentSessionOfficer.phone);
+            logToConsole(`OPERATOR IDENTIFIED: ${currentSessionOfficer.name}`, 'status-resolved');
+            await checkActiveStatus(currentSessionOfficer.phone);
+        } else {
+            logToConsole('FALLBACK IDENTITY LOADED (no DB record)', 'status-active');
         }
     } catch (err) {
-        // Network/DB error — stay on page with fallback identity
-        logToConsole("OFFLINE IDENTITY MODULE ACTIVE", "status-active");
-        console.warn("emergency.html: DB lookup failed, using fallback:", err);
+        logToConsole('OFFLINE IDENTITY MODULE ACTIVE', 'status-active');
+        console.warn('emergency.html: DB lookup failed, using fallback:', err);
     }
 
 })();

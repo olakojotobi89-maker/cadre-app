@@ -216,6 +216,13 @@ async function uploadPfp(file) {
 
     document.getElementById("pfp-view-target").src = publicUrl;
     statusEl.textContent = "✓ PROFILE PICTURE UPDATED";
+    // Persist to cached_profile so other pages/devices can pick up the change
+    try {
+        const cp = tryParse(localStorage.getItem('cached_profile')) || {};
+        cp.pfp = publicUrl;
+        if (myUid) cp.id = myUid;
+        localStorage.setItem('cached_profile', JSON.stringify(cp));
+    } catch(e) { /* ignore */ }
     setTimeout(function() { statusEl.textContent = ''; }, 3000);
 }
 
@@ -227,10 +234,29 @@ function triggerPfpInput() {
 async function loadProfile(lookupId, isOwnProfile) {
     const dataCard = document.getElementById("data-card");
     const pill     = document.getElementById("terminal-status-pill");
+    let data = null; let error = null; let res = null;
 
-    let { data, error } = await sbClient
-        .from('users').select('*').eq('id', lookupId).single();
-
+    // Try id lookup, then email, then phone — tolerate whichever identifier we received
+    try {
+        if (lookupId) {
+            // primary: id
+            res = await sbClient.from('users').select('*').eq('id', lookupId).maybeSingle();
+            if (!res.data) {
+                // if lookupId contains @ treat as email
+                if (String(lookupId).includes('@')) {
+                    res = await sbClient.from('users').select('*').eq('email', lookupId).maybeSingle();
+                }
+            }
+            if (!res.data) {
+                // try phone
+                res = await sbClient.from('users').select('*').eq('phone', lookupId).maybeSingle();
+            }
+            data = res && res.data ? res.data : null;
+            error = res && res.error ? res.error : null;
+        }
+    } catch (e) {
+        error = e;
+    }
     /* Row missing — auto-create it from Supabase Auth metadata */
     if ((error || !data) && isOwnProfile) {
         try {
@@ -385,10 +411,30 @@ document.getElementById("logout-trigger-node")
     window._myUid        = myUid;
     window._isOwnProfile = isOwnProfile;
 
-    /* No session at all → go to login */
+
+    /* No session at all → try cached_profile fallback instead of redirecting */
     if (!lookupId) {
-        window.location.href = "login.html";
-        return;
+        const cached = tryParse(localStorage.getItem('cached_profile'));
+        if (cached && (cached.id || cached.email || cached.phone)) {
+            // prefer id, then email, then phone
+            if (cached.id) {
+                lookupId = cached.id;
+            } else if (cached.email) {
+                lookupId = cached.email;
+            } else {
+                lookupId = cached.phone;
+            }
+            myUid = lookupId;
+            isOwnProfile = true;
+            window._myUid = myUid;
+            window._isOwnProfile = true;
+        } else {
+            // No identifiers — show guest view but don't log out the user
+            document.getElementById("data-card").innerHTML = '<div class="profile-error"><p style="color:#ff6b6b;">NO ACTIVE SESSION — limited profile view</p></div>';
+            document.getElementById("terminal-status-pill").textContent = 'GUEST MODE';
+            document.getElementById("profile-posts-container").innerHTML = '<div class="no-posts-msg">Sign in to view transmissions.</div>';
+            return;
+        }
     }
 
     /* Set up UI mode */
