@@ -216,7 +216,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const targetPhone = urlParams.get("phone");
 
 const currentPhone = sessionUser?.phone;
-const currentEmail = sessionUser?.email;
+const currentEmail = sessionUser?.email?.toString().trim().toLowerCase();
 const profilePhone = targetPhone || currentPhone;
 const isOwnProfile = profilePhone ? profilePhone === currentPhone : !!currentEmail;
 
@@ -272,7 +272,14 @@ async function loadProfile() {
 
   const { data, error } = await query.single();
 
-  if (error || !data) {
+  if (error) {
+    console.error('Profile load error:', error);
+    document.getElementById("terminal-status-pill").textContent = error.message || "PROFILE NOT FOUND";
+    setProfilePicture(null);
+    return;
+  }
+
+  if (!data) {
     document.getElementById("terminal-status-pill").textContent = "PROFILE NOT FOUND";
     setProfilePicture(null);
     return;
