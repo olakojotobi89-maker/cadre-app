@@ -53,7 +53,6 @@
 </div>
 
 <script>
-    // FIX: Renamed local instance to 'sbClient' to avoid conflict with global 'supabase'
     const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
     const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
     const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
@@ -75,7 +74,10 @@
     });
 
     document.getElementById("confirm-deploy-btn").addEventListener("click", async () => {
-        // FIX: Use 'sbClient' instead of 'supabase'
+        const button = document.getElementById("confirm-deploy-btn");
+        button.disabled = true;
+        button.textContent = "Initializing...";
+
         const { data, error } = await sbClient.auth.signUp({
             email: stagedData.email,
             password: stagedData.password,
@@ -89,7 +91,28 @@
 
         if (error) {
             alert("DEPLOYMENT CRASH: " + error.message);
+            button.disabled = false;
+            button.textContent = "Confirm & Initialize";
         } else {
+            // NEW: Save user data to localStorage after successful signup
+            const userSession = {
+                name: stagedData.name,
+                rank: stagedData.rank,
+                email: stagedData.email.toLowerCase().trim()
+            };
+            
+            const userProfile = {
+                name: stagedData.name,
+                rank: stagedData.rank,
+                email: stagedData.email.toLowerCase().trim()
+            };
+            
+            // Store both session and profile in localStorage
+            localStorage.setItem("session_user", JSON.stringify(userSession));
+            localStorage.setItem("cached_profile", JSON.stringify(userProfile));
+            
+            console.log("✅ User registered and saved:", userSession);
+            
             alert("SUCCESS: Profile initialized.");
             window.location.href = "login.html";
         }
