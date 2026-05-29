@@ -228,8 +228,32 @@ async function loadProfile(lookupId, isOwnProfile) {
     const dataCard = document.getElementById("data-card");
     const pill     = document.getElementById("terminal-status-pill");
 
-    const { data, error } = await sbClient
+    let { data, error } = await sbClient
         .from('users').select('*').eq('id', lookupId).single();
+
+    /* Row missing — auto-create it from Supabase Auth metadata */
+    if ((error || !data) && isOwnProfile) {
+        try {
+            const { data: sessionData } = await sbClient.auth.getSession();
+            const authUser = sessionData && sessionData.session && sessionData.session.user;
+            if (authUser) {
+                const meta = authUser.user_metadata || {};
+                const newRow = {
+                    id:    authUser.id,
+                    name:  meta.name  || 'UNKNOWN',
+                    rank:  meta.rank  || 'UNIT',
+                    email: authUser.email || ''
+                };
+                const { error: insertErr } = await sbClient.from('users').insert(newRow);
+                if (!insertErr) {
+                    data  = newRow;
+                    error = null;
+                } else {
+                    console.error("Auto-create failed:", insertErr);
+                }
+            }
+        } catch(e) { console.error("Session fetch failed:", e); }
+    }
 
     if (error || !data) {
         dataCard.innerHTML = '<div class="profile-error"><p style="color:#ff6b6b;">OPERATOR NOT FOUND</p></div>';
