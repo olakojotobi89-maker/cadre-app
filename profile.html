@@ -479,11 +479,19 @@ async function loadProfile() {
     const pill     = document.getElementById("terminal-status-pill");
 
     if (error || !data) {
-        if (isOwnProfile && sessionUser) {
-            const fallbackName = sessionUser.name || cachedProfile.name || 'UNKNOWN';
-            const fallbackRank = sessionUser.rank || cachedProfile.rank || 'UNIT';
-            const fallbackEmail = sessionUser.email || cachedProfile.email || '—';
-            const fallbackPhone = myPhone || '—';
+        if (isOwnProfile && (sessionUser || cachedProfile.name || cachedProfile.rank || cachedProfile.email)) {
+            const fallbackName = cachedProfile.name || sessionUser?.name || 'UNKNOWN';
+            const fallbackRank = cachedProfile.rank || sessionUser?.rank || 'UNIT';
+            const fallbackEmail = cachedProfile.email || sessionUser?.email || '—';
+            const fallbackPhone = myPhone || localStorage.getItem("cached_operator_phone") || '—';
+
+            const globalFallback = {
+                ...cachedProfile,
+                name: fallbackName,
+                rank: fallbackRank,
+                email: fallbackEmail
+            };
+            localStorage.setItem("cached_profile", JSON.stringify(globalFallback));
 
             dataCard.innerHTML = `
                 <div><label>Name</label><span>${escHtml(fallbackName)}</span></div>
