@@ -13,13 +13,100 @@
 <style>
 .app-bottom-dock{
     display:grid !important;
-    grid-template-columns:repeat(8,1fr) !important;
+    grid-template-columns:repeat(5,1fr) !important;
 }
 .dock-node-emergency{ color:#ff3333 !important; font-weight:700; }
 .dock-node-emergency .dock-node-glyph{ animation:beacon-pulse 1.5s infinite ease-in-out; }
 @keyframes beacon-pulse{
     0%,100%{ opacity:0.6; transform:scale(1); }
     50%{ opacity:1; transform:scale(1.15); }
+}
+.more-menu-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.45);
+    backdrop-filter:blur(4px);
+    z-index:2100;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.25s ease;
+}
+.more-menu-overlay.active{
+    opacity:1;
+    pointer-events:auto;
+}
+.more-menu{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    z-index:2101;
+    background:rgba(5,10,16,0.98);
+    border-top:1px solid rgba(255,255,255,0.08);
+    box-shadow:0 -18px 42px rgba(0,0,0,0.35);
+    transform:translateY(110%);
+    transition:transform 0.25s ease;
+    max-height:84vh;
+    overflow:hidden;
+    border-radius:18px 18px 0 0;
+}
+.more-menu.active{
+    transform:translateY(0);
+}
+.more-menu-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 18px 12px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.more-menu-title{
+    color:var(--text-bright);
+    font-size:0.92rem;
+    font-weight:700;
+    letter-spacing:1px;
+    text-transform:uppercase;
+}
+.more-menu-close{
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    font-size:1.2rem;
+    cursor:pointer;
+    padding:8px;
+}
+.more-menu-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+    padding:16px 16px 18px;
+}
+.more-menu-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:14px 16px;
+    background:rgba(17,32,46,0.95);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:14px;
+    color:var(--text-bright);
+    text-decoration:none;
+    font-weight:700;
+}
+.more-menu-item:hover{
+    background:rgba(255,255,255,0.06);
+}
+.more-menu-icon{
+    font-size:1.25rem;
+}
+.more-menu-note{
+    padding:0 16px 18px;
+    color:var(--text-dim);
+    font-size:0.78rem;
+    line-height:1.5;
+}
+.dock-node-more{
+    color:var(--hud-amber);
 }
 .feed-post-card{
     background:#101826; border:1px solid #1f2937;
@@ -232,30 +319,50 @@
 
 <nav class="app-bottom-dock">
     <a href="home.html" class="dock-node active-node">
-        <span class="dock-node-glyph">🏠</span><span>Feed</span>
-    </a>
-    <a href="ebook.html" class="dock-node">
-        <span class="dock-node-glyph">📖</span><span>eBook</span>
+        <span class="dock-node-glyph">🏠</span><span>Home</span>
     </a>
     <a href="group-call.html" class="dock-node">
         <span class="dock-node-glyph">📞</span><span>Call</span>
     </a>
-    <a href="compass.html" class="dock-node">
-        <span class="dock-node-glyph">🧭</span><span>Compass</span>
-    </a>
-    <a href="tactical-plotter.html" class="dock-node">
-        <span class="dock-node-glyph">📍</span><span>Plotter</span>
-    </a>
     <a href="profile.html" class="dock-node">
         <span class="dock-node-glyph">👤</span><span>Profile</span>
-    </a>
-    <a href="#" id="admin-btn" class="dock-node">
-        <span class="dock-node-glyph">⚙️</span><span>Admin</span>
     </a>
     <a href="emergency.html" class="dock-node dock-node-emergency">
         <span class="dock-node-glyph">🚨</span><span>SOS</span>
     </a>
+    <button type="button" id="more-dock-btn" class="dock-node dock-node-more" aria-label="Open more navigation">
+        <span class="dock-node-glyph">☰</span><span>More</span>
+    </button>
 </nav>
+
+<div id="more-menu-overlay" class="more-menu-overlay"></div>
+<div id="more-menu" class="more-menu" aria-hidden="true">
+    <div class="more-menu-header">
+        <div class="more-menu-title">More tools</div>
+        <button type="button" class="more-menu-close" id="more-menu-close" aria-label="Close more menu">✕</button>
+    </div>
+    <div class="more-menu-grid">
+        <a href="tactical-plotter.html" class="more-menu-item">
+            <span class="more-menu-icon">📍</span><span>Plotter</span>
+        </a>
+        <a href="compass.html" class="more-menu-item">
+            <span class="more-menu-icon">🧭</span><span>Compass</span>
+        </a>
+        <a href="ebook.html" class="more-menu-item">
+            <span class="more-menu-icon">📖</span><span>eBook</span>
+        </a>
+        <a href="channel.html" class="more-menu-item">
+            <span class="more-menu-icon">📡</span><span>Channels</span>
+        </a>
+        <a href="map.html" class="more-menu-item">
+            <span class="more-menu-icon">🗺️</span><span>Map</span>
+        </a>
+        <a href="#" id="admin-btn" data-more-admin-item class="more-menu-item" style="display:none;">
+            <span class="more-menu-icon">⚙️</span><span>Admin</span>
+        </a>
+    </div>
+    <div class="more-menu-note">Tap outside to close. Additional tools can be added here later without changing bottom navigation.</div>
+</div>
 
 </div>
 
@@ -395,6 +502,33 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.getElementById("admin-btn").addEventListener("click", checkAdminAccess);
+
+    const moreDockBtn      = document.getElementById("more-dock-btn");
+    const moreMenuClose    = document.getElementById("more-menu-close");
+    const moreMenuOverlay  = document.getElementById("more-menu-overlay");
+    const moreAdminItem    = document.querySelector("[data-more-admin-item]");
+    const moreMenu         = document.getElementById("more-menu");
+
+    if (moreDockBtn) {
+        moreDockBtn.addEventListener("click", () => toggleMoreMenu(true));
+    }
+    if (moreMenuClose) {
+        moreMenuClose.addEventListener("click", () => toggleMoreMenu(false));
+    }
+    if (moreMenuOverlay) {
+        moreMenuOverlay.addEventListener("click", () => toggleMoreMenu(false));
+    }
+    document.addEventListener("keydown", function(event) {
+        if (event.key === 'Escape' && moreMenu && moreMenu.classList.contains('active')) {
+            event.preventDefault();
+            toggleMoreMenu(false);
+        }
+    });
+
+    if (moreAdminItem) {
+        const isAdmin = currentUser && (currentUser.admin || currentUser.is_admin || currentUser.role === 'admin');
+        moreAdminItem.style.display = isAdmin ? 'flex' : 'none';
+    }
 
     await Promise.all([
         loadMyLikes(uid),
@@ -1001,6 +1135,24 @@ function checkAdminAccess(event) {
     }
 }
 
+function toggleMoreMenu(show) {
+    const moreMenu = document.getElementById("more-menu");
+    const overlay  = document.getElementById("more-menu-overlay");
+    if (!moreMenu || !overlay) return;
+
+    if (show) {
+        moreMenu.classList.add("active");
+        overlay.classList.add("active");
+        moreMenu.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+    } else {
+        moreMenu.classList.remove("active");
+        overlay.classList.remove("active");
+        moreMenu.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+    }
+}
+
 function previewSelectedImage(input) {
     if (!input.files[0]) return;
     const reader = new FileReader();
@@ -1019,10 +1171,7 @@ function handleTypingSound() {
     }
 }
 </script>
-<<<<<<< HEAD
 <script src="ai-voice.js"></script>
 <script src="ai-integration.js"></script>
-=======
->>>>>>> c95de574418037f2ae8e1b16f5aa59d82f5c85df
 </body>
 </html>

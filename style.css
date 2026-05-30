@@ -122,6 +122,26 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     gap: 2px;
+    width: 100%;
+    min-width: 0;
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+}
+
+@media (max-width: 360px) {
+    .app-bottom-dock {
+        height: 62px;
+    }
+    .dock-node {
+        font-size: 0.62rem;
+        gap: 1px;
+    }
+    .dock-node-glyph {
+        font-size: 1rem;
+    }
 }
 
 .dock-node-glyph {

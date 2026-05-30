@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CADRE — Tactical Channel Hub</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
 <style>
 
 /* ═══════════════════════════════════════════
@@ -1078,10 +1079,12 @@ const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 /* ─────────────────────────────────────────────
    AGORA
 ───────────────────────────────────────────── */
-const AGORA_APP_ID = 'YOUR_AGORA_APP_ID';
+const AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
 let agoraClient     = null;
 let localAudioTrack = null;
 let activeChannelKey = null;
+let agoraUid        = null;
+let isPublishing    = false;
 
 /* ─────────────────────────────────────────────
    SESSION
@@ -1220,45 +1223,153 @@ async function loadOfficerCounts() {
 }
 
 /* ─────────────────────────────────────────────
-   AGORA FUNCTIONS (placeholders)
+   AGORA FUNCTIONS
 ───────────────────────────────────────────── */
+
+function getAgoraUid() {
+  return sessionUser?.phone || sessionUser?.name || `UID_${Date.now()}`;
+}
+
+function updateConnectionStatus(state) {
+  const statusLine = document.getElementById("ptt-status-line");
+  statusLine.classList.remove('transmitting');
+
+  switch (state) {
+    case 'connected':
+      statusLine.textContent = 'CONNECTED';
+      statusLine.style.color = 'var(--green)';
+      break;
+    case 'reconnecting':
+      statusLine.textContent = 'RECONNECTING';
+      statusLine.style.color = 'var(--amber)';
+      break;
+    case 'disconnected':
+      statusLine.textContent = 'DISCONNECTED';
+      statusLine.style.color = 'var(--red)';
+      break;
+    case 'error':
+      statusLine.textContent = 'CONNECTION ERROR';
+      statusLine.style.color = 'var(--red)';
+      break;
+    default:
+      statusLine.textContent = activeChannelKey ? 'CHANNEL ACTIVE' : 'STANDBY';
+      statusLine.style.color = activeChannelKey ? 'var(--green)' : '';
+  }
+}
+
+async function initAgoraClient() {
+  if (agoraClient) return;
+  if (typeof AgoraRTC === 'undefined') {
+    showToast('Agora SDK not loaded.', 'error');
+    throw new Error('AgoraRTC not available');
+  }
+
+  agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+
+  agoraClient.on('user-published', async (user, mediaType) => {
+    try {
+      await agoraClient.subscribe(user, mediaType);
+      if (mediaType === 'audio' && user.audioTrack) {
+        user.audioTrack.play();
+        logActivity(`Remote user joined: ${user.uid}`, 'msg');
+      }
+    } catch (err) {
+      console.error('Agora subscribe failed:', err);
+      showToast('Failed to subscribe to remote audio.', 'error');
+    }
+  });
+
+  agoraClient.on('user-unpublished', user => {
+    if (user.audioTrack) {
+      user.audioTrack.stop();
+    }
+    logActivity(`Remote user muted: ${user.uid}`, 'alert');
+  });
+
+  agoraClient.on('user-left', user => {
+    logActivity(`Remote user left: ${user.uid}`, 'leave');
+  });
+
+  agoraClient.on('connection-state-change', (cur, rev) => {
+    if (cur === 'CONNECTED') {
+      updateConnectionStatus('connected');
+    } else if (cur === 'RECONNECTING') {
+      updateConnectionStatus('reconnecting');
+    } else if (cur === 'DISCONNECTED') {
+      updateConnectionStatus('disconnected');
+    }
+  });
+
+  agoraClient.on('exception', err => {
+    console.error('Agora exception:', err);
+    showToast(`Agora error: ${err.msg || err}`, 'error');
+    updateConnectionStatus('error');
+  });
+}
+
+async function createLocalTrack() {
+  try {
+    const track = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_low_latency' });
+    await track.setEnabled(false);
+    return track;
+  } catch (err) {
+    console.error('Microphone create failed:', err);
+    showToast('Microphone permission is required for push-to-talk.', 'error');
+    throw err;
+  }
+}
 
 async function joinChannel(channelKey) {
   if (!channelKey) return;
+
+  if (activeChannelKey === channelKey) {
+    showToast(`Already connected to ${channelKey}.`, 'info');
+    return;
+  }
 
   if (activeChannelKey && activeChannelKey !== channelKey) {
     await leaveChannel();
   }
 
-  activeChannelKey = channelKey;
-  const ch = CHANNELS.find(c => c.key === channelKey) || { name: channelKey };
+  try {
+    await initAgoraClient();
+    const uid = getAgoraUid();
+    agoraUid = uid;
 
-  document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
-  const card = document.getElementById(`card-${channelKey}`);
-  if (card) {
-    card.classList.add('active');
-    card.querySelector('.btn-join').classList.add('joined');
-    card.querySelector('.btn-join').textContent = '✓ JOINED';
+    await agoraClient.join(AGORA_APP_ID, channelKey, null, uid);
+    localAudioTrack = await createLocalTrack();
+    await agoraClient.publish([localAudioTrack]);
+    isPublishing = true;
+
+    activeChannelKey = channelKey;
+    const ch = CHANNELS.find(c => c.key === channelKey) || { name: channelKey };
+
+    document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
+    const card = document.getElementById(`card-${channelKey}`);
+    if (card) {
+      card.classList.add('active');
+      card.querySelector('.btn-join').classList.add('joined');
+      card.querySelector('.btn-join').textContent = '✓ JOINED';
+    }
+
+    document.getElementById('ptt-channel-label').textContent = channelKey;
+    updateChannelStatus(channelKey, 'joined');
+    updateConnectionStatus('connected');
+
+    showToast(`Joined ${ch.name}`, 'success');
+    logActivity(`You joined ${ch.name}`, 'join');
+  } catch (err) {
+    console.error('Agora join failed:', err);
+    showToast('Failed to join channel. Check microphone permission and network.', 'error');
+    updateConnectionStatus('error');
+    activeChannelKey = null;
   }
-
-  document.getElementById("ptt-channel-label").textContent = channelKey;
-
-  showToast(`Joined ${ch.name}`, 'success');
-  logActivity(`You joined ${ch.name}`, 'join');
-
-  // TODO: Implement actual Agora join
-  // await agoraClient.join(AGORA_APP_ID, channelKey, null, sessionUser.phone);
-  // localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-  // await agoraClient.publish([localAudioTrack]);
-
-  updateChannelStatus(channelKey, 'joined');
 }
 
 async function leaveChannel() {
   if (!activeChannelKey) return;
 
   const ch = CHANNELS.find(c => c.key === activeChannelKey) || { name: activeChannelKey };
-
   const card = document.getElementById(`card-${activeChannelKey}`);
   if (card) {
     card.classList.remove('active');
@@ -1266,20 +1377,32 @@ async function leaveChannel() {
     card.querySelector('.btn-join').textContent = 'JOIN CHANNEL';
   }
 
+  try {
+    if (localAudioTrack) {
+      await localAudioTrack.setEnabled(false);
+      localAudioTrack.close();
+      localAudioTrack = null;
+    }
+
+    if (agoraClient) {
+      await agoraClient.unpublish();
+      await agoraClient.leave();
+    }
+  } catch (err) {
+    console.warn('Agora leave failed:', err);
+  }
+
   logActivity(`You left ${ch.name}`, 'leave');
   showToast(`Left ${ch.name}`, 'warning');
 
-  // TODO: Actual Agora leave
-  // if (localAudioTrack) { localAudioTrack.close(); }
-  // await agoraClient.leave();
-
-  document.getElementById("ptt-channel-label").textContent = 'NO CHANNEL';
+  document.getElementById('ptt-channel-label').textContent = 'NO CHANNEL';
   activeChannelKey = null;
   updateChannelStatus(null, 'idle');
+  updateConnectionStatus('disconnected');
 }
 
 function updateChannelStatus(channelKey, status) {
-  const statusLine = document.getElementById("ptt-status-line");
+  const statusLine = document.getElementById('ptt-status-line');
   if (status === 'joined') {
     statusLine.textContent = 'CHANNEL ACTIVE';
     statusLine.style.color = 'var(--green)';
@@ -1428,22 +1551,26 @@ function pttPress(e) {
   if (e) e.preventDefault();
   if (pttActive) return;
 
-  if (!activeChannelKey) {
+  if (!activeChannelKey || !localAudioTrack) {
     showToast('Join a channel first', 'warning');
     return;
   }
 
   pttActive = true;
-  document.getElementById("ptt-btn").classList.add("pressing");
+  document.getElementById('ptt-btn').classList.add('pressing');
 
-  const statusLine = document.getElementById("ptt-status-line");
+  const statusLine = document.getElementById('ptt-status-line');
   statusLine.textContent = '● TRANSMITTING';
   statusLine.classList.add('transmitting');
 
-  logActivity(`${sessionUser?.name || 'Officer'} transmitting on ${activeChannelKey}`, 'msg');
-
-  // TODO: unmute / start Agora audio track
-  // if (localAudioTrack) localAudioTrack.setEnabled(true);
+  try {
+    localAudioTrack.setEnabled(true);
+    logActivity(`${sessionUser?.name || 'Officer'} transmitting on ${activeChannelKey}`, 'msg');
+  } catch (err) {
+    console.error('PTT enable failed:', err);
+    showToast('Unable to enable microphone.', 'error');
+    pttRelease();
+  }
 }
 
 function pttRelease(e) {
@@ -1451,14 +1578,19 @@ function pttRelease(e) {
   if (!pttActive) return;
 
   pttActive = false;
-  document.getElementById("ptt-btn").classList.remove("pressing");
+  document.getElementById('ptt-btn').classList.remove('pressing');
 
-  const statusLine = document.getElementById("ptt-status-line");
+  const statusLine = document.getElementById('ptt-status-line');
   statusLine.textContent = 'CHANNEL ACTIVE';
   statusLine.classList.remove('transmitting');
 
-  // TODO: mute Agora audio track
-  // if (localAudioTrack) localAudioTrack.setEnabled(false);
+  if (localAudioTrack) {
+    try {
+      localAudioTrack.setEnabled(false);
+    } catch (err) {
+      console.error('PTT disable failed:', err);
+    }
+  }
 }
 
 /* ─────────────────────────────────────────────

@@ -3,6 +3,23 @@
     const AI = {};
 
     let voiceReady = false;
+    let _audioContext = null;
+    let _ambientSource = null;
+    let _ambientGain = null;
+
+    const PREFERRED_TACTICAL_VOICES = [
+        /Microsoft David/i,
+        /Microsoft Zira/i,
+        /Google UK English Male/i,
+        /Google US English/i,
+        /Daniel/i,
+        /Alloy/i,
+        /Samantha/i,
+        /Alex/i,
+        /en-US/i,
+        /en-GB/i,
+        /English/i,
+    ];
 
     /* ─────────────────────────────
        INIT VOICES
@@ -10,7 +27,81 @@
     function initVoices() {
         if (voiceReady) return;
         speechSynthesis.getVoices();
+        speechSynthesis.onvoiceschanged = function () {
+            voiceReady = true;
+        };
         voiceReady = true;
+    }
+
+    function selectTacticalVoice(voices) {
+        const englishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+        for (const pattern of PREFERRED_TACTICAL_VOICES) {
+            const candidate = englishVoices.find(v => pattern.test(v.name) || pattern.test(v.voiceURI));
+            if (candidate) return candidate;
+        }
+        return englishVoices[0] || voices[0] || null;
+    }
+
+    function getAudioContext() {
+        if (_audioContext) return _audioContext;
+        const ctor = window.AudioContext || window.webkitAudioContext;
+        if (!ctor) return null;
+        _audioContext = new ctor();
+        return _audioContext;
+    }
+
+    function startAmbientLayer() {
+        const audioCtx = getAudioContext();
+        if (!audioCtx || _ambientSource) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(() => {});
+        }
+
+        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i += 1) {
+            data[i] = (Math.random() * 2 - 1) * 0.08;
+        }
+
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+
+        const bandpass = audioCtx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 1200;
+        bandpass.Q.value = 0.9;
+
+        const compressor = audioCtx.createDynamicsCompressor();
+        compressor.threshold.value = -24;
+        compressor.knee.value = 12;
+        compressor.ratio.value = 3.5;
+        compressor.attack.value = 0.01;
+        compressor.release.value = 0.2;
+
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0.0;
+
+        source.connect(bandpass).connect(compressor).connect(gain).connect(audioCtx.destination);
+        source.start();
+
+        _ambientSource = source;
+        _ambientGain = gain;
+
+        gain.gain.setTargetAtTime(0.02, audioCtx.currentTime, 0.2);
+    }
+
+    function stopAmbientLayer() {
+        const audioCtx = getAudioContext();
+        if (!audioCtx || !_ambientSource || !_ambientGain) return;
+        _ambientGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.12);
+        setTimeout(() => {
+            if (_ambientSource) {
+                try { _ambientSource.stop(); } catch (e) {}
+            }
+            _ambientSource = null;
+            _ambientGain = null;
+        }, 250);
     }
 
     /* ─────────────────────────────
@@ -41,24 +132,23 @@
         msg.volume = options.volume || 1;
 
         const voices = speechSynthesis.getVoices();
-
-        msg.voice =
-            voices.find(v => v.lang.includes("en") && v.name.includes("Google")) ||
-            voices.find(v => v.lang.includes("en")) ||
-            voices[0];
+        msg.voice = selectTacticalVoice(voices);
 
         msg.onend = () => {
+            stopAmbientLayer();
             _isSpeaking = false;
             if (typeof onEnd === "function") onEnd();
             _processQueue();
         };
 
         msg.onerror = () => {
+            stopAmbientLayer();
             _isSpeaking = false;
             _processQueue();
         };
 
         _isSpeaking = true;
+        startAmbientLayer();
         speechSynthesis.speak(msg);
     }
 
