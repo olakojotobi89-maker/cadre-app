@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CADRE — Tactical Channel Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+
+/* ═══════════════════════════════════════════
+   ROOT VARIABLES & RESET
+═══════════════════════════════════════════ */
+:root {
+  --bg-deep:       #020509;
+  --bg-surface:    #060d16;
+  --bg-panel:      #0a1520;
+  --bg-card:       #0d1b2a;
+  --bg-card-hover: #112030;
+  --border:        #1a2d42;
+  --border-bright: #1e3a55;
+
+  --cyan:          #00f0ff;
+  --cyan-dim:      rgba(0,240,255,0.12);
+  --cyan-glow:     rgba(0,240,255,0.3);
+  --green:         #00ff88;
+  --green-dim:     rgba(0,255,136,0.1);
+  --green-glow:    rgba(0,255,136,0.25);
+  --amber:         #ffaa00;
+  --amber-dim:     rgba(255,170,0,0.1);
+  --red:           #ff3333;
+  --red-dim:       rgba(255,51,51,0.1);
+  --red-glow:      rgba(255,51,51,0.3);
+  --gold:          #ffd700;
+
+  --text:          #c8d8e8;
+  --text-bright:   #e8f4ff;
+  --text-dim:      #4a6a88;
+  --text-muted:    #2a4a68;
+
+  --font-mono:     'Courier New', Courier, monospace;
+  --font-body:     'Segoe UI', system-ui, sans-serif;
+
+  --radius:        6px;
+  --radius-lg:     12px;
+  --transition:    0.2s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Grid background */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,240,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,240,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+/* ═══════════════════════════════════════════
+   LAYOUT WRAPPER
+═══════════════════════════════════════════ */
+.app-shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 0 100px;
+}
+
+/* ═══════════════════════════════════════════
+   TACTICAL HEADER
+═══════════════════════════════════════════ */
+.tac-header {
+  background: linear-gradient(180deg, #080f1a 0%, var(--bg-surface) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.6);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  gap: 16px;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+}
+
+.brand-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--cyan);
+  letter-spacing: 3px;
+  line-height: 1.2;
+}
+
+.brand-sub {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+.header-center {
+  flex: 1;
+  text-align: center;
+}
+
+.header-title {
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 2vw, 14px);
+  color: var(--text-dim);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.conn-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--green);
+  letter-spacing: 1px;
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+  animation: heartbeat 2s infinite ease-in-out;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50%       { transform: scale(1.3); opacity: 1; }
+}
+
+.header-stats {
+  display: flex;
+  gap: 20px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-value {
+  color: var(--cyan);
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.stat-label {
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Header bottom strip */
+.header-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.officer-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.officer-rank {
+  color: var(--amber);
+  font-weight: bold;
+}
+
+.officer-name {
+  color: var(--text);
+}
+
+#live-clock {
+  color: var(--cyan);
+  font-size: 12px;
+}
+
+/* ═══════════════════════════════════════════
+   MAIN CONTENT GRID
+═══════════════════════════════════════════ */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  padding: 20px;
+}
+
+@media (max-width: 1024px) {
+  .main-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════
+   SECTION HEADERS
+═══════════════════════════════════════════ */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  background: var(--cyan);
+  border-radius: 2px;
+}
+
+.section-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan);
+  background: var(--cyan-dim);
+  border: 1px solid rgba(0,240,255,0.2);
+  padding: 3px 8px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+}
+
+/* ═══════════════════════════════════════════
+   CHANNEL GRID
+═══════════════════════════════════════════ */
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.channel-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.channel-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--cyan);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.channel-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-bright);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+}
+
+.channel-card:hover::before { opacity: 1; }
+
+.channel-card.active {
+  background: linear-gradient(135deg, #0d2035 0%, #0a1828 100%);
+  border-color: var(--cyan);
+  box-shadow: 0 0 25px var(--cyan-dim);
+}
+
+.channel-card.active::before { opacity: 1; }
+
+.channel-card.status-active  { --card-accent: var(--green); }
+.channel-card.status-busy    { --card-accent: var(--amber); }
+.channel-card.status-quiet   { --card-accent: var(--text-dim); }
+
+.channel-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.channel-id {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.channel-name {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--text-bright);
+  letter-spacing: 2px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.status-badge.active {
+  color: var(--green);
+  background: var(--green-dim);
+  border: 1px solid rgba(0,255,136,0.2);
+}
+
+.status-badge.busy {
+  color: var(--amber);
+  background: var(--amber-dim);
+  border: 1px solid rgba(255,170,0,0.2);
+}
+
+.status-badge.quiet {
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-badge.active .status-dot {
+  animation: heartbeat 1.5s infinite ease-in-out;
+}
+
+.activity-bar-wrap { margin-bottom: 14px; }
+
+.activity-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+}
+
+.activity-bar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.activity-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--cyan);
+  transition: width 0.6s ease;
+}
+
+.activity-fill.high   { background: var(--green); }
+.activity-fill.medium { background: var(--amber); }
+.activity-fill.low    { background: var(--text-dim); }
+
+.channel-officers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+.officer-count {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--cyan);
+}
+
+.btn-join {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(0,240,255,0.08), rgba(0,240,255,0.04));
+  border: 1px solid rgba(0,240,255,0.2);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-transform: uppercase;
+}
+
+.btn-join:hover {
+  background: linear-gradient(135deg, rgba(0,240,255,0.18), rgba(0,240,255,0.08));
+  border-color: var(--cyan);
+  box-shadow: 0 0 15px var(--cyan-dim);
+  color: var(--text-bright);
+}
+
+.btn-join.joined {
+  background: linear-gradient(135deg, rgba(0,255,136,0.15), rgba(0,255,136,0.05));
+  border-color: rgba(0,255,136,0.4);
+  color: var(--green);
+}
+
+/* ═══════════════════════════════════════════
+   RIGHT SIDEBAR
+═══════════════════════════════════════════ */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 12px; height: 12px;
+  border-top: 2px solid var(--cyan);
+  border-right: 2px solid var(--cyan);
+  opacity: 0.4;
+}
+
+.panel-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  animation: heartbeat 2s infinite;
+}
+
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.activity-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius);
+  border-left: 2px solid var(--border);
+  animation: slide-in 0.3s ease;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.activity-item.type-join   { border-left-color: var(--green); }
+.activity-item.type-leave  { border-left-color: var(--text-dim); }
+.activity-item.type-alert  { border-left-color: var(--red); }
+.activity-item.type-msg    { border-left-color: var(--cyan); }
+
+.activity-icon { font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+
+.activity-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.activity-time {
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.stat-box {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.stat-box-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--cyan);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-box-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qa-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+  width: 100%;
+}
+
+.qa-btn:hover {
+  background: rgba(0,240,255,0.06);
+  border-color: rgba(0,240,255,0.3);
+  color: var(--text-bright);
+}
+
+.qa-icon { font-size: 14px; flex-shrink: 0; }
+
+.detail-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  display: none;
+}
+
+.detail-panel.visible { display: block; }
+
+.detail-channel-name {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--text-bright);
+  letter-spacing: 3px;
+  margin-bottom: 4px;
+}
+
+.detail-channel-id {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.detail-row:last-child { border-bottom: none; }
+.detail-key   { color: var(--text-dim); letter-spacing: 1px; }
+.detail-value { color: var(--text-bright); font-weight: bold; }
+.detail-value.green { color: var(--green); }
+.detail-value.amber { color: var(--amber); }
+.detail-value.red   { color: var(--red); }
+
+/* ═══════════════════════════════════════════
+   PUSH-TO-TALK BUTTON
+═══════════════════════════════════════════ */
+.ptt-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  background: linear-gradient(180deg, transparent, rgba(2,5,9,0.98) 30%);
+  padding: 12px 20px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.ptt-context {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-align: right;
+  line-height: 1.6;
+}
+
+.ptt-context-channel {
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.ptt-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 3px solid rgba(0,240,255,0.3);
+  background: radial-gradient(circle at 35% 35%,
+    rgba(0,240,255,0.15),
+    rgba(0,50,80,0.9) 60%,
+    rgba(0,20,40,0.95) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  box-shadow:
+    0 0 20px rgba(0,240,255,0.1),
+    0 4px 20px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ptt-btn::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,240,255,0.12);
+  transition: all 0.15s ease;
+}
+
+.ptt-btn::after {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,240,255,0.05);
+  transition: all 0.15s ease;
+}
+
+.ptt-btn:hover {
+  border-color: rgba(0,240,255,0.6);
+  box-shadow:
+    0 0 35px rgba(0,240,255,0.25),
+    0 4px 20px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+  transform: scale(1.04);
+}
+
+.ptt-btn.pressing {
+  background: radial-gradient(circle at 35% 35%,
+    rgba(0,255,136,0.3),
+    rgba(0,100,60,0.8) 60%,
+    rgba(0,40,30,0.95) 100%
+  );
+  border-color: var(--green);
+  box-shadow:
+    0 0 50px rgba(0,255,136,0.4),
+    0 4px 20px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transform: scale(0.94);
+}
+
+.ptt-btn.pressing .ptt-icon  { color: var(--green); }
+.ptt-btn.pressing .ptt-label { color: var(--green); }
+.ptt-btn.pressing::before    { border-color: rgba(0,255,136,0.3); }
+.ptt-btn.pressing::after     { border-color: rgba(0,255,136,0.12); }
+
+.ptt-icon {
+  font-size: 26px;
+  color: var(--cyan);
+  line-height: 1;
+  transition: color 0.15s ease;
+  margin-bottom: 2px;
+}
+
+.ptt-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: bold;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  transition: color 0.15s ease;
+}
+
+.ptt-status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-align: left;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.ptt-status-line { color: var(--text-dim); }
+
+.ptt-status-line.transmitting {
+  color: var(--green);
+  animation: blink-badge 0.8s infinite;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .header-stats { display: none; }
+  .header-title { display: none; }
+  .main-grid { padding: 12px; gap: 14px; }
+  .channel-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .channel-card { padding: 12px; }
+  .ptt-dock { padding: 8px 12px 16px; gap: 14px; }
+  .ptt-btn { width: 70px; height: 70px; }
+  .ptt-icon { font-size: 22px; }
+}
+
+@media (max-width: 480px) {
+  .channel-grid { grid-template-columns: 1fr; }
+  .header-bottom { font-size: 10px; }
+}
+
+/* ═══════════════════════════════════════════
+   UTILITY
+═══════════════════════════════════════════ */
+.mt-0  { margin-top: 0 !important; }
+.hidden { display: none !important; }
+
+.toast {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-bright);
+  border-left: 3px solid var(--cyan);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-bright);
+  letter-spacing: 1px;
+  z-index: 9998;
+  animation: toast-in 0.3s ease forwards;
+  max-width: 300px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+.toast.success { border-left-color: var(--green); }
+.toast.warning { border-left-color: var(--amber); }
+.toast.error   { border-left-color: var(--red); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes blink-badge {
+  0%, 90%, 100% { opacity: 1; }
+  95%            { opacity: 0.4; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ═══════════ TACTICAL HEADER ═══════════ -->
+  <header class="tac-header">
+    <div class="header-top">
+
+      <div class="header-brand">
+        <img src="Cadre logo png.jpg" class="brand-logo" onerror="this.style.display='none'">
+        <div>
+          <div class="brand-text">CADRE</div>
+          <div class="brand-sub">COMMS HUB</div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="header-title">TACTICAL CHANNEL OPERATIONS CENTER</div>
+      </div>
+
+      <div class="header-right">
+        <div class="header-stats">
+          <div class="stat-item">
+            <div class="stat-value" id="hdr-online">—</div>
+            <div class="stat-label">Online</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="hdr-channels">9</div>
+            <div class="stat-label">Channels</div>
+          </div>
+        </div>
+        <div class="conn-indicator">
+          <div class="conn-dot"></div>
+          <span id="conn-label">CONNECTED</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="header-bottom">
+      <div class="officer-tag">
+        <span class="officer-rank" id="hdr-rank">—</span>
+        <span class="officer-name" id="hdr-name">Loading...</span>
+      </div>
+      <div id="live-clock">--:--:--</div>
+      <div style="font-size:10px; letter-spacing:1px;" id="hdr-date">—</div>
+    </div>
+  </header>
+
+  <!-- ═══════════ MAIN GRID ═══════════ -->
+  <div class="main-grid">
+
+    <!-- LEFT: Channels -->
+    <div class="left-col">
+
+      <div class="section-header">
+        <div class="section-title">Operational Channels</div>
+        <div class="section-badge" id="active-count-badge">— ACTIVE</div>
+      </div>
+
+      <div class="channel-grid" id="channel-grid">
+        <!-- Populated by JS -->
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Sidebar -->
+    <div class="sidebar">
+
+      <!-- Selected Channel Detail -->
+      <div class="detail-panel" id="detail-panel">
+        <div class="panel-title"><div class="panel-title-dot"></div>Channel Details</div>
+        <div class="detail-channel-name" id="detail-name">—</div>
+        <div class="detail-channel-id"  id="detail-id">SELECT A CHANNEL</div>
+        <div id="detail-rows"></div>
+        <button class="btn-join" style="margin-top:14px;" id="detail-join-btn"
+          onclick="joinChannel(selectedChannelKey)">JOIN CHANNEL</button>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="panel">
+        <div class="panel-title"><div class="panel-title-dot"></div>Recent Activity</div>
+        <div class="activity-feed" id="activity-feed">
+          <div class="activity-item type-msg">
+            <span class="activity-icon">📡</span>
+            <span class="activity-text">Channel hub initialized</span>
+            <span class="activity-time" id="init-time">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="panel">
+        <div class="panel-title"><div class="panel-title-dot"></div>Network Statistics</div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-box-value" id="stat-online">—</div>
+            <div class="stat-box-label">Officers Online</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value" id="stat-active-ch">—</div>
+            <div class="stat-box-label">Active Channels</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value" id="stat-total-tx">—</div>
+            <div class="stat-box-label">Total Transmissions</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value" id="stat-uptime">99%</div>
+            <div class="stat-box-label">Net Uptime</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions — Officer Only -->
+      <div class="panel">
+        <div class="panel-title"><div class="panel-title-dot"></div>Quick Actions</div>
+        <div class="quick-actions">
+          <button class="qa-btn" onclick="joinAssignedChannel()">
+            <span class="qa-icon">📡</span> Join Assigned Channel
+          </button>
+          <button class="qa-btn" onclick="showActiveChannels()">
+            <span class="qa-icon">📋</span> View Active Channels
+          </button>
+          <button class="qa-btn" onclick="refreshStatus()">
+            <span class="qa-icon">🔄</span> Refresh Status
+          </button>
+          <button class="qa-btn" onclick="window.location.href='home.html'">
+            <span class="qa-icon">🏠</span> Return to Hub
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /main-grid -->
+
+</div><!-- /app-shell -->
+
+<!-- ═══════════ PUSH-TO-TALK DOCK ═══════════ -->
+<div class="ptt-dock">
+
+  <div class="ptt-context">
+    <div style="text-transform:uppercase;letter-spacing:2px;">Active Channel</div>
+    <div class="ptt-context-channel" id="ptt-channel-label">NO CHANNEL</div>
+  </div>
+
+  <button class="ptt-btn" id="ptt-btn"
+    onmousedown="pttPress()" onmouseup="pttRelease()"
+    ontouchstart="pttPress(event)" ontouchend="pttRelease(event)">
+    <div class="ptt-icon">🎙️</div>
+    <div class="ptt-label">PTT</div>
+  </button>
+
+  <div class="ptt-status">
+    <div class="ptt-status-line" id="ptt-status-line">STANDBY</div>
+    <div style="color:var(--text-muted);font-size:9px;letter-spacing:1px;">HOLD TO TRANSMIT</div>
+  </div>
+
+</div>
+
+<!-- ═══════════ JAVASCRIPT ═══════════ -->
+<script>
+
+/* ─────────────────────────────────────────────
+   SUPABASE
+───────────────────────────────────────────── */
+const SUPABASE_URL = 'https://ihroattnnnsckvvbosfz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false }
+});
+
+/* ─────────────────────────────────────────────
+   AGORA
+───────────────────────────────────────────── */
+const AGORA_APP_ID = 'YOUR_AGORA_APP_ID';
+let agoraClient     = null;
+let localAudioTrack = null;
+let activeChannelKey = null;
+
+/* ─────────────────────────────────────────────
+   SESSION
+───────────────────────────────────────────── */
+let sessionUser = null;
+
+const SESSION_KEYS = ["session_user","user","officer","currentUser"];
+for (const k of SESSION_KEYS) {
+  try {
+    const p = JSON.parse(localStorage.getItem(k));
+    if (p?.phone) { sessionUser = p; break; }
+  } catch(e) {}
+}
+
+if (!sessionUser) {
+  const plainPhone = localStorage.getItem("cached_operator_phone");
+  if (plainPhone) {
+    sessionUser = { phone: plainPhone, name: "Field Agent", rank: "UNIT" };
+  }
+}
+
+if (!sessionUser) {
+  console.warn("channel.html: no session found. localStorage keys:", Object.keys(localStorage));
+  window.location.href = "login.html";
+}
+
+/* ─────────────────────────────────────────────
+   CHANNEL DEFINITIONS
+───────────────────────────────────────────── */
+const CHANNELS = [
+  { key:'ALPHA',   name:'Alpha Channel',   callsign:'CH-01', freq:'462.550 MHz' },
+  { key:'BRAVO',   name:'Bravo Channel',   callsign:'CH-02', freq:'462.575 MHz' },
+  { key:'CHARLIE', name:'Charlie Channel', callsign:'CH-03', freq:'462.600 MHz' },
+  { key:'DELTA',   name:'Delta Channel',   callsign:'CH-04', freq:'462.625 MHz' },
+  { key:'ECHO',    name:'Echo Channel',    callsign:'CH-05', freq:'462.650 MHz' },
+  { key:'FOXTROT', name:'Foxtrot Channel', callsign:'CH-06', freq:'462.675 MHz' },
+  { key:'GOLF',    name:'Golf Channel',    callsign:'CH-07', freq:'462.700 MHz' },
+  { key:'HOTEL',   name:'Hotel Channel',   callsign:'CH-08', freq:'462.725 MHz' },
+  { key:'INDIA',   name:'India Channel',   callsign:'CH-09', freq:'467.550 MHz' },
+];
+
+const channelState = {};
+CHANNELS.forEach(ch => {
+  channelState[ch.key] = { officers: 0, status: 'quiet', activity: 0 };
+});
+
+let selectedChannelKey = null;
+
+/* ─────────────────────────────────────────────
+   BOOT
+───────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', async () => {
+  initClock();
+  renderHeader();
+  renderChannelGrid();
+  await Promise.all([
+    loadUserProfile(),
+    loadChannels(),
+    loadOfficerCounts()
+  ]);
+  logActivity('Channel hub online — all systems nominal', 'msg');
+});
+
+/* ─────────────────────────────────────────────
+   CLOCK
+───────────────────────────────────────────── */
+function initClock() {
+  function tick() {
+    const now  = new Date();
+    const time = now.toLocaleTimeString('en-GB', { hour12: false });
+    const date = now.toLocaleDateString('en-GB', {
+      weekday:'short', day:'2-digit', month:'short', year:'numeric'
+    }).toUpperCase();
+    document.getElementById("live-clock").textContent = time;
+    document.getElementById("hdr-date").textContent   = date;
+    document.getElementById("init-time").textContent  = time;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ─────────────────────────────────────────────
+   HEADER
+───────────────────────────────────────────── */
+function renderHeader() {
+  document.getElementById("hdr-rank").textContent = sessionUser?.rank || '—';
+  document.getElementById("hdr-name").textContent = sessionUser?.name || 'UNKNOWN';
+}
+
+/* ─────────────────────────────────────────────
+   SUPABASE FUNCTIONS
+───────────────────────────────────────────── */
+
+async function loadUserProfile() {
+  const phone = sessionUser?.phone;
+  if (!phone) return;
+
+  const { data } = await sbClient
+    .from('users')
+    .select('name, rank, pfp')
+    .eq('phone', phone)
+    .maybeSingle();
+
+  if (data) {
+    document.getElementById("hdr-rank").textContent = data.rank || '—';
+    document.getElementById("hdr-name").textContent = data.name || 'UNKNOWN';
+  }
+}
+
+async function loadChannels() {
+  const { data } = await sbClient
+    .from('group_call_members')
+    .select('*');
+
+  const total = data?.length || 0;
+
+  CHANNELS.forEach((ch, i) => {
+    const count = Math.max(0, Math.floor(total / CHANNELS.length) + (i % 3));
+    channelState[ch.key].officers = count;
+    channelState[ch.key].status   = count > 5 ? 'active' : count > 1 ? 'busy' : 'quiet';
+    channelState[ch.key].activity = Math.min(100, count * 12 + Math.random() * 20);
+  });
+
+  updateStats(total);
+  refreshChannelCards();
+}
+
+async function loadOfficerCounts() {
+  const { data } = await sbClient
+    .from('users')
+    .select('phone', { count: 'exact' });
+
+  const count = data?.length || 0;
+  document.getElementById("hdr-online").textContent  = count;
+  document.getElementById("stat-online").textContent = count;
+}
+
+/* ─────────────────────────────────────────────
+   AGORA FUNCTIONS (placeholders)
+───────────────────────────────────────────── */
+
+async function joinChannel(channelKey) {
+  if (!channelKey) return;
+
+  if (activeChannelKey && activeChannelKey !== channelKey) {
+    await leaveChannel();
+  }
+
+  activeChannelKey = channelKey;
+  const ch = CHANNELS.find(c => c.key === channelKey) || { name: channelKey };
+
+  document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById(`card-${channelKey}`);
+  if (card) {
+    card.classList.add('active');
+    card.querySelector('.btn-join').classList.add('joined');
+    card.querySelector('.btn-join').textContent = '✓ JOINED';
+  }
+
+  document.getElementById("ptt-channel-label").textContent = channelKey;
+
+  showToast(`Joined ${ch.name}`, 'success');
+  logActivity(`You joined ${ch.name}`, 'join');
+
+  // TODO: Implement actual Agora join
+  // await agoraClient.join(AGORA_APP_ID, channelKey, null, sessionUser.phone);
+  // localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+  // await agoraClient.publish([localAudioTrack]);
+
+  updateChannelStatus(channelKey, 'joined');
+}
+
+async function leaveChannel() {
+  if (!activeChannelKey) return;
+
+  const ch = CHANNELS.find(c => c.key === activeChannelKey) || { name: activeChannelKey };
+
+  const card = document.getElementById(`card-${activeChannelKey}`);
+  if (card) {
+    card.classList.remove('active');
+    card.querySelector('.btn-join').classList.remove('joined');
+    card.querySelector('.btn-join').textContent = 'JOIN CHANNEL';
+  }
+
+  logActivity(`You left ${ch.name}`, 'leave');
+  showToast(`Left ${ch.name}`, 'warning');
+
+  // TODO: Actual Agora leave
+  // if (localAudioTrack) { localAudioTrack.close(); }
+  // await agoraClient.leave();
+
+  document.getElementById("ptt-channel-label").textContent = 'NO CHANNEL';
+  activeChannelKey = null;
+  updateChannelStatus(null, 'idle');
+}
+
+function updateChannelStatus(channelKey, status) {
+  const statusLine = document.getElementById("ptt-status-line");
+  if (status === 'joined') {
+    statusLine.textContent = 'CHANNEL ACTIVE';
+    statusLine.style.color = 'var(--green)';
+  } else {
+    statusLine.textContent = 'STANDBY';
+    statusLine.style.color = '';
+  }
+}
+
+/* ─────────────────────────────────────────────
+   CHANNEL GRID RENDERING
+───────────────────────────────────────────── */
+
+function renderChannelGrid() {
+  const grid = document.getElementById("channel-grid");
+  grid.innerHTML = '';
+
+  CHANNELS.forEach(ch => {
+    const state     = channelState[ch.key];
+    const activity  = Math.round(state.activity || 0);
+    const fillClass = activity > 60 ? 'high' : activity > 30 ? 'medium' : 'low';
+    const statusLabel = state.status === 'active' ? 'ACTIVE'
+                      : state.status === 'busy'   ? 'BUSY'
+                      : 'QUIET';
+
+    const card = document.createElement('div');
+    card.className = `channel-card status-${state.status}`;
+    card.id        = `card-${ch.key}`;
+
+    card.innerHTML = `
+      <div class="channel-card-top">
+        <div>
+          <div class="channel-id">${ch.callsign} · ${ch.freq}</div>
+          <div class="channel-name">${ch.key}</div>
+        </div>
+        <div class="status-badge ${state.status}">
+          <div class="status-dot"></div>
+          ${statusLabel}
+        </div>
+      </div>
+
+      <div class="activity-bar-wrap">
+        <div class="activity-label">
+          <span>CHANNEL ACTIVITY</span>
+          <span>${activity}%</span>
+        </div>
+        <div class="activity-bar">
+          <div class="activity-fill ${fillClass}" style="width:${activity}%"></div>
+        </div>
+      </div>
+
+      <div class="channel-officers">
+        <span class="officer-count" id="officers-${ch.key}">${state.officers}</span>
+        <span>Officers Online</span>
+      </div>
+
+      <button class="btn-join" onclick="event.stopPropagation(); joinChannel('${ch.key}')">
+        JOIN CHANNEL
+      </button>
+    `;
+
+    card.onclick = () => selectChannel(ch.key, ch.name, 'cyan');
+    grid.appendChild(card);
+  });
+
+  refreshActiveCount();
+}
+
+function refreshChannelCards() {
+  CHANNELS.forEach(ch => {
+    const el = document.getElementById(`officers-${ch.key}`);
+    if (el) el.textContent = channelState[ch.key].officers;
+  });
+}
+
+function refreshActiveCount() {
+  const active = CHANNELS.filter(ch => channelState[ch.key].status !== 'quiet').length;
+  document.getElementById("active-count-badge").textContent = `${active} ACTIVE`;
+  document.getElementById("stat-active-ch").textContent     = active;
+  document.getElementById("stat-total-tx").textContent      =
+    CHANNELS.reduce((s, ch) => s + channelState[ch.key].officers, 0);
+}
+
+/* ─────────────────────────────────────────────
+   CHANNEL SELECTION
+───────────────────────────────────────────── */
+
+function selectChannel(key, name, accentColor) {
+  selectedChannelKey = key;
+
+  document.querySelectorAll('.channel-card').forEach(c => {
+    if (!c.classList.contains('joined')) c.classList.remove('active');
+  });
+  const card = document.getElementById(`card-${key}`);
+  if (card) card.classList.add('active');
+
+  const ch    = CHANNELS.find(c => c.key === key);
+  const state = channelState[key] || {};
+
+  document.getElementById("detail-name").textContent = name || key;
+  document.getElementById("detail-id").textContent   = ch ? `${ch.callsign} · ${ch.freq}` : 'OPERATIONAL CHANNEL';
+
+  const statusColor = state.status === 'active' ? 'green'
+                    : state.status === 'busy'   ? 'amber'
+                    : 'detail-key';
+
+  document.getElementById("detail-rows").innerHTML = `
+    <div class="detail-row">
+      <span class="detail-key">STATUS</span>
+      <span class="detail-value ${statusColor}">${(state.status || 'UNKNOWN').toUpperCase()}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">OFFICERS ONLINE</span>
+      <span class="detail-value">${state.officers ?? '—'}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">ACTIVITY LEVEL</span>
+      <span class="detail-value">${Math.round(state.activity || 0)}%</span>
+    </div>
+    ${ch ? `
+    <div class="detail-row">
+      <span class="detail-key">FREQUENCY</span>
+      <span class="detail-value">${ch.freq}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">CALLSIGN</span>
+      <span class="detail-value">${ch.callsign}</span>
+    </div>` : ''}
+    <div class="detail-row">
+      <span class="detail-key">ENCRYPTION</span>
+      <span class="detail-value green">AES-256 ACTIVE</span>
+    </div>
+  `;
+
+  document.getElementById("detail-panel").classList.add("visible");
+  logActivity(`Viewing ${name || key} details`, 'msg');
+}
+
+/* ─────────────────────────────────────────────
+   PUSH TO TALK
+───────────────────────────────────────────── */
+
+let pttActive = false;
+
+function pttPress(e) {
+  if (e) e.preventDefault();
+  if (pttActive) return;
+
+  if (!activeChannelKey) {
+    showToast('Join a channel first', 'warning');
+    return;
+  }
+
+  pttActive = true;
+  document.getElementById("ptt-btn").classList.add("pressing");
+
+  const statusLine = document.getElementById("ptt-status-line");
+  statusLine.textContent = '● TRANSMITTING';
+  statusLine.classList.add('transmitting');
+
+  logActivity(`${sessionUser?.name || 'Officer'} transmitting on ${activeChannelKey}`, 'msg');
+
+  // TODO: unmute / start Agora audio track
+  // if (localAudioTrack) localAudioTrack.setEnabled(true);
+}
+
+function pttRelease(e) {
+  if (e) e.preventDefault();
+  if (!pttActive) return;
+
+  pttActive = false;
+  document.getElementById("ptt-btn").classList.remove("pressing");
+
+  const statusLine = document.getElementById("ptt-status-line");
+  statusLine.textContent = 'CHANNEL ACTIVE';
+  statusLine.classList.remove('transmitting');
+
+  // TODO: mute Agora audio track
+  // if (localAudioTrack) localAudioTrack.setEnabled(false);
+}
+
+/* ─────────────────────────────────────────────
+   QUICK ACTIONS
+───────────────────────────────────────────── */
+
+function joinAssignedChannel() {
+  const assigned = sessionUser?.channel || 'ALPHA';
+  joinChannel(assigned);
+  showToast(`Joining assigned channel: ${assigned}`, 'success');
+}
+
+function showActiveChannels() {
+  const active = CHANNELS.filter(ch => channelState[ch.key].status !== 'quiet');
+  const names  = active.map(ch => ch.name).join(', ');
+  showToast(`Active: ${names || 'None'}`, 'success');
+  logActivity('Active channels queried', 'msg');
+}
+
+async function refreshStatus() {
+  showToast('Refreshing network status...', 'success');
+  await Promise.all([loadChannels(), loadOfficerCounts()]);
+  logActivity('Network status refreshed', 'msg');
+}
+
+/* ─────────────────────────────────────────────
+   ACTIVITY FEED
+───────────────────────────────────────────── */
+
+function logActivity(text, type = 'msg') {
+  const feed = document.getElementById("activity-feed");
+  const now  = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  const icons = { join:'👤', leave:'🚪', alert:'🚨', msg:'📡' };
+
+  const item = document.createElement('div');
+  item.className = `activity-item type-${type}`;
+  item.innerHTML = `
+    <span class="activity-icon">${icons[type] || '📡'}</span>
+    <span class="activity-text">${escHtml(text)}</span>
+    <span class="activity-time">${now}</span>
+  `;
+
+  feed.prepend(item);
+  while (feed.children.length > 30) feed.removeChild(feed.lastChild);
+}
+
+/* ─────────────────────────────────────────────
+   STATS UPDATE
+───────────────────────────────────────────── */
+
+function updateStats(total) {
+  document.getElementById("hdr-online").textContent  = total;
+  document.getElementById("stat-online").textContent = total;
+  refreshActiveCount();
+}
+
+/* ─────────────────────────────────────────────
+   TOAST
+───────────────────────────────────────────── */
+
+function showToast(message, type = 'success') {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s ease';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+/* ─────────────────────────────────────────────
+   UTILITY
+───────────────────────────────────────────── */
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+</script>
+</body>
+</html>
