@@ -335,6 +335,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     await Promise.all([
         loadMyLikes(uid),
+        backfillMyPosts(uid),   /* one-time fix: stamp user_id on old null posts */
         loadPostsPage(0)
     ]);
 
@@ -346,6 +347,33 @@ window.addEventListener('DOMContentLoaded', async () => {
             scheduleRealtimeRefresh)
         .subscribe();
 });
+
+/* ─────────────────────────────────────────────
+   BACKFILL — stamp user_id on this user's old
+   posts that were saved before the column existed.
+   Runs once on boot, silently in background.
+───────────────────────────────────────────── */
+async function backfillMyPosts(uid) {
+    try {
+        /* Find posts by this user that have no user_id yet.
+           Match on email stored in users table vs auth email. */
+        const { data: myPosts } = await sbClient
+            .from('ig_feed_posts')
+            .select('id, name')
+            .is('user_id', null)
+            .eq('name', currentUser.name);  /* best match we have */
+
+        if (!myPosts || myPosts.length === 0) return;
+
+        /* Stamp all matching posts with this user's id */
+        await sbClient
+            .from('ig_feed_posts')
+            .update({ user_id: uid, rank: currentUser.rank })
+            .is('user_id', null)
+            .eq('name', currentUser.name);
+
+    } catch(e) { /* silent — non-critical */ }
+}
 
 /* ─────────────────────────────────────────────
    POSTS — LOAD PAGE
@@ -409,21 +437,42 @@ async function loadMorePosts() {
    the users table so they're always up to date.
 ───────────────────────────────────────────── */
 async function buildPostCard(post) {
-    /* Get poster info — prefer user_id, fall back to legacy name/rank on post row */
     let posterInfo = null;
+
+    /* 1. Best case: post has user_id — look up from users table */
     if (post.user_id) {
         posterInfo = await getUserInfo(post.user_id);
     }
 
-    const posterName = posterInfo?.name || post.name || 'UNKNOWN';
-    const posterRank = posterInfo?.rank || post.rank || 'UNIT';
-    const posterPfp  = posterInfo?.pfp  || null;
-    const posterId   = post.user_id || null;
+    /* 2. No user_id but has a name — search users table by name */
+    if (!posterInfo && post.name) {
+        const { data } = await sbClient
+            .from('users')
+            .select('id, name, rank, pfp')
+            .eq('name', post.name)
+            .maybeSingle();
+        if (data) {
+            posterInfo = data;
+            nameCache.set(data.id, data);
+            /* Silently backfill user_id so future loads skip this lookup */
+            sbClient.from('ig_feed_posts')
+                .update({ user_id: data.id })
+                .eq('id', post.id)
+                .then(() => {});
+        }
+    }
 
-    const canDelete = currentUser && (
-        currentUser.id === post.user_id ||
-        currentUser.id === post.id  /* legacy fallback */
-    );
+    const posterName = (posterInfo && posterInfo.name) || post.name || 'UNKNOWN';
+    const posterRank = (posterInfo && posterInfo.rank) || post.rank || 'UNIT';
+    const posterPfp  = (posterInfo && posterInfo.pfp)  || null;
+    const posterId   = (posterInfo && posterInfo.id)   || post.user_id || null;
+
+    console.log('[POST', post.id, '] user_id:', post.user_id,
+                '| posterInfo:', posterInfo,
+                '| name:', posterName, '| rank:', posterRank, '| pfp:', posterPfp);
+
+    /* Can delete only if we can confirm ownership via user_id */
+    const canDelete = currentUser && post.user_id && currentUser.id === post.user_id;
 
     const likes        = Number(post.likes ?? 0);
     const comments     = Array.isArray(post.comments) ? post.comments : [];
@@ -445,7 +494,7 @@ async function buildPostCard(post) {
     avatar.className = 'post-avatar';
     avatar.src = posterPfp || DEFAULT_AVATAR;
     avatar.alt = posterName;
-    avatar.loading = 'lazy';
+    /* No lazy loading — Edge blocks lazy images */
     userDiv.appendChild(avatar);
 
     const userInfo = document.createElement('div');
@@ -477,7 +526,6 @@ async function buildPostCard(post) {
     if (post.image) {
         const img = document.createElement('img');
         img.className = 'feed-post-image';
-        img.loading   = 'lazy';
         img.decoding  = 'async';
         img.src = post.image;
         img.alt = 'Post media';
@@ -695,10 +743,18 @@ async function submitInstagramPost() {
     postBtn.disabled = true;
     postBtn.textContent = 'Sending...';
 
+    /* Safety check — should never happen but guards against blank posts */
+    if (!currentUser || !currentUser.id) {
+        alert("Session error — please log out and back in.");
+        postBtn.disabled = false;
+        postBtn.textContent = 'Broadcast';
+        return;
+    }
+
     const { error } = await sbClient.from('ig_feed_posts').insert({
         user_id:   currentUser.id,
-        name:      currentUser.name,   /* kept for legacy display fallback */
-        rank:      currentUser.rank,   /* kept for legacy display fallback */
+        name:      currentUser.name  || 'UNKNOWN',
+        rank:      currentUser.rank  || 'UNIT',
         caption,
         image:     imageValue,
         likes:     0,
@@ -709,7 +765,7 @@ async function submitInstagramPost() {
     postBtn.disabled = false;
     postBtn.textContent = 'Broadcast';
 
-    if (error) { console.error("POST ERROR:", error); alert("Post failed"); return; }
+    if (error) { console.error("POST ERROR:", error); alert("Post failed: " + error.message); return; }
 
     document.getElementById("post-input").value = "";
     base64ImageString = "";
