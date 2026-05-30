@@ -129,6 +129,67 @@
 }
 #load-more-btn:hover{ background:#2d3f55; color:white; }
 #load-more-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
+/* ── Search dropdown ── */
+.search-results-box{
+    position:absolute;
+    top:auto;
+    left:0;
+    right:0;
+    margin:0 15px;
+    background:#0b1220;
+    border:1px solid #1f2937;
+    border-radius:12px;
+    z-index:200;
+    overflow:hidden;
+    display:none;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+}
+.search-result-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    cursor:pointer;
+    border-bottom:1px solid #1f2937;
+    transition:background 0.15s;
+}
+.search-result-item:last-child{ border-bottom:none; }
+.search-result-item:hover{ background:#1e293b; }
+.search-result-avatar{
+    width:38px;
+    height:38px;
+    border-radius:50%;
+    object-fit:cover;
+    border:2px solid #1f2937;
+    flex-shrink:0;
+    background:#1e293b;
+}
+.search-result-info{ display:flex; flex-direction:column; min-width:0; }
+.search-result-name{
+    font-weight:700;
+    color:white;
+    font-size:14px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.search-result-rank{
+    font-size:12px;
+    color:#00f0ff;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.search-no-results{
+    padding:20px;
+    text-align:center;
+    color:#475569;
+    font-size:13px;
+    font-family:monospace;
+    letter-spacing:1px;
+}
+.search-tray{ position:relative; }
 </style>
 </head>
 
@@ -153,7 +214,7 @@
     <section class="composer-card">
         <div class="composer-row">
             <img id="composer-avatar" class="avatar-frame">
-            <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..."></textarea>
+            <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..." onkeydown="handleTypingSound()"></textarea>
         </div>
         <div class="composer-footer">
             <label for="image-upload" class="file-upload-label">📷 Attach Media</label>
@@ -571,6 +632,7 @@ async function buildPostCard(post) {
     commentInput.className   = 'comment-input';
     commentInput.placeholder = 'Write a comment...';
     commentInput.addEventListener('keydown', function(e) {
+        handleTypingSound();
         if (e.key === 'Enter') addComment(post.id);
     });
     inputRow.appendChild(commentInput);
@@ -780,6 +842,9 @@ async function submitInstagramPost() {
     preview.src = "";
     preview.style.display = "none";
 
+    /* Transmission sound */
+    SFX.transmit();
+
     /* Instantly prepend the new post — no refresh needed */
     const postToShow = inserted || newPost;
     if (!postToShow.id) postToShow.id = 'temp-' + Date.now();
@@ -935,6 +1000,206 @@ function previewSelectedImage(input) {
     };
     reader.readAsDataURL(input.files[0]);
 }
+
+/* ─────────────────────────────────────────────
+   TACTICAL SOUND ENGINE
+   All sounds generated via Web Audio API —
+   no external files needed.
+───────────────────────────────────────────── */
+const SFX = (() => {
+    let ctx = null;
+
+    function getCtx() {
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume();
+        return ctx;
+    }
+
+    /* Mechanical keyboard click — layered click + tiny noise burst */
+    function keyClick() {
+        const c = getCtx();
+        const now = c.currentTime;
+
+        /* Sharp transient click */
+        const buf = c.createBuffer(1, c.sampleRate * 0.04, c.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+            d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 8);
+        }
+        const src = c.createBufferSource();
+        src.buffer = buf;
+
+        /* High-pass filter for that crisp tactical click */
+        const hp = c.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 1800;
+
+        const gain = c.createGain();
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+        src.connect(hp);
+        hp.connect(gain);
+        gain.connect(c.destination);
+        src.start(now);
+        src.stop(now + 0.04);
+
+        /* Sub-click body */
+        const osc = c.createOscillator();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(420, now);
+        osc.frequency.exponentialRampToValueAtTime(180, now + 0.018);
+        const og = c.createGain();
+        og.gain.setValueAtTime(0.07, now);
+        og.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
+        osc.connect(og);
+        og.connect(c.destination);
+        osc.start(now);
+        osc.stop(now + 0.018);
+    }
+
+    /* Transmission sent — radio chirp + confirmation beep */
+    function transmit() {
+        const c = getCtx();
+        const now = c.currentTime;
+
+        /* Radio static burst */
+        const buf = c.createBuffer(1, c.sampleRate * 0.12, c.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+            d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+        }
+        const noise = c.createBufferSource();
+        noise.buffer = buf;
+        const bp = c.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 2400;
+        bp.Q.value = 0.8;
+        const ng = c.createGain();
+        ng.gain.setValueAtTime(0.3, now);
+        ng.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        noise.connect(bp); bp.connect(ng); ng.connect(c.destination);
+        noise.start(now); noise.stop(now + 0.12);
+
+        /* Confirmation tone — ascending two-beep */
+        [[520, 0.08, 0.13], [780, 0.16, 0.22]].forEach(([freq, start, end]) => {
+            const osc = c.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            const g = c.createGain();
+            g.gain.setValueAtTime(0, now + start);
+            g.gain.linearRampToValueAtTime(0.22, now + start + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, now + end);
+            osc.connect(g); g.connect(c.destination);
+            osc.start(now + start); osc.stop(now + end);
+        });
+
+        /* Low thud */
+        const thud = c.createOscillator();
+        thud.type = 'sine';
+        thud.frequency.setValueAtTime(90, now + 0.18);
+        thud.frequency.exponentialRampToValueAtTime(40, now + 0.32);
+        const tg = c.createGain();
+        tg.gain.setValueAtTime(0.35, now + 0.18);
+        tg.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+        thud.connect(tg); tg.connect(c.destination);
+        thud.start(now + 0.18); thud.stop(now + 0.32);
+    }
+
+    return { keyClick, transmit };
+})();
+
+/* ─────────────────────────────────────────────
+   SEARCH — by name or rank
+───────────────────────────────────────────── */
+let searchDebounceTimer = null;
+const searchInput    = document.getElementById("officer-search");
+const searchDropdown = document.getElementById("search-dropdown");
+
+searchInput.addEventListener("input", function() {
+    clearTimeout(searchDebounceTimer);
+    const query = this.value.trim();
+    if (!query) { closeSearch(); return; }
+    searchDebounceTimer = setTimeout(function() {
+        runSearch(query);
+    }, 280);
+});
+
+searchInput.addEventListener("keydown", function(e) {
+    handleTypingSound();
+    if (e.key === "Escape") closeSearch();
+});
+
+/* Close dropdown when clicking outside */
+document.addEventListener("click", function(e) {
+    if (!searchDropdown.contains(e.target) && e.target !== searchInput) {
+        closeSearch();
+    }
+});
+
+function closeSearch() {
+    searchDropdown.style.display = "none";
+    searchDropdown.innerHTML = "";
+}
+
+async function runSearch(query) {
+    searchDropdown.style.display = "block";
+    searchDropdown.innerHTML = '<div class="search-no-results">SCANNING...</div>';
+
+    const q = query.toLowerCase();
+
+    /* Search by name OR rank — fetch all, filter client-side for partial matches */
+    const { data, error } = await sbClient
+        .from('users')
+        .select('id, name, rank, pfp')
+        .or('name.ilike.%' + query + '%,rank.ilike.%' + query + '%')
+        .limit(15);
+
+    if (error || !data || data.length === 0) {
+        searchDropdown.innerHTML = '<div class="search-no-results">NO OPERATORS FOUND</div>';
+        return;
+    }
+
+    searchDropdown.innerHTML = "";
+    const frag = document.createDocumentFragment();
+
+    data.forEach(function(user) {
+        const item = document.createElement("div");
+        item.className = "search-result-item";
+        item.onclick = function() {
+            closeSearch();
+            searchInput.value = "";
+            openProfile(user.id);
+        };
+
+        const avatar = document.createElement("img");
+        avatar.className = "search-result-avatar";
+        avatar.src = user.pfp || DEFAULT_AVATAR;
+        avatar.alt = user.name || "Operator";
+        item.appendChild(avatar);
+
+        const info = document.createElement("div");
+        info.className = "search-result-info";
+        info.innerHTML =
+            '<span class="search-result-name">' + escHtml(user.name || 'UNKNOWN') + '</span>' +
+            '<span class="search-result-rank">' + escHtml(user.rank || 'UNIT') + '</span>';
+        item.appendChild(info);
+
+        frag.appendChild(item);
+    });
+
+    searchDropdown.appendChild(frag);
+}
+
+/* Throttle key clicks so rapid typing doesn't overlap too much */
+let lastKeyClick = 0;
+function handleTypingSound() {
+    const now = Date.now();
+    if (now - lastKeyClick < 55) return;
+    lastKeyClick = now;
+    SFX.keyClick();
+}
+
 </script>
 
 </body>
