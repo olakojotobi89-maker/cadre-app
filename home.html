@@ -751,7 +751,7 @@ async function submitInstagramPost() {
         return;
     }
 
-    const { error } = await sbClient.from('ig_feed_posts').insert({
+    const newPost = {
         user_id:   currentUser.id,
         name:      currentUser.name  || 'UNKNOWN',
         rank:      currentUser.rank  || 'UNIT',
@@ -760,39 +760,96 @@ async function submitInstagramPost() {
         likes:     0,
         comments:  [],
         timestamp: Date.now()
-    });
+    };
+
+    const { data: inserted, error } = await sbClient
+        .from('ig_feed_posts')
+        .insert(newPost)
+        .select()
+        .single();
 
     postBtn.disabled = false;
     postBtn.textContent = 'Broadcast';
 
     if (error) { console.error("POST ERROR:", error); alert("Post failed: " + error.message); return; }
 
+    /* Clear composer */
     document.getElementById("post-input").value = "";
     base64ImageString = "";
     const preview = document.getElementById("post-img-preview");
     preview.src = "";
     preview.style.display = "none";
+
+    /* Instantly prepend the new post — no refresh needed */
+    const postToShow = inserted || newPost;
+    if (!postToShow.id) postToShow.id = 'temp-' + Date.now();
+    postCache.set(postToShow.id, postToShow);
+    await prependPostCard(postToShow);
 }
 
 /* ─────────────────────────────────────────────
    DELETE POST
 ───────────────────────────────────────────── */
 async function deletePost(postId) {
-    await sbClient.from('ig_feed_posts').delete().eq('id', postId);
+    const confirmed = confirm("Delete this transmission? This cannot be undone.");
+    if (!confirmed) return;
+
+    const card = document.getElementById('post-' + postId);
+    if (card) {
+        card.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.97)';
+        setTimeout(function() { card.remove(); }, 250);
+    }
+
+    const { error } = await sbClient.from('ig_feed_posts').delete().eq('id', postId);
+    if (error) {
+        console.error("DELETE ERROR:", error);
+        /* Restore card if delete failed */
+        if (card) {
+            card.style.opacity = '1';
+            card.style.transform = 'scale(1)';
+        }
+        alert("Delete failed: " + error.message);
+    } else {
+        postCache.delete(postId);
+    }
 }
 
 /* ─────────────────────────────────────────────
    LIKE POST
 ───────────────────────────────────────────── */
 async function likePost(postId) {
+    /* Always check DB first — prevents double-like even across sessions/devices */
     if (hasLiked(postId)) return;
+
     const btn = document.getElementById('like-btn-' + postId);
     if (btn) btn.disabled = true;
+
+    /* Double-check DB in case likedSet is stale */
+    const { data: existingLike } = await sbClient
+        .from('post_likes')
+        .select('post_id')
+        .eq('post_id', String(postId))
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+    if (existingLike) {
+        /* Already liked in DB — update UI to reflect this */
+        likedSet.add(String(postId));
+        if (btn) {
+            btn.classList.add('liked');
+            btn.innerHTML = '👍 Liked';
+            btn.disabled = true;
+        }
+        return;
+    }
 
     const cached   = postCache.get(postId);
     const oldLikes = Number(cached && cached.likes ? cached.likes : 0);
     const newLikes = oldLikes + 1;
 
+    /* Optimistic UI update */
     const likesEl = document.getElementById('likes-count-' + postId);
     if (likesEl) likesEl.textContent = newLikes + ' ' + (newLikes === 1 ? 'Like' : 'Likes');
 
