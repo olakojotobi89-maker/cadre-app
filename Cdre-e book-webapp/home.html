@@ -19,7 +19,7 @@
     </header>
 
     <section class="search-tray">
-        <input type="text" id="officer-search" class="search-input" placeholder="SEARCH ACTIVE INDIVIDUALS BY NAME..." oninput="searchPersonnel(this.value)">
+        <input type="text" id="officer-search" class="search-input" placeholder="SEARCH ACTIVE INDIVIDUALS BY NAME..." onkeydown="SFX.throttledKeyClick('search')" oninput="searchPersonnel(this.value)">
     </section>
 
     <div id="search-dropdown" class="search-results-box"></div>
@@ -28,7 +28,7 @@
         <section class="composer-card">
             <div class="composer-row">
                 <img id="composer-avatar" class="avatar-frame" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>">
-                <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..."></textarea>
+                <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..." onkeydown="handleTypingSound()"></textarea>
             </div>
             <div class="composer-footer">
                 <label for="image-upload" class="file-upload-label">📷 Attach Media</label>
@@ -48,9 +48,18 @@
     </nav>
 </div>
 
+<script src="sfx.js"></script>
 <script>
     let currentSessionOfficer = null;
     let base64ImageString = "";
+
+    /* ─────────────────────────────
+       TYPING SOUND
+       Throttled click on keydown.
+    ───────────────────────────── */
+    function handleTypingSound() {
+        SFX.throttledKeyClick("post");
+    }
 
     window.onload = function() {
         const sessionData = localStorage.getItem("session_user");
@@ -132,7 +141,7 @@
                     </div>
                     <div class="comments-box">${commentsMarkup}</div>
                     <form class="comment-input-form" onsubmit="submitComment(event, ${realIndex})">
-                        <input type="text" class="comment-field" placeholder="Append encryption note..." required>
+                         <input type="text" class="comment-field" placeholder="Append encryption note..." onkeydown="SFX.throttledKeyClick('comment')" required>
                         <button type="submit" class="comment-submit-btn">Send</button>
                     </form>
                 </div>
@@ -165,6 +174,9 @@
         document.getElementById("post-input").value = "";
         document.getElementById("post-img-preview").style.display = "none";
         base64ImageString = "";
+
+        // Play transmit sound on successful post
+        SFX.transmit();
         
         renderInstagramFeed();
     }
