@@ -1085,6 +1085,8 @@ let localAudioTrack = null;
 let activeChannelKey = null;
 let agoraUid        = null;
 let isPublishing    = false;
+let isJoining = false;
+let agoraState = 'idle';
 
 /* ─────────────────────────────────────────────
    SESSION
@@ -1145,8 +1147,56 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadChannels(),
     loadOfficerCounts()
   ]);
+  // Warn about insecure context or missing MediaDevices which can block microphone access
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('This browser does not support microphone access (MediaDevices API missing).', 'warning');
+  } else if (location.protocol === 'file:' || (location.protocol !== 'https:' && location.hostname !== 'localhost')) {
+    showToast('Microphone access works best when served over HTTPS or on localhost.', 'warning');
+  }
   logActivity('Channel hub online — all systems nominal', 'msg');
+  // Render an actionable banner to request microphone access if not granted
+  const perm = await checkMicrophonePermission();
+  if (perm !== 'granted') renderMicPermissionBanner(perm);
 });
+
+async function requestMicrophoneAccess() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    showToast('Microphone access granted. You can now join a channel.', 'success');
+    const banner = document.getElementById('mic-perm-banner');
+    if (banner) banner.remove();
+  } catch (err) {
+    console.error('User denied or getUserMedia failed:', err);
+    showToast('Microphone request denied or failed. Check browser settings.', 'error');
+  }
+}
+
+function renderMicPermissionBanner(state) {
+  if (document.getElementById('mic-perm-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'mic-perm-banner';
+  banner.style.position = 'fixed';
+  banner.style.top = '72px';
+  banner.style.left = '50%';
+  banner.style.transform = 'translateX(-50%)';
+  banner.style.background = 'linear-gradient(90deg,#07121a,#07202a)';
+  banner.style.border = '1px solid rgba(0,240,255,0.08)';
+  banner.style.color = 'var(--text)';
+  banner.style.padding = '8px 12px';
+  banner.style.borderRadius = '8px';
+  banner.style.zIndex = '9999';
+  banner.style.display = 'flex';
+  banner.style.gap = '10px';
+  banner.style.alignItems = 'center';
+  banner.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);">Microphone: ${state}</div>
+    <button id="mic-request-btn" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(0,240,255,0.12);background:transparent;color:var(--text);cursor:pointer;">Request Microphone</button>
+    <button id="mic-dismiss-btn" style="padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text-muted);cursor:pointer;">Dismiss</button>
+  `;
+  document.body.appendChild(banner);
+  document.getElementById('mic-request-btn').onclick = () => requestMicrophoneAccess();
+  document.getElementById('mic-dismiss-btn').onclick = () => banner.remove();
+}
 
 /* ─────────────────────────────────────────────
    CLOCK
@@ -1227,7 +1277,17 @@ async function loadOfficerCounts() {
 ───────────────────────────────────────────── */
 
 function getAgoraUid() {
-  return sessionUser?.phone || sessionUser?.name || `UID_${Date.now()}`;
+  // Prefer a numeric UID for Agora when possible to avoid SDK warnings
+  const phone = sessionUser?.phone;
+  if (phone) {
+    const digits = String(phone).replace(/\D/g, '');
+    if (digits.length > 0) {
+      // Trim to a safe integer range
+      return parseInt(digits.slice(-9), 10);
+    }
+  }
+  // Fallback to timestamp-based numeric id
+  return Math.floor(Date.now() % 1000000000);
 }
 
 function updateConnectionStatus(state) {
@@ -1292,10 +1352,13 @@ async function initAgoraClient() {
 
   agoraClient.on('connection-state-change', (cur, rev) => {
     if (cur === 'CONNECTED') {
+      agoraState = 'connected';
       updateConnectionStatus('connected');
     } else if (cur === 'RECONNECTING') {
+      agoraState = 'connecting';
       updateConnectionStatus('reconnecting');
     } else if (cur === 'DISCONNECTED') {
+      agoraState = 'disconnected';
       updateConnectionStatus('disconnected');
     }
   });
@@ -1309,19 +1372,50 @@ async function initAgoraClient() {
 
 async function createLocalTrack() {
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Media Devices API not available in this browser/context');
+    }
+
+    // Trigger browser permission prompt proactively so we can surface clearer errors
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    // Create the microphone track (enabled by default) so it can be published.
     const track = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_low_latency' });
-    await track.setEnabled(false);
     return track;
   } catch (err) {
     console.error('Microphone create failed:', err);
-    showToast('Microphone permission is required for push-to-talk.', 'error');
+
+    // Provide actionable feedback depending on the error
+    const name = err?.name || '';
+    const msg  = err?.message || '';
+
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+      showToast('Microphone access was denied. Allow microphone in your browser settings.', 'error');
+    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      showToast('No microphone detected. Connect a microphone and try again.', 'error');
+    } else if (msg.toLowerCase().includes('secure') || msg.toLowerCase().includes('https')) {
+      showToast('Microphone access requires a secure context. Serve via HTTPS or use localhost.', 'error');
+    } else {
+      showToast('Microphone permission is required for push-to-talk.', 'error');
+    }
+
     throw err;
+  }
+}
+
+// Check microphone permission state when possible
+async function checkMicrophonePermission() {
+  try {
+    if (!navigator.permissions || !navigator.permissions.query) return 'prompt';
+    const status = await navigator.permissions.query({ name: 'microphone' });
+    return status.state; // 'granted', 'denied', or 'prompt'
+  } catch (err) {
+    return 'prompt';
   }
 }
 
 async function joinChannel(channelKey) {
   if (!channelKey) return;
-
   if (activeChannelKey === channelKey) {
     showToast(`Already connected to ${channelKey}.`, 'info');
     return;
@@ -1331,6 +1425,20 @@ async function joinChannel(channelKey) {
     await leaveChannel();
   }
 
+  // Prevent concurrent join attempts
+  if (isJoining || agoraState === 'connecting') {
+    showToast('Join already in progress. Please wait.', 'info');
+    return;
+  }
+
+  // Quick permission check to avoid silent failures
+  const micState = await checkMicrophonePermission();
+  if (micState === 'denied') {
+    showToast('Microphone permission is blocked. Allow microphone in browser site settings.', 'error');
+    return;
+  }
+
+  isJoining = true;
   try {
     await initAgoraClient();
     const uid = getAgoraUid();
@@ -1338,7 +1446,9 @@ async function joinChannel(channelKey) {
 
     await agoraClient.join(AGORA_APP_ID, channelKey, null, uid);
     localAudioTrack = await createLocalTrack();
+    // Agora requires a track to be enabled when publishing. Publish then mute immediately for PTT behaviour.
     await agoraClient.publish([localAudioTrack]);
+    try { await localAudioTrack.setEnabled(false); } catch(e) { /* ignore */ }
     isPublishing = true;
 
     activeChannelKey = channelKey;
@@ -1360,9 +1470,20 @@ async function joinChannel(channelKey) {
     logActivity(`You joined ${ch.name}`, 'join');
   } catch (err) {
     console.error('Agora join failed:', err);
-    showToast('Failed to join channel. Check microphone permission and network.', 'error');
+    const errMsg = err?.message || String(err || '');
+    if (/permission|denied|notallowed/i.test(errMsg)) {
+      showToast('Failed to join: microphone permission denied. Allow microphone access and try again.', 'error');
+    } else if (/no device|notfound|NoSupportedAudio/i.test(errMsg)) {
+      showToast('Failed to join: no microphone found. Connect a microphone and retry.', 'error');
+    } else if (/secure|https/i.test(errMsg) && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      showToast('Microphone access requires HTTPS or localhost. Serve the page securely.', 'error');
+    } else {
+      showToast(`Failed to join channel: ${errMsg}`.slice(0, 240), 'error');
+    }
     updateConnectionStatus('error');
     activeChannelKey = null;
+  } finally {
+    isJoining = false;
   }
 }
 
