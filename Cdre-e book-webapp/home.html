@@ -19,7 +19,7 @@
     </header>
 
     <section class="search-tray">
-        <input type="text" id="officer-search" class="search-input" placeholder="SEARCH ACTIVE INDIVIDUALS BY NAME..." onkeydown="SFX.throttledKeyClick('search')" oninput="searchPersonnel(this.value)">
+        <input type="text" id="officer-search" class="search-input" placeholder="SEARCH ACTIVE INDIVIDUALS BY NAME..." onkeydown="typeof SFX !== 'undefined' && SFX.throttledKeyClick('search')" oninput="searchPersonnel(this.value)">
     </section>
 
     <div id="search-dropdown" class="search-results-box"></div>
@@ -56,9 +56,12 @@
     /* ─────────────────────────────
        TYPING SOUND
        Throttled click on keydown.
+       Guards against undefined SFX.
     ───────────────────────────── */
     function handleTypingSound() {
-        SFX.throttledKeyClick("post");
+        if (typeof SFX !== 'undefined' && SFX.throttledKeyClick) {
+            SFX.throttledKeyClick("post");
+        }
     }
 
     window.onload = function() {

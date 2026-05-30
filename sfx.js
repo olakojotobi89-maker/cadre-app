@@ -32,12 +32,15 @@
 
     function ensureContextRunning() {
         const ctx = getAudioContext();
-        if (ctx && ctx.state === "suspended") {
-            ctx.resume().catch(err =>
-                console.warn("[SFX] Could not resume AudioContext:", err)
-            );
+        if (!ctx) return Promise.resolve();
+
+        if (ctx.state === "suspended") {
+            return ctx.resume().catch(err => {
+                console.warn("[SFX] Could not resume AudioContext:", err);
+            });
         }
         isContextResumed = true;
+        return Promise.resolve();
     }
 
     /* ─────────────────────────────
@@ -69,30 +72,36 @@
     ───────────────────────────── */
     function playTone(frequency, duration, volume = 0.3) {
         const ctx = getAudioContext();
-        if (!ctx) return;
-
-        ensureContextRunning();
-
-        try {
-            const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-
-            osc.type = "sine";
-            osc.frequency.value = frequency;
-
-            gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(volume, now + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-
-            osc.start(now);
-            osc.stop(now + duration);
-        } catch (err) {
-            console.warn("[SFX] Tone playback failed:", err);
+        if (!ctx) {
+            console.warn("[SFX] AudioContext unavailable");
+            return;
         }
+
+        ensureContextRunning().then(() => {
+            try {
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = "sine";
+                osc.frequency.value = frequency;
+
+                // Envelope: fade in over 10ms, then fade out over remaining duration
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(volume, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + duration);
+
+                console.log(`[SFX] Playing tone: ${frequency}Hz for ${(duration * 1000).toFixed(0)}ms`);
+            } catch (err) {
+                console.error("[SFX] Tone playback failed:", err);
+            }
+        });
     }
 
     /* ─────────────────────────────
@@ -111,33 +120,38 @@
     ───────────────────────────── */
     SFX.transmit = function () {
         const ctx = getAudioContext();
-        if (!ctx) return;
-
-        ensureContextRunning();
-
-        try {
-            const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-
-            osc.type = "sine";
-
-            // Sweep from 600Hz down to 400Hz
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
-
-            gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.4, now + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-
-            osc.start(now);
-            osc.stop(now + 0.15);
-        } catch (err) {
-            console.warn("[SFX] Transmit failed:", err);
+        if (!ctx) {
+            console.warn("[SFX] AudioContext unavailable for transmit");
+            return;
         }
+
+        ensureContextRunning().then(() => {
+            try {
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = "sine";
+
+                // Sweep from 600Hz down to 400Hz
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
+
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.4, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+
+                console.log("[SFX] Transmit sound triggered");
+            } catch (err) {
+                console.error("[SFX] Transmit failed:", err);
+            }
+        });
     };
 
     /* ─────────────────────────────
@@ -170,7 +184,7 @@
     /* ─────────────────────────────
        CLICK THROTTLE
        Prevents typing sound spam.
-       Per-source 100ms cooldown.
+       Per-source 50ms cooldown.
     ───────────────────────────── */
     const _lastClickTime = {};
 
@@ -178,7 +192,7 @@
         const now = Date.now();
         const lastTime = _lastClickTime[sourceId] || 0;
 
-        if (now - lastTime < 100) {
+        if (now - lastTime < 50) {
             return false;
         }
 
@@ -201,6 +215,16 @@
     ───────────────────────────── */
     global.SFX = SFX;
 
-    console.log("[SFX] Audio effects system ready.");
+    // Init logging
+    const ctx = getAudioContext();
+    if (ctx) {
+        console.log(`[SFX] ✓ AudioContext available (${ctx.state})`);
+        console.log("[SFX] ✓ SFX.keyClick() - typing sounds");
+        console.log("[SFX] ✓ SFX.transmit() - post submission");
+        console.log("[SFX] ✓ SFX.throttledKeyClick(sourceId) - throttled typing");
+        console.log("[SFX] Audio effects system ready.");
+    } else {
+        console.warn("[SFX] ✗ AudioContext NOT available - sounds will not play");
+    }
 
 })(window);
