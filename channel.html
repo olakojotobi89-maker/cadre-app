@@ -1242,11 +1242,27 @@ async function loadUserProfile() {
   }
 }
 
+function getFallbackChannels() {
+  return [
+    { id: 'fallback-1', key: 'ALPHA', name: 'Alpha', callsign: 'ALP', freq: '250.0', status: 'quiet', officerCount: 0, activity: 16 },
+    { id: 'fallback-2', key: 'BRAVO', name: 'Bravo', callsign: 'BRV', freq: '251.5', status: 'quiet', officerCount: 0, activity: 20 },
+    { id: 'fallback-3', key: 'CHARLIE', name: 'Charlie', callsign: 'CHR', freq: '253.8', status: 'quiet', officerCount: 0, activity: 18 }
+  ];
+}
+
 async function loadChannels() {
   const [channelsRes, assignmentsRes] = await Promise.all([
     sbClient.from('channels').select('*').order('created_at', { ascending: true }),
     sbClient.from('officer_assignments').select('channel_id,status')
   ]);
+
+  if (channelsRes.error) {
+    console.warn('Supabase channels load failed:', channelsRes.error);
+  }
+
+  if (assignmentsRes.error) {
+    console.warn('Supabase officer assignments load failed:', assignmentsRes.error);
+  }
 
   if (channelsRes.data && channelsRes.data.length) {
     CHANNELS = channelsRes.data.map((channel, index) => {
@@ -1275,7 +1291,7 @@ async function loadChannels() {
     return map;
   }, {});
 
-  channels.forEach(channel => {
+  CHANNELS.forEach(channel => {
     const count = countMap[channel.id] || 0;
     channel.officerCount = count;
     channel.status = count > 5 ? 'active' : count > 1 ? 'busy' : 'quiet';
