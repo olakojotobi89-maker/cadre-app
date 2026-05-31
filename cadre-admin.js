@@ -13,6 +13,9 @@ const CADRE_ADMIN_STATE = {
   pttMode: 'all',
   agoraClient: null,
   localAudioTrack: null,
+  currentChannelKey: null,
+  listeningChannelKey: null,
+  remoteAudioTracks: {},
   isJoining: false,
   isTransmitting: false
 };
@@ -754,7 +757,11 @@ async function initAgoraClient() {
     try {
       await CADRE_ADMIN_STATE.agoraClient.subscribe(user, mediaType);
       if (mediaType === 'audio' && user.audioTrack) {
-        user.audioTrack.play();
+        CADRE_ADMIN_STATE.remoteAudioTracks[user.uid] = user.audioTrack;
+        const pref = CADRE_ADMIN_STATE.listeningChannelKey ? CADRE_ADMIN_STATE.preferences[CADRE_ADMIN_STATE.listeningChannelKey] : null;
+        if (!pref?.mute) {
+          user.audioTrack.play();
+        }
         console.log(`Agora admin subscribed to remote audio: ${user.uid}`);
       }
     } catch (err) {
@@ -767,6 +774,7 @@ async function initAgoraClient() {
     if (user.audioTrack) {
       user.audioTrack.stop();
     }
+    delete CADRE_ADMIN_STATE.remoteAudioTracks[user.uid];
     console.log(`Agora admin remote user unpublished: ${user.uid}`);
   });
 
@@ -794,18 +802,29 @@ function getAdminAgoraUid() {
 async function joinAgoraChannel(channelName) {
   if (!channelName) return;
   if (CADRE_ADMIN_STATE.isJoining) return;
+  if (CADRE_ADMIN_STATE.currentChannelKey === channelName) return;
+
+  if (CADRE_ADMIN_STATE.currentChannelKey) {
+    await leaveAgoraChannel();
+  }
+
   CADRE_ADMIN_STATE.isJoining = true;
 
   try {
     await initAgoraClient();
     const uid = getAdminAgoraUid();
     await CADRE_ADMIN_STATE.agoraClient.join(CADRE_AGORA_APP_ID, channelName, null, uid);
+    CADRE_ADMIN_STATE.currentChannelKey = channelName;
+    CADRE_ADMIN_STATE.remoteAudioTracks = {};
+
+    // Admin can publish audio when transmitting, but keep it muted while listening.
     CADRE_ADMIN_STATE.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_standard' });
     await CADRE_ADMIN_STATE.agoraClient.publish([CADRE_ADMIN_STATE.localAudioTrack]);
     await CADRE_ADMIN_STATE.localAudioTrack.setEnabled(false);
   } catch (error) {
     console.error('Agora join failed', error);
     cadreShowToast('Agora join failed. Check microphone and network.', 'error');
+    CADRE_ADMIN_STATE.currentChannelKey = null;
   } finally {
     CADRE_ADMIN_STATE.isJoining = false;
   }
@@ -823,7 +842,61 @@ async function leaveAgoraChannel() {
     await CADRE_ADMIN_STATE.agoraClient.leave();
   } catch (error) {
     console.warn('Agora leave failed', error);
+  } finally {
+    CADRE_ADMIN_STATE.currentChannelKey = null;
+    CADRE_ADMIN_STATE.listeningChannelKey = null;
+    CADRE_ADMIN_STATE.remoteAudioTracks = {};
   }
+}
+
+async function toggleListen(channelKey) {
+  const pref = CADRE_ADMIN_STATE.preferences[channelKey] || { listen: false, mute: false };
+  pref.listen = !pref.listen;
+
+  if (pref.listen) {
+    if (CADRE_ADMIN_STATE.listeningChannelKey && CADRE_ADMIN_STATE.listeningChannelKey !== channelKey) {
+      const previousKey = CADRE_ADMIN_STATE.listeningChannelKey;
+      const previousPref = CADRE_ADMIN_STATE.preferences[previousKey] || { listen: false, mute: false };
+      previousPref.listen = false;
+      CADRE_ADMIN_STATE.preferences[previousKey] = previousPref;
+      await saveVoicePreference(previousKey, previousPref);
+    }
+
+    await joinAgoraChannel(channelKey);
+    CADRE_ADMIN_STATE.listeningChannelKey = channelKey;
+    cadreShowToast(`Listening to ${channelKey}`, 'success');
+  } else {
+    await leaveAgoraChannel();
+    cadreShowToast(`Stopped listening to ${channelKey}`, 'warning');
+  }
+
+  CADRE_ADMIN_STATE.preferences[channelKey] = pref;
+  await saveVoicePreference(channelKey, pref);
+  renderAudioControls();
+}
+
+function toggleMute(channelKey) {
+  const pref = CADRE_ADMIN_STATE.preferences[channelKey] || { listen: false, mute: false };
+  pref.mute = !pref.mute;
+  CADRE_ADMIN_STATE.preferences[channelKey] = pref;
+
+  if (CADRE_ADMIN_STATE.listeningChannelKey === channelKey) {
+    Object.values(CADRE_ADMIN_STATE.remoteAudioTracks).forEach(track => {
+      try {
+        if (pref.mute) {
+          track.stop();
+        } else {
+          track.play();
+        }
+      } catch (err) {
+        console.warn('Failed to update remote track mute state:', err);
+      }
+    });
+  }
+
+  saveVoicePreference(channelKey, pref);
+  renderAudioControls();
+  cadreShowToast(`${pref.mute ? 'Muted' : 'Unmuted'} ${channelKey} locally`, 'success');
 }
 
 function setPTT(mode) {
