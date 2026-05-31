@@ -740,6 +740,27 @@ async function initAgoraClient() {
   }
 
   CADRE_ADMIN_STATE.agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+
+  CADRE_ADMIN_STATE.agoraClient.on('user-published', async (user, mediaType) => {
+    try {
+      await CADRE_ADMIN_STATE.agoraClient.subscribe(user, mediaType);
+      if (mediaType === 'audio' && user.audioTrack) {
+        user.audioTrack.play();
+        console.log(`Agora admin subscribed to remote audio: ${user.uid}`);
+      }
+    } catch (err) {
+      console.error('Agora admin subscribe failed:', err);
+      cadreShowToast('Failed to receive remote audio.', 'error');
+    }
+  });
+
+  CADRE_ADMIN_STATE.agoraClient.on('user-unpublished', user => {
+    if (user.audioTrack) {
+      user.audioTrack.stop();
+    }
+    console.log(`Agora admin remote user unpublished: ${user.uid}`);
+  });
+
   CADRE_ADMIN_STATE.agoraClient.on('connection-state-change', (cur) => {
     if (cur === 'CONNECTED') {
       console.log('Agora connected');
@@ -770,7 +791,7 @@ async function joinAgoraChannel(channelName) {
     await initAgoraClient();
     const uid = getAdminAgoraUid();
     await CADRE_ADMIN_STATE.agoraClient.join(CADRE_AGORA_APP_ID, channelName, null, uid);
-    CADRE_ADMIN_STATE.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_low_latency' });
+    CADRE_ADMIN_STATE.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_standard' });
     await CADRE_ADMIN_STATE.agoraClient.publish([CADRE_ADMIN_STATE.localAudioTrack]);
     await CADRE_ADMIN_STATE.localAudioTrack.setEnabled(false);
   } catch (error) {
