@@ -319,15 +319,24 @@ function renderOfficerAssignmentControls() {
   const patrolOfficerSelect = document.getElementById('patrol-officer-select');
   
   if (officerSelect) {
-    officerSelect.innerHTML = `<option value="">Select Officer...</option>` + CADRE_ADMIN_STATE.officers.map(officer => `
-      <option value="${cadreEscHtml(officer.id)}">${cadreEscHtml(officer.name)} — ${cadreEscHtml(getChannelNameById(officer.channelId) || 'Unassigned')}</option>
-    `).join('');
+    officerSelect.innerHTML = `<option value="">Select Officer...</option>` + CADRE_ADMIN_STATE.officers.map(officer => {
+      const label = officer.name || `Officer ${officer.id || 'unknown'}`;
+      return `
+        <option value="${cadreEscHtml(officer.id)}">${cadreEscHtml(label)} — ${cadreEscHtml(getChannelNameById(officer.channelId) || 'Unassigned')}</option>
+      `;
+    }).join('');
   }
   
   if (channelAssignSelect) {
-    channelAssignSelect.innerHTML = `<option value="">Assign to Channel...</option>` + CADRE_ADMIN_STATE.channels.map(channel => `
-      <option value="${cadreEscHtml(channel.id)}">${cadreEscHtml(channel.name)} (${channel.officers || 0} officers)</option>
-    `).join('');
+    const channelOptions = CADRE_ADMIN_STATE.channels.map(channel => {
+      const label = channel.name || channel.key || `Channel ${channel.id || 'unknown'}`;
+      const value = channel.id || channel.key || '';
+      return `
+        <option value="${cadreEscHtml(value)}">${cadreEscHtml(label)} (${channel.officerCount || 0} officers)</option>
+      `;
+    }).join('');
+
+    channelAssignSelect.innerHTML = `<option value="">Assign to Channel...</option>` + (channelOptions || '<option value="">No channels available</option>');
   }
   
   if (patrolOfficerSelect) {
