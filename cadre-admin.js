@@ -312,12 +312,21 @@ function renderChannelSelection() {
 
 function renderOfficerAssignmentControls() {
   const officerSelect = document.getElementById('officer-select');
+  const channelAssignSelect = document.getElementById('channel-assign-select');
   const patrolOfficerSelect = document.getElementById('patrol-officer-select');
+  
   if (officerSelect) {
     officerSelect.innerHTML = `<option value="">Select Officer...</option>` + CADRE_ADMIN_STATE.officers.map(officer => `
       <option value="${cadreEscHtml(officer.id)}">${cadreEscHtml(officer.name)} — ${cadreEscHtml(getChannelNameById(officer.channelId) || 'Unassigned')}</option>
     `).join('');
   }
+  
+  if (channelAssignSelect) {
+    channelAssignSelect.innerHTML = `<option value="">Assign to Channel...</option>` + CADRE_ADMIN_STATE.channels.map(channel => `
+      <option value="${cadreEscHtml(channel.id)}">${cadreEscHtml(channel.name)} (${channel.officers || 0} officers)</option>
+    `).join('');
+  }
+  
   if (patrolOfficerSelect) {
     patrolOfficerSelect.innerHTML = `<option value="">Select Officer...</option>` + CADRE_ADMIN_STATE.officers.map(officer => `
       <option value="${cadreEscHtml(officer.id)}">${cadreEscHtml(officer.name)}</option>

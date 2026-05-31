@@ -1147,9 +1147,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   renderChannelGrid();
   // Warn about insecure context or missing MediaDevices which can block microphone access
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('This browser does not support microphone access (MediaDevices API missing).', 'warning');
+    cadreShowToast('This browser does not support microphone access (MediaDevices API missing).', 'warning');
   } else if (location.protocol === 'file:' || (location.protocol !== 'https:' && location.hostname !== 'localhost')) {
-    showToast('Microphone access works best when served over HTTPS or on localhost.', 'warning');
+    cadreShowToast('Microphone access works best when served over HTTPS or on localhost.', 'warning');
   }
   logActivity('Channel hub online — all systems nominal', 'msg');
   // Render an actionable banner to request microphone access if not granted
@@ -1160,12 +1160,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 async function requestMicrophoneAccess() {
   try {
     await navigator.mediaDevices.getUserMedia({ audio: true });
-    showToast('Microphone access granted. You can now join a channel.', 'success');
+    cadreShowToast('Microphone access granted. You can now join a channel.', 'success');
     const banner = document.getElementById('mic-perm-banner');
     if (banner) banner.remove();
   } catch (err) {
     console.error('User denied or getUserMedia failed:', err);
-    showToast('Microphone request denied or failed. Check browser settings.', 'error');
+    cadreShowToast('Microphone request denied or failed. Check browser settings.', 'error');
   }
 }
 
@@ -1266,7 +1266,7 @@ async function loadChannels() {
 
   if (channelsRes.data && channelsRes.data.length) {
     CHANNELS = channelsRes.data.map((channel, index) => {
-      const key = normalizeChannelKey(channel.key || channel.name || `CH${index}`);
+      const key = cadreNormalizeChannelKey(channel.key || channel.name || `CH${index}`);
       listenState[key] = listenState[key] || false;
       muteState[key] = muteState[key] || false;
       return {
@@ -1385,7 +1385,7 @@ function updateConnectionStatus(state) {
 async function initAgoraClient() {
   if (agoraClient) return;
   if (typeof AgoraRTC === 'undefined') {
-    showToast('Agora SDK not loaded.', 'error');
+    cadreShowToast('Agora SDK not loaded.', 'error');
     throw new Error('AgoraRTC not available');
   }
 
@@ -1400,7 +1400,7 @@ async function initAgoraClient() {
       }
     } catch (err) {
       console.error('Agora subscribe failed:', err);
-      showToast('Failed to subscribe to remote audio.', 'error');
+      cadreShowToast('Failed to subscribe to remote audio.', 'error');
     }
   });
 
@@ -1430,7 +1430,7 @@ async function initAgoraClient() {
 
   agoraClient.on('exception', err => {
     console.error('Agora exception:', err);
-    showToast(`Agora error: ${err.msg || err}`, 'error');
+    cadreShowToast(`Agora error: ${err.msg || err}`, 'error');
     updateConnectionStatus('error');
   });
 }
@@ -1455,13 +1455,13 @@ async function createLocalTrack() {
     const msg  = err?.message || '';
 
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      showToast('Microphone access was denied. Allow microphone in your browser settings.', 'error');
+      cadreShowToast('Microphone access was denied. Allow microphone in your browser settings.', 'error');
     } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      showToast('No microphone detected. Connect a microphone and try again.', 'error');
+      cadreShowToast('No microphone detected. Connect a microphone and try again.', 'error');
     } else if (msg.toLowerCase().includes('secure') || msg.toLowerCase().includes('https')) {
-      showToast('Microphone access requires a secure context. Serve via HTTPS or use localhost.', 'error');
+      cadreShowToast('Microphone access requires a secure context. Serve via HTTPS or use localhost.', 'error');
     } else {
-      showToast('Microphone permission is required for push-to-talk.', 'error');
+      cadreShowToast('Microphone permission is required for push-to-talk.', 'error');
     }
 
     throw err;
@@ -1482,7 +1482,7 @@ async function checkMicrophonePermission() {
 async function joinChannel(channelKey) {
   if (!channelKey) return;
   if (activeChannelKey === channelKey) {
-    showToast(`Already connected to ${channelKey}.`, 'info');
+    cadreShowToast(`Already connected to ${channelKey}.`, 'info');
     return;
   }
 
@@ -1492,14 +1492,14 @@ async function joinChannel(channelKey) {
 
   // Prevent concurrent join attempts
   if (isJoining || agoraState === 'connecting') {
-    showToast('Join already in progress. Please wait.', 'info');
+    cadreShowToast('Join already in progress. Please wait.', 'info');
     return;
   }
 
   // Quick permission check to avoid silent failures
   const micState = await checkMicrophonePermission();
   if (micState === 'denied') {
-    showToast('Microphone permission is blocked. Allow microphone in browser site settings.', 'error');
+    cadreShowToast('Microphone permission is blocked. Allow microphone in browser site settings.', 'error');
     return;
   }
 
@@ -1532,19 +1532,19 @@ async function joinChannel(channelKey) {
     updateChannelStatus(channelKey, 'joined');
     updateConnectionStatus('connected');
 
-    showToast(`Joined ${ch.name}`, 'success');
+    cadreShowToast(`Joined ${ch.name}`, 'success');
     logActivity(`You joined ${ch.name}`, 'join');
   } catch (err) {
     console.error('Agora join failed:', err);
     const errMsg = err?.message || String(err || '');
     if (/permission|denied|notallowed/i.test(errMsg)) {
-      showToast('Failed to join: microphone permission denied. Allow microphone access and try again.', 'error');
+      cadreShowToast('Failed to join: microphone permission denied. Allow microphone access and try again.', 'error');
     } else if (/no device|notfound|NoSupportedAudio/i.test(errMsg)) {
-      showToast('Failed to join: no microphone found. Connect a microphone and retry.', 'error');
+      cadreShowToast('Failed to join: no microphone found. Connect a microphone and retry.', 'error');
     } else if (/secure|https/i.test(errMsg) && location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      showToast('Microphone access requires HTTPS or localhost. Serve the page securely.', 'error');
+      cadreShowToast('Microphone access requires HTTPS or localhost. Serve the page securely.', 'error');
     } else {
-      showToast(`Failed to join channel: ${errMsg}`.slice(0, 240), 'error');
+      cadreShowToast(`Failed to join channel: ${errMsg}`.slice(0, 240), 'error');
     }
     updateConnectionStatus('error');
     activeChannelKey = null;
@@ -1608,7 +1608,7 @@ async function leaveChannel() {
   }
 
   logActivity(`You left ${ch.name}`, 'leave');
-  showToast(`Left ${ch.name}`, 'warning');
+  cadreShowToast(`Left ${ch.name}`, 'warning');
 
   document.getElementById('ptt-channel-label').textContent = 'NO CHANNEL';
   activeChannelKey = null;
@@ -1767,7 +1767,7 @@ function pttPress(e) {
   if (pttActive) return;
 
   if (!activeChannelKey || !localAudioTrack) {
-    showToast('Join a channel first', 'warning');
+    cadreShowToast('Join a channel first', 'warning');
     return;
   }
 
@@ -1783,7 +1783,7 @@ function pttPress(e) {
     logActivity(`${sessionUser?.name || 'Officer'} transmitting on ${activeChannelKey}`, 'msg');
   } catch (err) {
     console.error('PTT enable failed:', err);
-    showToast('Unable to enable microphone.', 'error');
+    cadreShowToast('Unable to enable microphone.', 'error');
     pttRelease();
   }
 }
@@ -1815,18 +1815,18 @@ function pttRelease(e) {
 function joinAssignedChannel() {
   const assigned = sessionUser?.channel || 'ALPHA';
   joinChannel(assigned);
-  showToast(`Joining assigned channel: ${assigned}`, 'success');
+  cadreShowToast(`Joining assigned channel: ${assigned}`, 'success');
 }
 
 function showActiveChannels() {
   const active = CHANNELS.filter(ch => channelState[ch.key].status !== 'quiet');
   const names  = active.map(ch => ch.name).join(', ');
-  showToast(`Active: ${names || 'None'}`, 'success');
+  cadreShowToast(`Active: ${names || 'None'}`, 'success');
   logActivity('Active channels queried', 'msg');
 }
 
 async function refreshStatus() {
-  showToast('Refreshing network status...', 'success');
+  cadreShowToast('Refreshing network status...', 'success');
   await Promise.all([loadChannels(), loadOfficerCounts()]);
   logActivity('Network status refreshed', 'msg');
 }
@@ -1844,7 +1844,7 @@ function logActivity(text, type = 'msg') {
   item.className = `activity-item type-${type}`;
   item.innerHTML = `
     <span class="activity-icon">${icons[type] || '📡'}</span>
-    <span class="activity-text">${escHtml(text)}</span>
+    <span class="activity-text">${cadreEscHtml(text)}</span>
     <span class="activity-time">${now}</span>
   `;
 
@@ -1862,37 +1862,8 @@ function updateStats(total) {
   refreshActiveCount();
 }
 
-/* ─────────────────────────────────────────────
-   TOAST
-───────────────────────────────────────────── */
-
-function showToast(message, type = 'success') {
-  const existing = document.querySelector('.toast');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  document.body.appendChild(toast);
-
-  setTimeout(() => {
-    toast.style.transition = 'opacity 0.3s ease';
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
-}
-
-/* ─────────────────────────────────────────────
-   UTILITY
-───────────────────────────────────────────── */
-
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
 </script>
 </body>
 </html>
+
+

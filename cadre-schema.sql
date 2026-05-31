@@ -14,6 +14,20 @@
         updated_at timestamptz not null default now()
         );
 
+        create table if not exists users (
+                id uuid primary key default gen_random_uuid(),
+                phone text unique,
+                email text unique,
+                name text,
+                rank text,
+                role text,
+                pfp text,
+                status text,
+                last_seen timestamptz,
+                created_at timestamptz not null default now(),
+                updated_at timestamptz not null default now()
+        );
+
         create table if not exists patrol_groups (
         id uuid primary key default gen_random_uuid(),
         name text not null,
@@ -79,38 +93,54 @@
         drop policy if exists "select channels" on channels;
         create policy "select channels" on channels
         for select using (auth.role() = 'authenticated');
-        drop policy if exists "manage channels" on channels;
-        create policy "manage channels" on channels
-        for insert, update, delete using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                drop policy if exists "manage channels" on channels;
+                                create policy "manage_channels_insert" on channels
+                                        for insert with check (auth.role() = 'authenticated');
+                                create policy "manage_channels_update" on channels
+                                        for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                create policy "manage_channels_delete" on channels
+                                        for delete using (auth.role() = 'authenticated');
 
         alter table officer_assignments enable row level security;
         drop policy if exists "select assignments" on officer_assignments;
         create policy "select assignments" on officer_assignments
         for select using (auth.role() = 'authenticated');
-        drop policy if exists "manage assignments" on officer_assignments;
-        create policy "manage assignments" on officer_assignments
-        for insert, update, delete using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                drop policy if exists "manage assignments" on officer_assignments;
+                                create policy "manage_assignments_insert" on officer_assignments
+                                        for insert with check (auth.role() = 'authenticated');
+                                create policy "manage_assignments_update" on officer_assignments
+                                        for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                create policy "manage_assignments_delete" on officer_assignments
+                                        for delete using (auth.role() = 'authenticated');
 
         alter table incident_feed enable row level security;
         drop policy if exists "public feed" on incident_feed;
         create policy "public feed" on incident_feed
         for select using (auth.role() = 'authenticated');
-        drop policy if exists "feed insert" on incident_feed;
-        create policy "feed insert" on incident_feed
-        for insert using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                drop policy if exists "feed insert" on incident_feed;
+                                create policy "feed_insert" on incident_feed
+                                        for insert with check (auth.role() = 'authenticated');
 
         alter table distress_alerts enable row level security;
         drop policy if exists "public distress" on distress_alerts;
         create policy "public distress" on distress_alerts
         for select using (auth.role() = 'authenticated');
-        drop policy if exists "manage distress" on distress_alerts;
-        create policy "manage distress" on distress_alerts
-        for insert, update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                drop policy if exists "manage distress" on distress_alerts;
+                                create policy "manage_distress_insert" on distress_alerts
+                                        for insert with check (auth.role() = 'authenticated');
+                                create policy "manage_distress_update" on distress_alerts
+                                        for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                create policy "manage_distress_delete" on distress_alerts
+                                        for delete using (auth.role() = 'authenticated');
 
         alter table voice_preferences enable row level security;
         drop policy if exists "select voice prefs" on voice_preferences;
         create policy "select voice prefs" on voice_preferences
         for select using (auth.role() = 'authenticated');
-        drop policy if exists "manage voice prefs" on voice_preferences;
-        create policy "manage voice prefs" on voice_preferences
-        for insert, update, delete using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                drop policy if exists "manage voice prefs" on voice_preferences;
+                                create policy "manage_voice_prefs_insert" on voice_preferences
+                                        for insert with check (auth.role() = 'authenticated');
+                                create policy "manage_voice_prefs_update" on voice_preferences
+                                        for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+                                create policy "manage_voice_prefs_delete" on voice_preferences
+                                        for delete using (auth.role() = 'authenticated');
