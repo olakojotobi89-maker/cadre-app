@@ -111,6 +111,9 @@
     </nav>
 </div>
 
+<script src="ai-voice.js"></script>
+<script src="ai-integration.js"></script>
+
 <script>
 const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
 const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
@@ -229,14 +232,26 @@ function handleSosInteraction() {
 
 /* ─────────────────────────────────────────────
    ACTIVATE SOS
-   NOTE: only columns that exist in the table
-   are sent. Run the ALTER TABLE SQL in Supabase
-   to add initiated_at and last_telemetry_timestamp
-   if you want those columns populated too.
+   Enhanced with AI voice confirmation flow.
 ───────────────────────────────────────────── */
 async function initiateDistressProtocol() {
     const btn = document.getElementById("action-btn");
     btn.disabled = true;
+
+    /* ─────────────────────────────────────────────
+       STEP 1: AI Confirmation
+       Before any Supabase write, confirm via voice.
+    ───────────────────────────────────────────── */
+    if (window.CADRE && window.CADRE.ai) {
+        const confirmed = await CADRE.ai.sos.confirm();
+        if (!confirmed) {
+            logToConsole("SOS CANCELLED BY OPERATOR", "status-active");
+            CADRE.ai.sos.cancelled();
+            btn.disabled = false;
+            return;
+        }
+    }
+
     logToConsole("SOS SIGNAL INITIATED — BROADCASTING...", "status-critical");
 
     /* Delete any stale row first */
@@ -286,6 +301,14 @@ async function initiateDistressProtocol() {
         return;
     }
 
+    /* ─────────────────────────────────────────────
+       STEP 2: SOS Successfully Activated
+       Announce activation after DB write confirms.
+    ───────────────────────────────────────────── */
+    if (window.CADRE && window.CADRE.ai) {
+        CADRE.ai.sos.activated();
+    }
+
     isAlertActive   = true;
     btn.disabled    = false;
     btn.textContent = "STAND DOWN";
@@ -305,6 +328,13 @@ async function requestSecureDeactivation() {
     if (!confirmed) return;
 
     logToConsole("STAND DOWN CONFIRMED — DEACTIVATING...", "status-active");
+
+    /* ─────────────────────────────────────────────
+       AI: Announce SOS Cancelled
+    ───────────────────────────────────────────── */
+    if (window.CADRE && window.CADRE.ai) {
+        CADRE.ai.sos.cancelled();
+    }
 
     isAlertActive = false;
 
@@ -378,6 +408,5 @@ async function startMicrophoneCapture() {
     } catch(err) { logToConsole("MIC PIPELINE BYPASSED", "status-active"); }
 }
 </script>
-<script src="ai-voice.js"></script>
 </body>
 </html>
