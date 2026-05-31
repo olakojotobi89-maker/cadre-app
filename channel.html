@@ -1429,7 +1429,7 @@ async function createLocalTrack() {
     await navigator.mediaDevices.getUserMedia({ audio: true });
 
     // Create the microphone track (enabled by default) so it can be published.
-    const track = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_low_latency' });
+    const track = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_standard' });
     return track;
   } catch (err) {
     console.error('Microphone create failed:', err);
