@@ -7,6 +7,8 @@
 
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="ai-voice.js"></script>
+<script src="ai-integration.js"></script>
 
 <style>
 .app-bottom-dock{
@@ -279,7 +281,7 @@ let currentPage  = 0;
 let allLoaded    = false;
 let realtimeDebounceTimer = null;
 
-const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='42' height='42' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
+const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='42' height='42' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-4 0-7 2-7 5v3h14v-3c0-3-3-5-7-5z'/></svg>";
 
 function tryParse(v) { try { return JSON.parse(v); } catch { return null; } }
 function escHtml(str) {
@@ -399,6 +401,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         backfillMyPosts(uid),   /* one-time fix: stamp user_id on old null posts */
         loadPostsPage(0)
     ]);
+
+    /* ─────────────────────────────────────────────
+       AI VOICE INTEGRATION — Welcome message
+       Fire asynchronously after profile loads.
+    ───────────────────────────────────────────── */
+    if (window.CADRE && window.CADRE.ai) {
+        CADRE.ai.welcome(currentUser);
+    }
 
     /* Realtime */
     sbClient
@@ -784,7 +794,7 @@ function showSkeletons(container, count) {
         container.innerHTML +=
             '<div class="skeleton-card">' +
             '<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">' +
-            '<div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(90deg,#1e293b 25%,#2d3f55 50%,#1e293b 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;flex-shrink:0;"></div>' +
+            '<div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(90deg,#1e293b 25%,#2d3f55 50%,#1e293b 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;"></div>' +
             '<div style="flex:1;"><div class="skeleton-line narrow"></div><div class="skeleton-line" style="width:50%;"></div></div>' +
             '</div><div class="skeleton-block"></div><div class="skeleton-line narrow"></div></div>';
     }
@@ -843,7 +853,9 @@ async function submitInstagramPost() {
     preview.style.display = "none";
 
     /* Transmission sound */
-    SFX.transmit();
+    if (window.SFX && typeof SFX.transmit === 'function') {
+        SFX.transmit();
+    }
 
     /* Instantly prepend the new post — no refresh needed */
     const postToShow = inserted || newPost;
@@ -1001,206 +1013,11 @@ function previewSelectedImage(input) {
     reader.readAsDataURL(input.files[0]);
 }
 
-/* ─────────────────────────────────────────────
-   TACTICAL SOUND ENGINE
-   All sounds generated via Web Audio API —
-   no external files needed.
-───────────────────────────────────────────── */
-const SFX = (() => {
-    let ctx = null;
-
-    function getCtx() {
-        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-        if (ctx.state === 'suspended') ctx.resume();
-        return ctx;
-    }
-
-    /* Mechanical keyboard click — layered click + tiny noise burst */
-    function keyClick() {
-        const c = getCtx();
-        const now = c.currentTime;
-
-        /* Sharp transient click */
-        const buf = c.createBuffer(1, c.sampleRate * 0.04, c.sampleRate);
-        const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) {
-            d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 8);
-        }
-        const src = c.createBufferSource();
-        src.buffer = buf;
-
-        /* High-pass filter for that crisp tactical click */
-        const hp = c.createBiquadFilter();
-        hp.type = 'highpass';
-        hp.frequency.value = 1800;
-
-        const gain = c.createGain();
-        gain.gain.setValueAtTime(0.18, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-
-        src.connect(hp);
-        hp.connect(gain);
-        gain.connect(c.destination);
-        src.start(now);
-        src.stop(now + 0.04);
-
-        /* Sub-click body */
-        const osc = c.createOscillator();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(420, now);
-        osc.frequency.exponentialRampToValueAtTime(180, now + 0.018);
-        const og = c.createGain();
-        og.gain.setValueAtTime(0.07, now);
-        og.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
-        osc.connect(og);
-        og.connect(c.destination);
-        osc.start(now);
-        osc.stop(now + 0.018);
-    }
-
-    /* Transmission sent — radio chirp + confirmation beep */
-    function transmit() {
-        const c = getCtx();
-        const now = c.currentTime;
-
-        /* Radio static burst */
-        const buf = c.createBuffer(1, c.sampleRate * 0.12, c.sampleRate);
-        const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) {
-            d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
-        }
-        const noise = c.createBufferSource();
-        noise.buffer = buf;
-        const bp = c.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.frequency.value = 2400;
-        bp.Q.value = 0.8;
-        const ng = c.createGain();
-        ng.gain.setValueAtTime(0.3, now);
-        ng.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-        noise.connect(bp); bp.connect(ng); ng.connect(c.destination);
-        noise.start(now); noise.stop(now + 0.12);
-
-        /* Confirmation tone — ascending two-beep */
-        [[520, 0.08, 0.13], [780, 0.16, 0.22]].forEach(([freq, start, end]) => {
-            const osc = c.createOscillator();
-            osc.type = 'sine';
-            osc.frequency.value = freq;
-            const g = c.createGain();
-            g.gain.setValueAtTime(0, now + start);
-            g.gain.linearRampToValueAtTime(0.22, now + start + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.001, now + end);
-            osc.connect(g); g.connect(c.destination);
-            osc.start(now + start); osc.stop(now + end);
-        });
-
-        /* Low thud */
-        const thud = c.createOscillator();
-        thud.type = 'sine';
-        thud.frequency.setValueAtTime(90, now + 0.18);
-        thud.frequency.exponentialRampToValueAtTime(40, now + 0.32);
-        const tg = c.createGain();
-        tg.gain.setValueAtTime(0.35, now + 0.18);
-        tg.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
-        thud.connect(tg); tg.connect(c.destination);
-        thud.start(now + 0.18); thud.stop(now + 0.32);
-    }
-
-    return { keyClick, transmit };
-})();
-
-/* ─────────────────────────────────────────────
-   SEARCH — by name or rank
-───────────────────────────────────────────── */
-let searchDebounceTimer = null;
-const searchInput    = document.getElementById("officer-search");
-const searchDropdown = document.getElementById("search-dropdown");
-
-searchInput.addEventListener("input", function() {
-    clearTimeout(searchDebounceTimer);
-    const query = this.value.trim();
-    if (!query) { closeSearch(); return; }
-    searchDebounceTimer = setTimeout(function() {
-        runSearch(query);
-    }, 280);
-});
-
-searchInput.addEventListener("keydown", function(e) {
-    handleTypingSound();
-    if (e.key === "Escape") closeSearch();
-});
-
-/* Close dropdown when clicking outside */
-document.addEventListener("click", function(e) {
-    if (!searchDropdown.contains(e.target) && e.target !== searchInput) {
-        closeSearch();
-    }
-});
-
-function closeSearch() {
-    searchDropdown.style.display = "none";
-    searchDropdown.innerHTML = "";
-}
-
-async function runSearch(query) {
-    searchDropdown.style.display = "block";
-    searchDropdown.innerHTML = '<div class="search-no-results">SCANNING...</div>';
-
-    const q = query.toLowerCase();
-
-    /* Search by name OR rank — fetch all, filter client-side for partial matches */
-    const { data, error } = await sbClient
-        .from('users')
-        .select('id, name, rank, pfp')
-        .or('name.ilike.%' + query + '%,rank.ilike.%' + query + '%')
-        .limit(15);
-
-    if (error || !data || data.length === 0) {
-        searchDropdown.innerHTML = '<div class="search-no-results">NO OPERATORS FOUND</div>';
-        return;
-    }
-
-    searchDropdown.innerHTML = "";
-    const frag = document.createDocumentFragment();
-
-    data.forEach(function(user) {
-        const item = document.createElement("div");
-        item.className = "search-result-item";
-        item.onclick = function() {
-            closeSearch();
-            searchInput.value = "";
-            openProfile(user.id);
-        };
-
-        const avatar = document.createElement("img");
-        avatar.className = "search-result-avatar";
-        avatar.src = user.pfp || DEFAULT_AVATAR;
-        avatar.alt = user.name || "Operator";
-        item.appendChild(avatar);
-
-        const info = document.createElement("div");
-        info.className = "search-result-info";
-        info.innerHTML =
-            '<span class="search-result-name">' + escHtml(user.name || 'UNKNOWN') + '</span>' +
-            '<span class="search-result-rank">' + escHtml(user.rank || 'UNIT') + '</span>';
-        item.appendChild(info);
-
-        frag.appendChild(item);
-    });
-
-    searchDropdown.appendChild(frag);
-}
-
-/* Throttle key clicks so rapid typing doesn't overlap too much */
-let lastKeyClick = 0;
 function handleTypingSound() {
-    const now = Date.now();
-    if (now - lastKeyClick < 55) return;
-    lastKeyClick = now;
-    SFX.keyClick();
+    if (window.SFX && typeof SFX.type === 'function') {
+        SFX.type();
+    }
 }
-
 </script>
-<script src="ai-voice.js"></script>
 </body>
 </html>
