@@ -357,7 +357,7 @@
         <a href="map.html" class="more-menu-item">
             <span class="more-menu-icon">🗺️</span><span>Map</span>
         </a>
-        <a href="#" id="admin-btn" data-more-admin-item class="more-menu-item" style="display:none;">
+        <a href="admin.html" class="more-menu-item">
             <span class="more-menu-icon">⚙️</span><span>Admin</span>
         </a>
     </div>
@@ -501,7 +501,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         pfpCache.set(uid, profile.pfp);
     }
 
-    document.getElementById("admin-btn").addEventListener("click", checkAdminAccess);
+    const adminButton = document.getElementById("admin-btn");
+    if (adminButton) {
+        adminButton.addEventListener("click", checkAdminAccess);
+    }
 
     const moreDockBtn      = document.getElementById("more-dock-btn");
     const moreMenuClose    = document.getElementById("more-menu-close");

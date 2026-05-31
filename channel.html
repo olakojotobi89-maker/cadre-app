@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CADRE — Tactical Channel Hub</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cadre-common.js"></script>
 <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
 <style>
 
@@ -1070,11 +1071,7 @@ body::after {
 /* ─────────────────────────────────────────────
    SUPABASE
 ───────────────────────────────────────────── */
-const SUPABASE_URL = 'https://ihroattnnnsckvvbosfz.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: false }
-});
+const sbClient = CADRE_SB;
 
 /* ─────────────────────────────────────────────
    AGORA
@@ -1116,7 +1113,7 @@ if (!sessionUser) {
 /* ─────────────────────────────────────────────
    CHANNEL DEFINITIONS
 ───────────────────────────────────────────── */
-const CHANNELS = [
+let CHANNELS = [
   { key:'ALPHA',   name:'Alpha Channel',   callsign:'CH-01', freq:'462.550 MHz' },
   { key:'BRAVO',   name:'Bravo Channel',   callsign:'CH-02', freq:'462.575 MHz' },
   { key:'CHARLIE', name:'Charlie Channel', callsign:'CH-03', freq:'462.600 MHz' },
@@ -1141,12 +1138,13 @@ let selectedChannelKey = null;
 window.addEventListener('DOMContentLoaded', async () => {
   initClock();
   renderHeader();
-  renderChannelGrid();
   await Promise.all([
     loadUserProfile(),
     loadChannels(),
     loadOfficerCounts()
   ]);
+  setupRealtimeSubscriptions();
+  renderChannelGrid();
   // Warn about insecure context or missing MediaDevices which can block microphone access
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showToast('This browser does not support microphone access (MediaDevices API missing).', 'warning');
@@ -1245,31 +1243,82 @@ async function loadUserProfile() {
 }
 
 async function loadChannels() {
-  const { data } = await sbClient
-    .from('group_call_members')
-    .select('*');
+  const [channelsRes, assignmentsRes] = await Promise.all([
+    sbClient.from('channels').select('*').order('created_at', { ascending: true }),
+    sbClient.from('officer_assignments').select('channel_id,status')
+  ]);
 
-  const total = data?.length || 0;
+  if (channelsRes.data && channelsRes.data.length) {
+    CHANNELS = channelsRes.data.map((channel, index) => {
+      const key = normalizeChannelKey(channel.key || channel.name || `CH${index}`);
+      listenState[key] = listenState[key] || false;
+      muteState[key] = muteState[key] || false;
+      return {
+        id: channel.id,
+        key,
+        name: channel.name || `Channel ${index + 1}`,
+        callsign: channel.callsign || key.slice(0, 3),
+        freq: channel.frequency || 'N/A',
+        status: channel.is_disabled ? 'quiet' : channel.status || 'quiet',
+        officerCount: 0,
+        activity: 0
+      };
+    });
+  } else {
+    CHANNELS = getFallbackChannels();
+  }
 
-  CHANNELS.forEach((ch, i) => {
-    const count = Math.max(0, Math.floor(total / CHANNELS.length) + (i % 3));
-    channelState[ch.key].officers = count;
-    channelState[ch.key].status   = count > 5 ? 'active' : count > 1 ? 'busy' : 'quiet';
-    channelState[ch.key].activity = Math.min(100, count * 12 + Math.random() * 20);
+  const assignments = assignmentsRes.data || [];
+  const countMap = assignments.reduce((map, assignment) => {
+    if (!assignment.channel_id) return map;
+    map[assignment.channel_id] = (map[assignment.channel_id] || 0) + (assignment.status === 'online' ? 1 : 0);
+    return map;
+  }, {});
+
+  channels.forEach(channel => {
+    const count = countMap[channel.id] || 0;
+    channel.officerCount = count;
+    channel.status = count > 5 ? 'active' : count > 1 ? 'busy' : 'quiet';
+    channel.activity = Math.min(100, Math.max(12, count * 12 + Math.floor(Math.random() * 32)));
+    channelState[channel.key] = channelState[channel.key] || {};
+    channelState[channel.key].officers = count;
+    channelState[channel.key].status = channel.status;
+    channelState[channel.key].activity = channel.activity;
   });
 
-  updateStats(total);
+  updateStats(assignments.length);
   refreshChannelCards();
 }
 
 async function loadOfficerCounts() {
   const { data } = await sbClient
-    .from('users')
-    .select('phone', { count: 'exact' });
+    .from('officer_assignments')
+    .select('user_id,status');
 
-  const count = data?.length || 0;
+  const count = data?.filter(row => row.status === 'online').length || 0;
   document.getElementById("hdr-online").textContent  = count;
   document.getElementById("stat-online").textContent = count;
+}
+
+function setupRealtimeSubscriptions() {
+  cadreSubscribeTable('channels', async () => {
+    await loadChannels();
+    renderChannelGrid();
+  });
+
+  cadreSubscribeTable('officer_assignments', async () => {
+    await loadChannels();
+    await loadOfficerCounts();
+    renderChannelGrid();
+  });
+
+  cadreSubscribeTable('incident_feed', async () => {
+    logActivity('New dispatch event received', 'msg');
+  });
+
+  cadreSubscribeTable('distress_alerts', async () => {
+    logActivity('Distress alert updated', 'alert');
+  });
 }
 
 /* ─────────────────────────────────────────────
@@ -1452,6 +1501,7 @@ async function joinChannel(channelKey) {
     isPublishing = true;
 
     activeChannelKey = channelKey;
+    await persistOfficerAssignment(channelKey);
     const ch = CHANNELS.find(c => c.key === channelKey) || { name: channelKey };
 
     document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
@@ -1484,6 +1534,34 @@ async function joinChannel(channelKey) {
     activeChannelKey = null;
   } finally {
     isJoining = false;
+  }
+}
+
+async function persistOfficerAssignment(channelKey) {
+  const phone = sessionUser?.phone;
+  if (!phone) return;
+
+  const { data: userRow } = await sbClient.from('users').select('id').eq('phone', phone).maybeSingle();
+  if (!userRow?.id) return;
+
+  const { data: assignment } = await sbClient
+    .from('officer_assignments')
+    .select('*')
+    .eq('user_id', userRow.id)
+    .maybeSingle();
+
+  const { data: channelRow } = await sbClient
+    .from('channels')
+    .select('id')
+    .eq('key', channelKey)
+    .maybeSingle();
+
+  if (!channelRow?.id) return;
+
+  if (assignment) {
+    await sbClient.from('officer_assignments').update({ channel_id: channelRow.id, status: 'online', last_seen: new Date().toISOString() }).eq('id', assignment.id);
+  } else {
+    await sbClient.from('officer_assignments').insert([{ user_id: userRow.id, channel_id: channelRow.id, status: 'online', last_seen: new Date().toISOString() }]);
   }
 }
 

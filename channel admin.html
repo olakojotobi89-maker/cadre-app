@@ -510,6 +510,10 @@ body::before {
   100% { box-shadow:0 0 0 0 rgba(204,26,26,0); }
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+<script src="cadre-common.js"></script>
+<script src="cadre-admin.js"></script>
 </head>
 <body>
 
@@ -723,21 +727,19 @@ body::before {
     <div class="panel-head"><span class="panel-title">Channel Management</span></div>
     <div class="panel-body">
       <div style="display:flex;gap:6px;margin-bottom:8px;">
-        <input type="text" class="text-input" placeholder="New channel name..." style="flex:1;">
-        <button class="btn btn-red btn-lg">CREATE</button>
+        <input id="channel-create-name" type="text" class="text-input" placeholder="New channel name..." style="flex:1;">
+        <button id="channel-create-btn" class="btn btn-red btn-lg">CREATE</button>
       </div>
       <div class="divider">Select Channel</div>
-      <select class="assign-select" style="width:100%;margin-bottom:8px;">
-        <option>Alpha</option><option>Bravo</option><option>Charlie</option>
-        <option>Delta</option><option>Echo</option><option>Foxtrot</option>
-        <option>Golf</option><option>Hotel</option><option>India</option>
+      <select id="channel-select" class="assign-select" style="width:100%;margin-bottom:8px;">
+        <option value="">Select Channel...</option>
       </select>
       <div class="mgmt-grid">
-        <button class="btn btn-gold btn-full" onclick="addFeed('Channel renamed','')">RENAME</button>
-        <button class="btn btn-amber btn-full" onclick="addFeed('Channel disabled','warn')">DISABLE</button>
-        <button class="btn btn-amber btn-full" onclick="addFeed('Channel locked','warn')">LOCK</button>
-        <button class="btn btn-red btn-full" onclick="addFeed('Channel deleted','alert')">DELETE</button>
-        <button class="btn btn-ghost btn-full" style="grid-column:1/-1;" onclick="addFeed('Channel archived','')">ARCHIVE</button>
+        <button id="channel-rename-btn" class="btn btn-gold btn-full">RENAME</button>
+        <button id="channel-disable-btn" class="btn btn-amber btn-full">DISABLE</button>
+        <button id="channel-lock-btn" class="btn btn-amber btn-full">LOCK</button>
+        <button id="channel-delete-btn" class="btn btn-red btn-full">DELETE</button>
+        <button id="channel-archive-btn" class="btn btn-ghost btn-full" style="grid-column:1/-1;">ARCHIVE</button>
       </div>
     </div>
   </div>
@@ -800,21 +802,9 @@ body::before {
         <span class="panel-badge red">1 ACTIVE</span>
       </div>
     </div>
-    <div class="panel-body">
-      <div class="distress-card">
-        <div class="distress-head">
-          <span class="distress-name">⚠ K. OKONKWO</span>
-          <span class="distress-time">10:47 AM</span>
-        </div>
-        <div class="distress-gps">GPS: 6.5244°N, 3.3792°E · ALPHA CH</div>
-        <div class="distress-acts">
-          <button class="btn btn-gold" onclick="addFeed('Viewing K.Okonkwo location','alert')">VIEW LOC</button>
-          <button class="btn btn-amber" onclick="addFeed('Distress acknowledged','warn')">ACK</button>
-          <button class="btn btn-red" onclick="addFeed('Distress ESCALATED','alert')">ESCALATE</button>
-        </div>
+<div class="panel-body" id="distressContainer">
+        <div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);text-align:center;letter-spacing:1px;">Loading distress signals...</div>
       </div>
-      <div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);text-align:center;margin-top:6px;letter-spacing:1px;">NO OTHER ACTIVE SIGNALS</div>
-    </div>
   </div>
 
   <!-- OFFICER ASSIGNMENT -->
@@ -822,33 +812,23 @@ body::before {
     <div class="panel-head"><span class="panel-title">Officer Assignment</span></div>
     <div class="panel-body">
       <div style="display:flex;flex-direction:column;gap:7px;">
-        <select class="assign-select">
+        <select id="officer-select" class="assign-select">
           <option value="">Select Officer...</option>
-          <option>J. Smith — Alpha</option>
-          <option>A. Davis — Bravo</option>
-          <option>M. Torres — Charlie</option>
-          <option>K. Okonkwo — Alpha</option>
-          <option>R. Patel — Delta</option>
         </select>
         <div style="display:flex;gap:6px;">
-          <select class="assign-select">
+          <select id="channel-assign-select" class="assign-select">
             <option value="">Assign to Channel...</option>
-            <option>Alpha</option><option>Bravo</option><option>Charlie</option>
-            <option>Delta</option><option>Echo</option><option>Foxtrot</option>
-            <option>Golf</option><option>Hotel</option><option>India</option>
           </select>
-          <button class="btn btn-red btn-lg" onclick="addFeed('Officer moved to channel','')">MOVE</button>
+          <button id="channel-move-btn" class="btn btn-red btn-lg">MOVE</button>
         </div>
         <div class="divider">Patrol Groups</div>
-        <select class="assign-select">
+        <select id="patrol-officer-select" class="assign-select">
           <option value="">Select officer...</option>
-          <option>J. Smith</option><option>A. Davis</option>
-          <option>M. Torres</option><option>R. Patel</option>
         </select>
-        <input type="text" class="text-input" placeholder="Group / Team name...">
+        <input id="group-name-input" type="text" class="text-input" placeholder="Group / Team name...">
         <div style="display:flex;gap:5px;">
-          <button class="btn btn-gold btn-full" onclick="addFeed('Patrol group assigned','')">ASSIGN GROUP</button>
-          <button class="btn btn-red btn-full" onclick="addFeed('Officer removed','warn')">REMOVE</button>
+          <button id="assign-group-btn" class="btn btn-gold btn-full">ASSIGN GROUP</button>
+          <button id="remove-group-btn" class="btn btn-red btn-full">REMOVE</button>
         </div>
         <button class="btn btn-amber btn-full" onclick="addFeed('Temp team created','')">＋ CREATE TEMP TEAM</button>
       </div>
