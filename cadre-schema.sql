@@ -144,3 +144,15 @@
                                         for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
                                 create policy "manage_voice_prefs_delete" on voice_preferences
                                         for delete using (auth.role() = 'authenticated');
+
+        -- Users table RLS policies
+        alter table users enable row level security;
+        drop policy if exists "select users" on users;
+        create policy "select users" on users
+        for select using (auth.role() = 'authenticated');
+                                drop policy if exists "insert own user" on users;
+                                create policy "insert own user" on users
+                                        for insert with check (auth.uid() = id);
+                                drop policy if exists "update own user" on users;
+                                create policy "update own user" on users
+                                        for update using (auth.uid() = id) with check (auth.uid() = id);
