@@ -1185,27 +1185,66 @@ const muteState   = {};  // { [channelKey]: boolean } — admin mute toggles  (s
 
 /* ─────────────────────────────────────────────
    SESSION
+   IMPORTANT: All session detection is ASYNC and runs inside DOMContentLoaded.
+   Nothing redirects at parse time — that caused the instant logout bug.
+
+   Resolution order:
+   1. Try all known localStorage keys (sync — fastest, works offline)
+   2. Try Supabase getSession() (async — covers OAuth / magic-link flows)
+   3. Try cached_operator_phone as a last-resort stub
+   4. Only redirect to login if ALL three fail
 ───────────────────────────────────────────── */
 let sessionUser = null;
 
-const SESSION_KEYS = ["session_user","user","officer","currentUser"];
-for (const k of SESSION_KEYS) {
-  try {
-    const p = JSON.parse(localStorage.getItem(k));
-    if (p?.phone) { sessionUser = p; break; }
-  } catch(e) {}
-}
-
-if (!sessionUser) {
-  const plainPhone = localStorage.getItem("cached_operator_phone");
-  if (plainPhone) {
-    sessionUser = { phone: plainPhone, name: "Field Agent", rank: "UNIT" };
+/*
+ * resolveSession()
+ * Returns a session object with at minimum { phone } or null.
+ * Never throws — all errors are caught and treated as "no session".
+ */
+async function resolveSession() {
+  // ── Pass 1: synchronous localStorage scan ──────────────────────
+  const SESSION_KEYS = ["session_user", "user", "officer", "currentUser"];
+  for (const k of SESSION_KEYS) {
+    try {
+      const p = JSON.parse(localStorage.getItem(k));
+      if (p?.phone) return p;
+    } catch (_) {}
   }
-}
 
-if (!sessionUser) {
-  console.warn("channel.html: no session found. localStorage keys:", Object.keys(localStorage));
-  window.location.href = "login.html";
+  // ── Pass 2: Supabase async session (handles token-based auth) ──
+  // CADRE_SB is defined by cadre-common.js. Guard in case that script
+  // failed to load (wrong path, network error, etc.)
+  try {
+    if (typeof CADRE_SB !== 'undefined' && CADRE_SB?.auth?.getSession) {
+      const { data } = await CADRE_SB.auth.getSession();
+      const sbUser = data?.session?.user;
+      if (sbUser) {
+        // Supabase user metadata may carry phone/name set at registration
+        const meta  = sbUser.user_metadata || {};
+        const phone = meta.phone || sbUser.phone || sbUser.email || sbUser.id;
+        if (phone) {
+          return {
+            phone: String(phone),
+            name:  meta.name  || meta.display_name || 'Officer',
+            rank:  meta.rank  || 'UNIT',
+            id:    sbUser.id,
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Session] Supabase getSession failed (non-fatal):', e.message);
+  }
+
+  // ── Pass 3: bare phone number cached by login page ─────────────
+  try {
+    const plainPhone = localStorage.getItem("cached_operator_phone");
+    if (plainPhone) {
+      return { phone: plainPhone, name: "Field Agent", rank: "UNIT" };
+    }
+  } catch (_) {}
+
+  return null; // No session found anywhere
 }
 
 /* ─────────────────────────────────────────────
@@ -1235,6 +1274,20 @@ let selectedChannelKey = null;
    BOOT
 ───────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
+
+  /* ── STEP 1: Resolve session BEFORE anything else ──────────────
+   * This is the fix for the instant-logout bug.
+   * We await the async session lookup so cadre-common.js / Supabase
+   * has time to restore any stored token before we decide to redirect.
+   */
+  sessionUser = await resolveSession();
+
+  if (!sessionUser) {
+    console.warn('[Session] No session found. localStorage keys:', Object.keys(localStorage));
+    window.location.href = 'login.html';
+    return; // stop boot — page is navigating away
+  }
+
   // Apply global Agora tuning before any client is created
   if (typeof AgoraRTC !== 'undefined') applyAgoraGlobalConfig();
 
