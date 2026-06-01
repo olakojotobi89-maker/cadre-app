@@ -485,6 +485,29 @@ window.addEventListener('DOMContentLoaded', async () => {
         .single();
 
     if (profileErr || !profile) {
+        console.error("Profile fetch failed:", profileErr);
+        
+        /* Try to recover: create profile if it's missing */
+        try {
+            const { data: { user } } = await sbClient.auth.getUser();
+            if (user) {
+                const { error: createErr } = await sbClient.from('users').insert({
+                    id:    user.id,
+                    name:  user.user_metadata?.name  || 'UNKNOWN',
+                    rank:  user.user_metadata?.rank  || 'UNIT',
+                    email: user.email
+                });
+
+                if (!createErr) {
+                    /* Profile created, reload page */
+                    window.location.reload();
+                    return;
+                }
+            }
+        } catch(e) {
+            console.error("Recovery attempt failed:", e);
+        }
+
         window.location.href = "login.html";
         return;
     }

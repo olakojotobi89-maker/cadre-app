@@ -77,56 +77,81 @@
         button.disabled = true;
         button.textContent = "Initializing...";
 
-        /* Step 1: Create auth account */
-        const { data: authData, error: authError } = await sbClient.auth.signUp({
-            email: stagedData.email,
-            password: stagedData.password,
-            options: {
-                data: { name: stagedData.name, rank: stagedData.rank }
-            }
-        });
+        try {
+            /* Step 1: Create auth account */
+            const { data: authData, error: authError } = await sbClient.auth.signUp({
+                email: stagedData.email,
+                password: stagedData.password,
+                options: {
+                    data: { name: stagedData.name, rank: stagedData.rank }
+                }
+            });
 
-        if (authError) {
-            alert("DEPLOYMENT CRASH: " + authError.message);
-            button.disabled = false;
-            button.textContent = "Confirm & Initialize";
-            return;
-        }
-
-        const userId = authData.user?.id;
-        if (!userId) {
-            alert("DEPLOYMENT CRASH: Could not retrieve user ID.");
-            button.disabled = false;
-            button.textContent = "Confirm & Initialize";
-            return;
-        }
-
-        /* Step 2: Insert into users table — this is what profile.html reads */
-        const { error: insertError } = await sbClient.from('users').insert({
-            id:    userId,
-            name:  stagedData.name,
-            rank:  stagedData.rank,
-            email: stagedData.email
-        });
-
-        if (insertError) {
-            /* If row already exists (duplicate signup attempt), try update instead */
-            if (insertError.code === '23505') {
-                await sbClient.from('users')
-                    .update({ name: stagedData.name, rank: stagedData.rank })
-                    .eq('id', userId);
-            } else {
-                console.error("DB insert error:", insertError);
-                alert("PROFILE SAVE FAILED: " + insertError.message);
+            if (authError) {
+                alert("DEPLOYMENT CRASH: " + authError.message);
                 button.disabled = false;
                 button.textContent = "Confirm & Initialize";
                 return;
             }
-        }
 
-        /* No localStorage — everything lives in Supabase */
-        alert("SUCCESS: Profile initialized. Please log in.");
-        window.location.href = "login.html";
+            const userId = authData.user?.id;
+            if (!userId) {
+                alert("DEPLOYMENT CRASH: Could not retrieve user ID.");
+                button.disabled = false;
+                button.textContent = "Confirm & Initialize";
+                return;
+            }
+
+            /* Step 2: Insert into users table — this is what profile.html reads */
+            const { error: insertError } = await sbClient.from('users').insert({
+                id:    userId,
+                name:  stagedData.name,
+                rank:  stagedData.rank,
+                email: stagedData.email
+            });
+
+            if (insertError) {
+                console.error("Insert error:", insertError);
+                
+                /* If row already exists (duplicate signup attempt), try update instead */
+                if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
+                    const { error: updateErr } = await sbClient.from('users')
+                        .update({ name: stagedData.name, rank: stagedData.rank })
+                        .eq('id', userId);
+                    
+                    if (updateErr) {
+                        console.error("Update error:", updateErr);
+                        alert("PROFILE SAVE FAILED: " + updateErr.message);
+                        button.disabled = false;
+                        button.textContent = "Confirm & Initialize";
+                        return;
+                    }
+                } else {
+                    console.error("DB insert error:", insertError);
+                    alert("PROFILE SAVE FAILED: " + insertError.message);
+                    button.disabled = false;
+                    button.textContent = "Confirm & Initialize";
+                    return;
+                }
+            }
+
+            alert("SUCCESS: Profile initialized. Please log in.");
+            
+            /* Store user ID for immediate login redirect */
+            localStorage.setItem("cadre_uid", userId);
+            localStorage.setItem("cadre_email", stagedData.email);
+            
+            /* Redirect to login after a short delay */
+            setTimeout(() => {
+                window.location.href = "login.html";
+            }, 100);
+
+        } catch (err) {
+            console.error("Unexpected error during signup:", err);
+            alert("UNEXPECTED ERROR: " + err.message);
+            button.disabled = false;
+            button.textContent = "Confirm & Initialize";
+        }
     });
 </script>
 </body>

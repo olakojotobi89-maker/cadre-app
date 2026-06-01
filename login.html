@@ -80,12 +80,20 @@ document.getElementById("portal-login-form").addEventListener("submit", async (e
             const fallbackName  = authData.user.user_metadata?.name  || 'UNKNOWN';
             const fallbackRank  = authData.user.user_metadata?.rank  || 'UNIT';
 
-            await sbClient.from('users').insert({
+            const { error: insertErr } = await sbClient.from('users').insert({
                 id:    userId,
                 name:  fallbackName,
                 rank:  fallbackRank,
                 email: authData.user.email
             });
+
+            if (insertErr) {
+                console.error("Profile creation error:", insertErr);
+                alert("ERROR: Could not create user profile. " + insertErr.message);
+                btn.disabled  = false;
+                btn.innerText = "Verify Credentials";
+                return;
+            }
         }
 
         /*
@@ -95,7 +103,10 @@ document.getElementById("portal-login-form").addEventListener("submit", async (e
          */
         localStorage.setItem("cadre_uid", userId);
 
-        window.location.href = "home.html";
+        /* Small delay to ensure localStorage persists before navigation */
+        setTimeout(() => {
+            window.location.href = "home.html";
+        }, 100);
 
     } catch (err) {
         console.error(err);
