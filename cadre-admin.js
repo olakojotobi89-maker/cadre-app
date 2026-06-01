@@ -25,6 +25,18 @@ const CADRE_BROADCAST_CHANNELS = {
   emergency: 'CADRE_EMERGENCY'
 };
 
+const CADRE_FALLBACK_CHANNELS = [
+  { id: 'ALPHA',   key: 'ALPHA',   name: 'Alpha Channel',   officerCount: 0, is_disabled: false },
+  { id: 'BRAVO',   key: 'BRAVO',   name: 'Bravo Channel',   officerCount: 0, is_disabled: false },
+  { id: 'CHARLIE', key: 'CHARLIE', name: 'Charlie Channel', officerCount: 0, is_disabled: false },
+  { id: 'DELTA',   key: 'DELTA',   name: 'Delta Channel',   officerCount: 0, is_disabled: false },
+  { id: 'ECHO',    key: 'ECHO',    name: 'Echo Channel',    officerCount: 0, is_disabled: false },
+  { id: 'FOXTROT', key: 'FOXTROT', name: 'Foxtrot Channel', officerCount: 0, is_disabled: false },
+  { id: 'GOLF',    key: 'GOLF',    name: 'Golf Channel',    officerCount: 0, is_disabled: false },
+  { id: 'HOTEL',   key: 'HOTEL',   name: 'Hotel Channel',   officerCount: 0, is_disabled: false },
+  { id: 'INDIA',   key: 'INDIA',   name: 'India Channel',   officerCount: 0, is_disabled: false }
+];
+
 window.addEventListener('DOMContentLoaded', async () => {
   await initAdminDashboard();
 });
@@ -97,7 +109,7 @@ async function loadChannels() {
     channelMetrics[assign.channel_id] = metric;
   });
 
-  CADRE_ADMIN_STATE.channels = CADRE_ADMIN_STATE.channels.map(channel => {
+  let channels = CADRE_ADMIN_STATE.channels.map(channel => {
     const metrics = channelMetrics[channel.id] || { officers: 0, active: 0 };
     return {
       ...channel,
@@ -106,6 +118,12 @@ async function loadChannels() {
       status: channel.is_disabled ? 'quiet' : metrics.officers > 5 ? 'active' : metrics.officers > 1 ? 'busy' : 'quiet'
     };
   });
+
+  if (!channels || channels.length === 0) {
+    channels = CADRE_FALLBACK_CHANNELS;
+  }
+
+  CADRE_ADMIN_STATE.channels = channels;
 }
 
 async function loadOfficers() {
