@@ -121,11 +121,9 @@ async function loadChannels() {
     };
   });
 
-  if (!channels || channels.length === 0) {
-    channels = CADRE_FALLBACK_CHANNELS;
+  if (!CADRE_ADMIN_STATE.channels || CADRE_ADMIN_STATE.channels.length === 0) {
+    CADRE_ADMIN_STATE.channels = CADRE_FALLBACK_CHANNELS;
   }
-
-  CADRE_ADMIN_STATE.channels = channels;
 }
 
 async function loadOfficers() {
