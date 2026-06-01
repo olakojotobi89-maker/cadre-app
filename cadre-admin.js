@@ -208,8 +208,8 @@ function renderChannels() {
           </div>
         </div>
         <div class="ch-btns">
-          <button class="btn btn-gold" title="Listen" onclick="event.stopPropagation(); listenToChannel('${cadreEscHtml(channel.key)}')">👂</button>
-          <button class="btn btn-amber" title="Mute" onclick="event.stopPropagation(); muteChannel('${cadreEscHtml(channel.key)}')">🔇</button>
+          <button class="btn btn-gold" title="Listen" onclick="event.stopPropagation(); toggleListen('${cadreEscHtml(channel.key)}')">👂</button>
+          <button class="btn btn-amber" title="Mute" onclick="event.stopPropagation(); toggleMute('${cadreEscHtml(channel.key)}')">🔇</button>
           <button class="btn btn-ghost" title="Monitor" onclick="event.stopPropagation(); monitorChannel('${cadreEscHtml(channel.id)}')">📡</button>
         </div>
       </div>`;
@@ -231,7 +231,7 @@ function renderAudioControls() {
   const muteGrid = document.getElementById('muteGrid');
   if (!listenGrid || !muteGrid) return;
 
-  listenGrid.innerHTML = CADRE_ADMIN_STATE.channels.slice(0, 5).map(channel => {
+  listenGrid.innerHTML = CADRE_ADMIN_STATE.channels.map(channel => {
     const pref = CADRE_ADMIN_STATE.preferences[channel.key] || {};
     const onClass = pref.listen ? ' on' : '';
     return `
@@ -241,7 +241,7 @@ function renderAudioControls() {
       </div>`;
   }).join('');
 
-  muteGrid.innerHTML = CADRE_ADMIN_STATE.channels.slice(0, 5).map(channel => {
+  muteGrid.innerHTML = CADRE_ADMIN_STATE.channels.map(channel => {
     const pref = CADRE_ADMIN_STATE.preferences[channel.key] || {};
     const onClass = pref.mute ? ' on' : '';
     return `
@@ -655,21 +655,11 @@ function monitorChannel(channelId) {
 }
 
 function listenToChannel(channelKey) {
-  const pref = CADRE_ADMIN_STATE.preferences[channelKey] || { listen: false, mute: false };
-  pref.listen = !pref.listen;
-  CADRE_ADMIN_STATE.preferences[channelKey] = pref;
-  saveVoicePreference(channelKey, pref);
-  renderAudioControls();
-  cadreShowToast(`${pref.listen ? 'Listening' : 'Stopped listening'} to ${channelKey}`, 'success');
+  toggleListen(channelKey);
 }
 
 function muteChannel(channelKey) {
-  const pref = CADRE_ADMIN_STATE.preferences[channelKey] || { listen: false, mute: false };
-  pref.mute = !pref.mute;
-  CADRE_ADMIN_STATE.preferences[channelKey] = pref;
-  saveVoicePreference(channelKey, pref);
-  renderAudioControls();
-  cadreShowToast(`${pref.mute ? 'Muted' : 'Unmuted'} ${channelKey} locally`, 'success');
+  toggleMute(channelKey);
 }
 
 async function saveVoicePreference(channelKey, pref) {
@@ -844,7 +834,6 @@ async function joinAgoraChannel(channelName) {
     CADRE_ADMIN_STATE.currentChannelKey = channelName;
     CADRE_ADMIN_STATE.remoteAudioTracks = {};
 
-    // Admin can publish audio when transmitting, but keep it muted while listening.
     CADRE_ADMIN_STATE.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_standard' });
     await CADRE_ADMIN_STATE.agoraClient.publish([CADRE_ADMIN_STATE.localAudioTrack]);
     await CADRE_ADMIN_STATE.localAudioTrack.setEnabled(false);
