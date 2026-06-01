@@ -1080,34 +1080,84 @@ const AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
 let agoraClient     = null;
 let localAudioTrack = null;
 let activeChannelKey = null;
+let activeAgoraChannelName = null;
 let agoraUid        = null;
 let isPublishing    = false;
 let isJoining = false;
 let agoraState = 'idle';
+let agoraJoinSeq = 0;
+const remoteAgoraUsers = new Map();
 
 /* ─────────────────────────────────────────────
    SESSION
 ───────────────────────────────────────────── */
 let sessionUser = null;
 
-const SESSION_KEYS = ["session_user","user","officer","currentUser"];
-for (const k of SESSION_KEYS) {
+function tryParseSession(raw) {
+  if (!raw) return null;
   try {
-    const p = JSON.parse(localStorage.getItem(k));
-    if (p?.phone) { sessionUser = p; break; }
-  } catch(e) {}
-}
-
-if (!sessionUser) {
-  const plainPhone = localStorage.getItem("cached_operator_phone");
-  if (plainPhone) {
-    sessionUser = { phone: plainPhone, name: "Field Agent", rank: "UNIT" };
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
   }
 }
 
-if (!sessionUser) {
-  console.warn("channel.html: no session found. localStorage keys:", Object.keys(localStorage));
-  window.location.href = "login.html";
+async function resolveChannelSession() {
+  let uid = localStorage.getItem("cadre_uid");
+
+  const sessionKeys = ["session_user","user","officer","currentUser"];
+  for (const key of sessionKeys) {
+    const cached = tryParseSession(localStorage.getItem(key));
+    if (!sessionUser && cached && (cached.id || cached.phone || cached.email)) {
+      sessionUser = cached;
+    }
+    if (!uid && cached?.id) uid = cached.id;
+  }
+
+  const storedSession = tryParseSession(localStorage.getItem("supabase_session"));
+  if (!uid && storedSession?.user?.id) uid = storedSession.user.id;
+
+  if (!uid) {
+    try {
+      const { data: { session } } = await sbClient.auth.getSession();
+      if (session?.user?.id) uid = session.user.id;
+    } catch (err) {
+      console.warn("channel.html: Supabase session lookup failed:", err);
+    }
+  }
+
+  const plainPhone = localStorage.getItem("cached_operator_phone");
+  if (!sessionUser && plainPhone) {
+    sessionUser = { phone: plainPhone, name: "Field Agent", rank: "UNIT" };
+  }
+
+  if (!uid && !sessionUser) {
+    console.warn("channel.html: no session found. localStorage keys:", Object.keys(localStorage));
+    window.location.href = "login.html";
+    return false;
+  }
+
+  if (uid) {
+    localStorage.setItem("cadre_uid", uid);
+
+    const { data, error } = await sbClient
+      .from('users')
+      .select('*')
+      .eq('id', uid)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("channel.html: profile lookup failed:", error);
+    }
+
+    if (data) {
+      sessionUser = data;
+    } else if (!sessionUser) {
+      sessionUser = { id: uid, name: "Field Agent", rank: "UNIT" };
+    }
+  }
+
+  return true;
 }
 
 /* ─────────────────────────────────────────────
@@ -1136,6 +1186,9 @@ let selectedChannelKey = null;
    BOOT
 ───────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
+  const hasSession = await resolveChannelSession();
+  if (!hasSession) return;
+
   initClock();
   renderHeader();
   await Promise.all([
@@ -1227,16 +1280,21 @@ function renderHeader() {
 ───────────────────────────────────────────── */
 
 async function loadUserProfile() {
+  const uid = sessionUser?.id || localStorage.getItem("cadre_uid");
   const phone = sessionUser?.phone;
-  if (!phone) return;
+  if (!uid && !phone) return;
 
-  const { data } = await sbClient
-    .from('users')
-    .select('name, rank, pfp')
-    .eq('phone', phone)
-    .maybeSingle();
+  let query = sbClient.from('users').select('id, name, rank, pfp, phone, email, role');
+  query = uid ? query.eq('id', uid) : query.eq('phone', phone);
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    console.warn('channel.html: user profile load failed:', error);
+    return;
+  }
 
   if (data) {
+    sessionUser = { ...sessionUser, ...data };
     document.getElementById("hdr-rank").textContent = data.rank || '—';
     document.getElementById("hdr-name").textContent = data.name || 'UNKNOWN';
   }
@@ -1351,6 +1409,14 @@ function getAgoraUid() {
       return parseInt(digits.slice(-9), 10);
     }
   }
+  const stableId = sessionUser?.id || sessionUser?.email || localStorage.getItem("cadre_uid");
+  if (stableId) {
+    let hash = 0;
+    String(stableId).split('').forEach(char => {
+      hash = ((hash * 31) + char.charCodeAt(0)) >>> 0;
+    });
+    return (hash % 900000000) + 10000000;
+  }
   // Fallback to timestamp-based numeric id
   return Math.floor(Date.now() % 1000000000);
 }
@@ -1392,11 +1458,28 @@ async function initAgoraClient() {
   agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
   agoraClient.on('user-published', async (user, mediaType) => {
+    const eventSeq = agoraJoinSeq;
+    const eventChannel = activeAgoraChannelName;
+    console.log(`[Agora] user-published channel=${eventChannel} uid=${user.uid} media=${mediaType}`);
+
+    if (!eventChannel || !agoraClient || eventSeq !== agoraJoinSeq) return;
+
     try {
       await agoraClient.subscribe(user, mediaType);
+      if (eventSeq !== agoraJoinSeq || eventChannel !== activeAgoraChannelName) {
+        if (user.audioTrack) user.audioTrack.stop();
+        if (user.videoTrack) user.videoTrack.stop();
+        console.warn(`[Agora] Ignored stale subscription uid=${user.uid} media=${mediaType}`);
+        return;
+      }
+
+      remoteAgoraUsers.set(user.uid, user);
       if (mediaType === 'audio' && user.audioTrack) {
         user.audioTrack.play();
-        logActivity(`Remote user joined: ${user.uid}`, 'msg');
+        logActivity(`Remote user audio active: ${user.uid}`, 'msg');
+      }
+      if (mediaType === 'video' && user.videoTrack) {
+        console.log(`[Agora] remote video available channel=${eventChannel} uid=${user.uid}`);
       }
     } catch (err) {
       console.error('Agora subscribe failed:', err);
@@ -1404,14 +1487,26 @@ async function initAgoraClient() {
     }
   });
 
-  agoraClient.on('user-unpublished', user => {
+  agoraClient.on('user-unpublished', (user, mediaType) => {
+    console.log(`[Agora] user-unpublished channel=${activeAgoraChannelName} uid=${user.uid} media=${mediaType || 'unknown'}`);
     if (user.audioTrack) {
       user.audioTrack.stop();
+    }
+    if (user.videoTrack) {
+      user.videoTrack.stop();
     }
     logActivity(`Remote user muted: ${user.uid}`, 'alert');
   });
 
+  agoraClient.on('user-joined', user => {
+    console.log(`[Agora] user-joined channel=${activeAgoraChannelName} uid=${user.uid}`);
+  });
+
   agoraClient.on('user-left', user => {
+    console.log(`[Agora] user-left channel=${activeAgoraChannelName} uid=${user.uid}`);
+    if (user.audioTrack) user.audioTrack.stop();
+    if (user.videoTrack) user.videoTrack.stop();
+    remoteAgoraUsers.delete(user.uid);
     logActivity(`Remote user left: ${user.uid}`, 'leave');
   });
 
@@ -1479,14 +1574,47 @@ async function checkMicrophonePermission() {
   }
 }
 
+function getAgoraChannelName(channelKey) {
+  return String(channelKey || '').trim().toLowerCase();
+}
+
+function cleanupRemoteAgoraUsers() {
+  remoteAgoraUsers.forEach(user => {
+    try {
+      if (user.audioTrack) user.audioTrack.stop();
+      if (user.videoTrack) user.videoTrack.stop();
+    } catch (err) {
+      console.warn('[Agora] Remote track cleanup failed:', err);
+    }
+  });
+  remoteAgoraUsers.clear();
+}
+
+function resetAgoraClient() {
+  if (!agoraClient) return;
+  try {
+    if (typeof agoraClient.removeAllListeners === 'function') {
+      agoraClient.removeAllListeners();
+    }
+  } catch (err) {
+    console.warn('[Agora] Client listener cleanup failed:', err);
+  }
+  agoraClient = null;
+}
+
 async function joinChannel(channelKey) {
   if (!channelKey) return;
-  if (activeChannelKey === channelKey) {
-    cadreShowToast(`Already connected to ${channelKey}.`, 'info');
+  const matchedChannel = CHANNELS.find(c => String(c.key).toLowerCase() === String(channelKey).toLowerCase());
+  const uiChannelKey = matchedChannel?.key || channelKey;
+  const agoraChannelName = getAgoraChannelName(uiChannelKey);
+  if (!agoraChannelName) return;
+
+  if (activeChannelKey === uiChannelKey) {
+    cadreShowToast(`Already connected to ${uiChannelKey}.`, 'info');
     return;
   }
 
-  if (activeChannelKey && activeChannelKey !== channelKey) {
+  if (activeChannelKey || agoraClient) {
     await leaveChannel();
   }
 
@@ -1508,28 +1636,35 @@ async function joinChannel(channelKey) {
     await initAgoraClient();
     const uid = getAgoraUid();
     agoraUid = uid;
+    activeAgoraChannelName = agoraChannelName;
+    const joinSeq = ++agoraJoinSeq;
 
-    await agoraClient.join(AGORA_APP_ID, channelKey, null, uid);
+    console.log(`[Agora] join channel=${agoraChannelName} display=${uiChannelKey} uid=${uid}`);
+    await agoraClient.join(AGORA_APP_ID, agoraChannelName, null, uid);
     localAudioTrack = await createLocalTrack();
     // Agora requires a track to be enabled when publishing. Publish then mute immediately for PTT behaviour.
     await agoraClient.publish([localAudioTrack]);
     try { await localAudioTrack.setEnabled(false); } catch(e) { /* ignore */ }
     isPublishing = true;
 
-    activeChannelKey = channelKey;
-    await persistOfficerAssignment(channelKey);
-    const ch = CHANNELS.find(c => c.key === channelKey) || { name: channelKey };
+    if (joinSeq !== agoraJoinSeq || activeAgoraChannelName !== agoraChannelName) {
+      throw new Error('Agora join was superseded by another channel switch.');
+    }
+
+    activeChannelKey = uiChannelKey;
+    await persistOfficerAssignment(uiChannelKey);
+    const ch = matchedChannel || { name: uiChannelKey };
 
     document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
-    const card = document.getElementById(`card-${channelKey}`);
+    const card = document.getElementById(`card-${uiChannelKey}`);
     if (card) {
       card.classList.add('active');
       card.querySelector('.btn-join').classList.add('joined');
       card.querySelector('.btn-join').textContent = '✓ JOINED';
     }
 
-    document.getElementById('ptt-channel-label').textContent = channelKey;
-    updateChannelStatus(channelKey, 'joined');
+    document.getElementById('ptt-channel-label').textContent = uiChannelKey;
+    updateChannelStatus(uiChannelKey, 'joined');
     updateConnectionStatus('connected');
 
     cadreShowToast(`Joined ${ch.name}`, 'success');
@@ -1547,23 +1682,28 @@ async function joinChannel(channelKey) {
       cadreShowToast(`Failed to join channel: ${errMsg}`.slice(0, 240), 'error');
     }
     updateConnectionStatus('error');
-    activeChannelKey = null;
+    await leaveChannel({ silent: true });
   } finally {
     isJoining = false;
   }
 }
 
 async function persistOfficerAssignment(channelKey) {
+  let userId = sessionUser?.id || localStorage.getItem("cadre_uid");
   const phone = sessionUser?.phone;
-  if (!phone) return;
 
-  const { data: userRow } = await sbClient.from('users').select('id').eq('phone', phone).maybeSingle();
-  if (!userRow?.id) return;
+  if (!userId && phone) {
+    const { data: userRow, error: userError } = await sbClient.from('users').select('id').eq('phone', phone).maybeSingle();
+    if (userError) console.warn('channel.html: assignment user lookup failed:', userError);
+    userId = userRow?.id;
+  }
+
+  if (!userId) return;
 
   const { data: assignment } = await sbClient
     .from('officer_assignments')
     .select('*')
-    .eq('user_id', userRow.id)
+    .eq('user_id', userId)
     .maybeSingle();
 
   const { data: channelRow } = await sbClient
@@ -1577,41 +1717,74 @@ async function persistOfficerAssignment(channelKey) {
   if (assignment) {
     await sbClient.from('officer_assignments').update({ channel_id: channelRow.id, status: 'online', last_seen: new Date().toISOString() }).eq('id', assignment.id);
   } else {
-    await sbClient.from('officer_assignments').insert([{ user_id: userRow.id, channel_id: channelRow.id, status: 'online', last_seen: new Date().toISOString() }]);
+    await sbClient.from('officer_assignments').insert([{ user_id: userId, channel_id: channelRow.id, status: 'online', last_seen: new Date().toISOString() }]);
   }
 }
 
-async function leaveChannel() {
-  if (!activeChannelKey) return;
+async function leaveChannel(options = {}) {
+  if (!activeChannelKey && !agoraClient && !localAudioTrack) return;
 
-  const ch = CHANNELS.find(c => c.key === activeChannelKey) || { name: activeChannelKey };
-  const card = document.getElementById(`card-${activeChannelKey}`);
+  const leavingChannelKey = activeChannelKey;
+  const leavingAgoraChannelName = activeAgoraChannelName;
+  const ch = CHANNELS.find(c => c.key === leavingChannelKey) || { name: leavingChannelKey || leavingAgoraChannelName || 'channel' };
+  const card = leavingChannelKey ? document.getElementById(`card-${leavingChannelKey}`) : null;
   if (card) {
     card.classList.remove('active');
     card.querySelector('.btn-join').classList.remove('joined');
     card.querySelector('.btn-join').textContent = 'JOIN CHANNEL';
   }
 
+  console.log(`[Agora] leave channel=${leavingAgoraChannelName || 'none'} display=${leavingChannelKey || 'none'} uid=${agoraUid || 'none'}`);
+  pttActive = false;
+  document.getElementById('ptt-btn').classList.remove('pressing');
+  cleanupRemoteAgoraUsers();
+  activeChannelKey = null;
+  activeAgoraChannelName = null;
+  agoraJoinSeq++;
+
+  try {
+    if (agoraClient && localAudioTrack && isPublishing) {
+      await agoraClient.unpublish([localAudioTrack]);
+      isPublishing = false;
+    }
+  } catch (err) {
+    console.warn('Agora unpublish failed:', err);
+  }
+
+  try {
+    if (localAudioTrack) await localAudioTrack.setEnabled(false);
+  } catch (err) {
+    console.warn('Agora local track disable failed:', err);
+  }
+
   try {
     if (localAudioTrack) {
-      await localAudioTrack.setEnabled(false);
       localAudioTrack.close();
       localAudioTrack = null;
     }
+  } catch (err) {
+    console.warn('Agora local track close failed:', err);
+  }
 
+  try {
     if (agoraClient) {
-      await agoraClient.unpublish();
       await agoraClient.leave();
+      console.log(`[Agora] left channel=${leavingAgoraChannelName || 'none'}`);
     }
   } catch (err) {
     console.warn('Agora leave failed:', err);
+  } finally {
+    resetAgoraClient();
+    agoraState = 'idle';
+    agoraUid = null;
   }
 
-  logActivity(`You left ${ch.name}`, 'leave');
-  cadreShowToast(`Left ${ch.name}`, 'warning');
+  if (!options.silent) {
+    logActivity(`You left ${ch.name}`, 'leave');
+    cadreShowToast(`Left ${ch.name}`, 'warning');
+  }
 
   document.getElementById('ptt-channel-label').textContent = 'NO CHANNEL';
-  activeChannelKey = null;
   updateChannelStatus(null, 'idle');
   updateConnectionStatus('disconnected');
 }

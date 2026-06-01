@@ -109,7 +109,7 @@ body::before {
   letter-spacing:2px; color:var(--text-dim); padding:6px 14px;
   border:1px solid transparent; cursor:pointer;
   transition:all 0.2s; text-transform:uppercase;
-  background:transparent;
+  background:transparent; text-decoration:none; display:inline-flex; align-items:center;
 }
 .nav-item:hover { color:var(--text-bright); border-color:var(--border-mid); background:var(--red-trace); }
 .nav-item.active { color:var(--red-bright); border-color:var(--border-bright); background:var(--red-trace);
@@ -529,7 +529,7 @@ body::before {
 
   <nav class="header-nav">
     <button class="nav-item active">Overview</button>
-    <button class="nav-item">Intelligence</button>
+    <a class="nav-item" href="intelligence.html">Intelligence</a>
     <button class="nav-item">Surveillance</button>
     <button class="nav-item">Operations</button>
     <button class="nav-item">Data Link</button>
