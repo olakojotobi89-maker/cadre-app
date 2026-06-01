@@ -56,6 +56,7 @@ async function initAdminDashboard() {
   document.querySelector('.admin-chip').classList.add(`perm-${(user.role || 'command_officer').toLowerCase().replace(/\s+/g, '_')}`);
 
   bindAdminControls();
+  setPTT(CADRE_ADMIN_STATE.pttMode);
   await Promise.all([
     loadChannels(),
     loadOfficers(),
@@ -945,11 +946,14 @@ async function txStart() {
     const selected = document.getElementById('channel-select');
     const channelId = selected?.value;
     const channel = CADRE_ADMIN_STATE.channels.find(c => c.id === channelId);
-    channelName = channel?.key;
+    channelName = channel?.key || CADRE_ADMIN_STATE.listeningChannelKey;
+    if (!channelName && CADRE_ADMIN_STATE.listeningChannelKey) {
+      cadreShowToast(`No channel selected; using current listen channel ${CADRE_ADMIN_STATE.listeningChannelKey}.`, 'info');
+    }
   }
 
   if (!channelName) {
-    cadreShowToast('Select a channel first.', 'warning');
+    cadreShowToast('Select a channel first or listen to a channel before transmitting.', 'warning');
     return;
   }
 
