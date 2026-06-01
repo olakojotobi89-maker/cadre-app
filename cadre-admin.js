@@ -109,10 +109,12 @@ async function loadChannels() {
     channelMetrics[assign.channel_id] = metric;
   });
 
-  let channels = CADRE_ADMIN_STATE.channels.map(channel => {
+  CADRE_ADMIN_STATE.channels = CADRE_ADMIN_STATE.channels.map((channel, index) => {
+    const key = cadreNormalizeChannelKey(channel.key || channel.name || `CH${index + 1}`);
     const metrics = channelMetrics[channel.id] || { officers: 0, active: 0 };
     return {
       ...channel,
+      key,
       officerCount: metrics.officers,
       activity: Math.min(100, Math.max(6, metrics.officers * 12 + Math.floor(Math.random() * 20))),
       status: channel.is_disabled ? 'quiet' : metrics.officers > 5 ? 'active' : metrics.officers > 1 ? 'busy' : 'quiet'
@@ -170,7 +172,8 @@ async function loadAudioPreferences() {
   if (!CADRE_ADMIN_STATE.currentUser?.id) return;
   const { data } = await CADRE_SB.from('voice_preferences').select('*').eq('user_id', CADRE_ADMIN_STATE.currentUser.id);
   CADRE_ADMIN_STATE.preferences = (data || []).reduce((map, row) => {
-    map[row.channel_key] = { listen: row.listen_enabled, mute: row.muted };
+    const normalizedKey = cadreNormalizeChannelKey(row.channel_key);
+    map[normalizedKey] = { listen: row.listen_enabled, mute: row.muted };
     return map;
   }, {});
 }
@@ -664,14 +667,15 @@ function muteChannel(channelKey) {
 
 async function saveVoicePreference(channelKey, pref) {
   if (!CADRE_ADMIN_STATE.currentUser?.id) return;
+  const normalizedKey = cadreNormalizeChannelKey(channelKey);
   const payload = {
     user_id: CADRE_ADMIN_STATE.currentUser.id,
-    channel_key: channelKey,
+    channel_key: normalizedKey,
     listen_enabled: !!pref.listen,
     muted: !!pref.mute,
     updated_at: new Date().toISOString()
   };
-  const { data: existing } = await CADRE_SB.from('voice_preferences').select('*').eq('user_id', CADRE_ADMIN_STATE.currentUser.id).eq('channel_key', channelKey).maybeSingle();
+  const { data: existing } = await CADRE_SB.from('voice_preferences').select('*').eq('user_id', CADRE_ADMIN_STATE.currentUser.id).eq('channel_key', normalizedKey).maybeSingle();
   if (existing) {
     await CADRE_SB.from('voice_preferences').update(payload).eq('id', existing.id);
   } else {
