@@ -1077,6 +1077,7 @@ const sbClient = CADRE_SB;
    AGORA
 ───────────────────────────────────────────── */
 const AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
+const ADMIN_BROADCAST_CHANNEL = 'GLOBAL_ADMIN_BROADCAST';
 let agoraClient     = null;
 let localAudioTrack = null;
 let activeChannelKey = null;
@@ -1087,6 +1088,10 @@ let isJoining = false;
 let agoraState = 'idle';
 let agoraJoinSeq = 0;
 const remoteAgoraUsers = new Map();
+let adminBroadcastClient = null;
+let adminBroadcastJoined = false;
+let adminBroadcastJoinSeq = 0;
+const adminBroadcastTracks = new Map();
 
 /* ─────────────────────────────────────────────
    SESSION
@@ -1602,6 +1607,119 @@ function resetAgoraClient() {
   agoraClient = null;
 }
 
+function getAdminBroadcastListenerUid() {
+  return getAgoraUid() + 200000000;
+}
+
+function cleanupAdminBroadcastTracks() {
+  adminBroadcastTracks.forEach(track => {
+    try {
+      track.stop();
+    } catch (err) {
+      console.warn('[Admin Broadcast] Track cleanup failed:', err);
+    }
+  });
+  adminBroadcastTracks.clear();
+}
+
+async function initAdminBroadcastListener() {
+  if (adminBroadcastClient) return;
+  if (typeof AgoraRTC === 'undefined') {
+    cadreShowToast('Agora SDK not loaded.', 'error');
+    throw new Error('AgoraRTC not available');
+  }
+
+  adminBroadcastClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+
+  adminBroadcastClient.on('user-published', async (user, mediaType) => {
+    const eventSeq = adminBroadcastJoinSeq;
+    console.log(`[Admin Broadcast] user-published uid=${user.uid} media=${mediaType}`);
+
+    if (!adminBroadcastJoined || eventSeq !== adminBroadcastJoinSeq) return;
+    if (mediaType !== 'audio') return;
+    if (adminBroadcastTracks.has(user.uid)) {
+      console.log(`[Admin Broadcast] duplicate subscription skipped uid=${user.uid}`);
+      return;
+    }
+
+    try {
+      await adminBroadcastClient.subscribe(user, mediaType);
+      if (!adminBroadcastJoined || eventSeq !== adminBroadcastJoinSeq) {
+        if (user.audioTrack) user.audioTrack.stop();
+        return;
+      }
+
+      if (user.audioTrack) {
+        adminBroadcastTracks.set(user.uid, user.audioTrack);
+        user.audioTrack.play();
+        console.log(`[Admin Broadcast] subscribed to admin stream uid=${user.uid}`);
+        logActivity(`Admin broadcast connected: ${user.uid}`, 'msg');
+      }
+    } catch (err) {
+      console.error('[Admin Broadcast] subscribe failed:', err);
+      cadreShowToast('Failed to receive admin broadcast.', 'error');
+    }
+  });
+
+  adminBroadcastClient.on('user-unpublished', (user, mediaType) => {
+    console.log(`[Admin Broadcast] user-unpublished uid=${user.uid} media=${mediaType || 'unknown'}`);
+    const track = adminBroadcastTracks.get(user.uid);
+    if (track) track.stop();
+    adminBroadcastTracks.delete(user.uid);
+  });
+
+  adminBroadcastClient.on('user-left', user => {
+    console.log(`[Admin Broadcast] user-left uid=${user.uid}`);
+    const track = adminBroadcastTracks.get(user.uid);
+    if (track) track.stop();
+    adminBroadcastTracks.delete(user.uid);
+  });
+
+  adminBroadcastClient.on('exception', err => {
+    console.error('[Admin Broadcast] Agora exception:', err);
+  });
+}
+
+async function joinAdminBroadcastLayer() {
+  if (adminBroadcastJoined) return;
+
+  try {
+    await initAdminBroadcastListener();
+    const uid = getAdminBroadcastListenerUid();
+    adminBroadcastJoinSeq++;
+    console.log(`[Admin Broadcast] joining ${ADMIN_BROADCAST_CHANNEL} uid=${uid}`);
+    await adminBroadcastClient.join(AGORA_APP_ID, ADMIN_BROADCAST_CHANNEL, null, uid);
+    adminBroadcastJoined = true;
+    console.log(`[Admin Broadcast] joined ${ADMIN_BROADCAST_CHANNEL}`);
+  } catch (err) {
+    console.error('[Admin Broadcast] join failed:', err);
+  }
+}
+
+async function leaveAdminBroadcastLayer() {
+  if (!adminBroadcastClient && !adminBroadcastJoined) return;
+
+  console.log(`[Admin Broadcast] leaving ${ADMIN_BROADCAST_CHANNEL}`);
+  adminBroadcastJoined = false;
+  adminBroadcastJoinSeq++;
+  cleanupAdminBroadcastTracks();
+
+  try {
+    if (adminBroadcastClient) await adminBroadcastClient.leave();
+  } catch (err) {
+    console.warn('[Admin Broadcast] leave failed:', err);
+  } finally {
+    try {
+      if (adminBroadcastClient && typeof adminBroadcastClient.removeAllListeners === 'function') {
+        adminBroadcastClient.removeAllListeners();
+      }
+    } catch (err) {
+      console.warn('[Admin Broadcast] listener cleanup failed:', err);
+    }
+    adminBroadcastClient = null;
+  }
+}
+
 async function joinChannel(channelKey) {
   if (!channelKey) return;
   const matchedChannel = CHANNELS.find(c => String(c.key).toLowerCase() === String(channelKey).toLowerCase());
@@ -1666,6 +1784,8 @@ async function joinChannel(channelKey) {
     document.getElementById('ptt-channel-label').textContent = uiChannelKey;
     updateChannelStatus(uiChannelKey, 'joined');
     updateConnectionStatus('connected');
+
+    await joinAdminBroadcastLayer();
 
     cadreShowToast(`Joined ${ch.name}`, 'success');
     logActivity(`You joined ${ch.name}`, 'join');
@@ -1735,6 +1855,7 @@ async function leaveChannel(options = {}) {
   }
 
   console.log(`[Agora] leave channel=${leavingAgoraChannelName || 'none'} display=${leavingChannelKey || 'none'} uid=${agoraUid || 'none'}`);
+  await leaveAdminBroadcastLayer();
   pttActive = false;
   document.getElementById('ptt-btn').classList.remove('pressing');
   cleanupRemoteAgoraUsers();

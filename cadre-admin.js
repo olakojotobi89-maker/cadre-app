@@ -16,6 +16,10 @@ const CADRE_ADMIN_STATE = {
   currentChannelKey: null,
   listeningChannelKey: null,
   remoteAudioTracks: {},
+  broadcastClient: null,
+  broadcastAudioTrack: null,
+  broadcastChannelName: 'GLOBAL_ADMIN_BROADCAST',
+  isBroadcastJoined: false,
   isJoining: false,
   isTransmitting: false
 };
@@ -819,6 +823,69 @@ function getAdminAgoraUid() {
   return Math.floor(Date.now() % 1000000000);
 }
 
+function getAdminBroadcastUid() {
+  return getAdminAgoraUid() + 100000000;
+}
+
+async function initAdminBroadcastClient() {
+  if (CADRE_ADMIN_STATE.broadcastClient) return;
+  if (typeof AgoraRTC === 'undefined') {
+    cadreShowToast('Agora SDK is not loaded.', 'error');
+    throw new Error('AgoraRTC not available');
+  }
+
+  CADRE_ADMIN_STATE.broadcastClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+
+  CADRE_ADMIN_STATE.broadcastClient.on('connection-state-change', (cur) => {
+    console.log(`[Admin Broadcast] connection=${cur}`);
+  });
+
+  CADRE_ADMIN_STATE.broadcastClient.on('exception', err => {
+    console.error('[Admin Broadcast] Agora exception:', err);
+    cadreShowToast(`Admin broadcast error: ${err.msg || err}`, 'error');
+  });
+}
+
+async function ensureAdminBroadcastJoined() {
+  await initAdminBroadcastClient();
+  if (CADRE_ADMIN_STATE.isBroadcastJoined) return;
+
+  const uid = getAdminBroadcastUid();
+  const channelName = CADRE_ADMIN_STATE.broadcastChannelName;
+  console.log(`[Admin Broadcast] joining ${channelName} uid=${uid}`);
+  await CADRE_ADMIN_STATE.broadcastClient.join(CADRE_AGORA_APP_ID, channelName, null, uid);
+  CADRE_ADMIN_STATE.isBroadcastJoined = true;
+  console.log(`[Admin Broadcast] joined ${channelName}`);
+}
+
+async function startAdminBroadcast() {
+  await ensureAdminBroadcastJoined();
+
+  if (!CADRE_ADMIN_STATE.broadcastAudioTrack) {
+    CADRE_ADMIN_STATE.broadcastAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_standard' });
+    await CADRE_ADMIN_STATE.broadcastClient.publish([CADRE_ADMIN_STATE.broadcastAudioTrack]);
+    console.log(`[Admin Broadcast] published mic to ${CADRE_ADMIN_STATE.broadcastChannelName}`);
+  }
+
+  await CADRE_ADMIN_STATE.broadcastAudioTrack.setEnabled(true);
+  console.log(`[Admin Broadcast] started on ${CADRE_ADMIN_STATE.broadcastChannelName}`);
+}
+
+async function stopAdminBroadcast() {
+  if (!CADRE_ADMIN_STATE.broadcastAudioTrack) return;
+  try {
+    await CADRE_ADMIN_STATE.broadcastAudioTrack.setEnabled(false);
+    if (CADRE_ADMIN_STATE.broadcastClient) {
+      await CADRE_ADMIN_STATE.broadcastClient.unpublish([CADRE_ADMIN_STATE.broadcastAudioTrack]);
+    }
+    CADRE_ADMIN_STATE.broadcastAudioTrack.close();
+    CADRE_ADMIN_STATE.broadcastAudioTrack = null;
+    console.log(`[Admin Broadcast] unpublished from ${CADRE_ADMIN_STATE.broadcastChannelName}`);
+  } catch (error) {
+    console.error('[Admin Broadcast] stop failed:', error);
+  }
+}
+
 async function joinAgoraChannel(channelName) {
   if (!channelName) return;
   if (CADRE_ADMIN_STATE.isJoining) return;
@@ -932,17 +999,33 @@ function setPTT(mode) {
 }
 
 async function txStart() {
+  if (CADRE_ADMIN_STATE.isTransmitting) return;
+
   if (!CADRE_ADMIN_STATE.permissions.broadcast) {
     cadreShowToast('Permission denied: broadcast.', 'error');
     return;
   }
 
+  if (CADRE_ADMIN_STATE.pttMode === 'all' || CADRE_ADMIN_STATE.pttMode === 'emergency') {
+    document.getElementById('pttBtn').classList.add('tx');
+    document.getElementById('pttStat').textContent = '● GLOBAL ADMIN BROADCAST...';
+    CADRE_ADMIN_STATE.isTransmitting = true;
+
+    try {
+      await startAdminBroadcast();
+      addFeedEntry(`Admin broadcasting globally on ${CADRE_ADMIN_STATE.broadcastChannelName}`, 'broadcast', null, CADRE_ADMIN_STATE.currentUser.id);
+    } catch (error) {
+      console.error('[Admin Broadcast] start failed:', error);
+      cadreShowToast('Global admin broadcast failed. Check microphone and network.', 'error');
+      CADRE_ADMIN_STATE.isTransmitting = false;
+      document.getElementById('pttBtn').classList.remove('tx');
+      setPTT(CADRE_ADMIN_STATE.pttMode);
+    }
+    return;
+  }
+
   let channelName;
-  if (CADRE_ADMIN_STATE.pttMode === 'all') {
-    channelName = CADRE_BROADCAST_CHANNELS.all;
-  } else if (CADRE_ADMIN_STATE.pttMode === 'emergency') {
-    channelName = CADRE_BROADCAST_CHANNELS.emergency;
-  } else {
+  {
     const selected = document.getElementById('channel-select');
     const channelId = selected?.value;
     const channel = CADRE_ADMIN_STATE.channels.find(c => c.id === channelId);
@@ -976,6 +1059,12 @@ async function txStop() {
   CADRE_ADMIN_STATE.isTransmitting = false;
   document.getElementById('pttBtn').classList.remove('tx');
   document.getElementById('pttStat').textContent = `MODE: ${CADRE_ADMIN_STATE.pttMode === 'all' ? 'ALL CHANNELS' : CADRE_ADMIN_STATE.pttMode === 'emergency' ? '⚠ EMERGENCY PRIORITY' : 'SELECTED CHANNELS'} — STANDBY`;
+
+  if (CADRE_ADMIN_STATE.pttMode === 'all' || CADRE_ADMIN_STATE.pttMode === 'emergency') {
+    await stopAdminBroadcast();
+    return;
+  }
+
   if (CADRE_ADMIN_STATE.localAudioTrack) {
     await CADRE_ADMIN_STATE.localAudioTrack.setEnabled(false);
   }
