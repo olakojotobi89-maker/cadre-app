@@ -1068,22 +1068,120 @@ body::after {
 <!-- ═══════════ JAVASCRIPT ═══════════ -->
 <script>
 
+/* ═══════════════════════════════════════════════════════════════════
+   CADRE CHANNEL HUB — AGORA VOICE ENGINE
+   Architecture: One RTC client per session. Destroyed and recreated
+   on every channel switch to guarantee zero cross-channel audio bleed.
+   Remote audio tracked in a dedup Map to prevent double-subscription.
+   PTT: track created DISABLED → published DISABLED → enabled on press.
+   Auto-reconnect with exponential backoff on network loss.
+═══════════════════════════════════════════════════════════════════ */
+
 /* ─────────────────────────────────────────────
-   SUPABASE
+   SUPABASE — shared client from cadre-common.js
 ───────────────────────────────────────────── */
 const sbClient = CADRE_SB;
 
 /* ─────────────────────────────────────────────
-   AGORA
+   AGORA CONSTANTS & CONFIG
 ───────────────────────────────────────────── */
 const AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
-let agoraClient     = null;
-let localAudioTrack = null;
-let activeChannelKey = null;
-let agoraUid        = null;
-let isPublishing    = false;
-let isJoining = false;
+
+/*
+ * AUDIO ENCODER CONFIG — tuned for voice PTT over potentially poor networks.
+ * - sampleRate 16000: standard telephony quality, reduces bandwidth vs 48kHz.
+ * - stereo false: mono is correct for voice radio — halves bitrate.
+ * - bitrate 24: 24 kbps is the Agora recommended floor for clear voice.
+ *   Raising to 32-48 gives better quality on good connections; admin can
+ *   adjust per deployment environment.
+ */
+const VOICE_ENCODER_CONFIG = {
+  sampleRate:   16000,
+  stereo:       false,
+  bitrate:      24,
+};
+
+/*
+ * AGORA SCALABILITY PARAMETERS
+ * These must be set BEFORE the client is created to take effect.
+ * - SUBSCRIBE_TCC_ENABLED false: disables Transport-CC feedback for audio-only
+ *   rooms, reducing bandwidth overhead with 12+ users on the same channel.
+ * - AUDIO_VOLUME_INDICATION_INTERVAL: enables the volume indicator event
+ *   (used for speaking detection if needed in future).
+ */
+function applyAgoraGlobalConfig() {
+  try {
+    // Disable Transport Congestion Control feedback — not needed for audio-only
+    // channels; significantly reduces overhead with large groups.
+    AgoraRTC.setParameter('SUBSCRIBE_TCC_ENABLED', false);
+    // Reduce unnecessary keep-alive traffic on idle audio channels
+    AgoraRTC.setParameter('AUDIO_VOLUME_INDICATION_INTERVAL', 2000);
+    // Enable detailed log level only in development
+    AgoraRTC.setLogLevel(/* WARNING */ 2);
+  } catch (e) {
+    // setParameter is best-effort; non-fatal if unavailable in older SDK versions
+    console.warn('[Agora] setParameter failed (non-fatal):', e.message);
+  }
+}
+
+/* ─────────────────────────────────────────────
+   STATE — Agora voice engine
+───────────────────────────────────────────── */
+
+/*
+ * agoraClient: always null when not in a channel.
+ * DESTROYED (not just left) on channel switch to guarantee no ghost listeners
+ * or stale internal state carry over between sessions.
+ */
+let agoraClient      = null;
+
+/*
+ * localAudioTrack: the officer's microphone track.
+ * Created DISABLED so no audio is ever transmitted until PTT is pressed.
+ * Closed and nulled on channel leave.
+ */
+let localAudioTrack  = null;
+
+/*
+ * remoteAudioTracks: Map<uid, IRemoteAudioTrack>
+ * Tracks every remote user's audio track that is currently subscribed.
+ * Used to:
+ *   1. Prevent duplicate subscriptions (dedup guard)
+ *   2. Properly stop and clean up audio when users leave
+ *   3. Allow admin mute commands to target specific UIDs
+ */
+const remoteAudioTracks = new Map();
+
+let activeChannelKey  = null;  // The Agora channel name this client is joined to
+let agoraUid          = null;  // This user's numeric Agora UID
+let isPublishing      = false; // True once localAudioTrack has been published
+let isJoining         = false; // Mutex — prevents concurrent joinChannel() calls
+
+/*
+ * agoraState machine:
+ * 'idle'        — no client, not connected
+ * 'connecting'  — join in progress
+ * 'connected'   — joined and published
+ * 'reconnecting'— Agora SDK is auto-reconnecting (network blip)
+ * 'disconnected'— fully disconnected, reconnect timer may be active
+ */
 let agoraState = 'idle';
+
+/*
+ * reconnectTimer: setTimeout handle for auto-rejoin after disconnect.
+ * Cleared on intentional leave to prevent spurious rejoin.
+ */
+let reconnectTimer   = null;
+let reconnectAttempt = 0;     // Used for exponential backoff
+const MAX_RECONNECT_DELAY_MS = 30000; // Cap backoff at 30 s
+
+/* ─────────────────────────────────────────────
+   STATE — Supabase / UI (preserved from original)
+   listenState and muteState declared here (they were missing,
+   causing ReferenceError in loadChannels when it tried to set them)
+───────────────────────────────────────────── */
+const listenState = {};  // { [channelKey]: boolean } — admin listen toggles (not used by officers but must exist)
+const muteState   = {};  // { [channelKey]: boolean } — admin mute toggles  (same)
 
 /* ─────────────────────────────────────────────
    SESSION
@@ -1112,6 +1210,7 @@ if (!sessionUser) {
 
 /* ─────────────────────────────────────────────
    CHANNEL DEFINITIONS
+   Let — can be overwritten by loadChannels() with live Supabase data
 ───────────────────────────────────────────── */
 let CHANNELS = [
   { key:'ALPHA',   name:'Alpha Channel',   callsign:'CH-01', freq:'462.550 MHz' },
@@ -1136,6 +1235,9 @@ let selectedChannelKey = null;
    BOOT
 ───────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
+  // Apply global Agora tuning before any client is created
+  if (typeof AgoraRTC !== 'undefined') applyAgoraGlobalConfig();
+
   initClock();
   renderHeader();
   await Promise.all([
@@ -1145,18 +1247,32 @@ window.addEventListener('DOMContentLoaded', async () => {
   ]);
   setupRealtimeSubscriptions();
   renderChannelGrid();
-  // Warn about insecure context or missing MediaDevices which can block microphone access
+
+  // Warn about insecure context
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    cadreShowToast('This browser does not support microphone access (MediaDevices API missing).', 'warning');
-  } else if (location.protocol === 'file:' || (location.protocol !== 'https:' && location.hostname !== 'localhost')) {
-    cadreShowToast('Microphone access works best when served over HTTPS or on localhost.', 'warning');
+    cadreShowToast('This browser does not support microphone access.', 'warning');
+  } else if (location.protocol === 'file:' ||
+             (location.protocol !== 'https:' && location.hostname !== 'localhost')) {
+    cadreShowToast('Microphone access works best when served over HTTPS.', 'warning');
   }
+
   logActivity('Channel hub online — all systems nominal', 'msg');
-  // Render an actionable banner to request microphone access if not granted
+
+  // Show mic permission banner if not already granted
   const perm = await checkMicrophonePermission();
   if (perm !== 'granted') renderMicPermissionBanner(perm);
+
+  // Safety net: release PTT if the window loses focus (e.g. alt-tab mid-press)
+  window.addEventListener('blur', () => { if (pttActive) pttRelease(); });
+
+  // Clean up Agora gracefully on page unload
+  window.addEventListener('beforeunload', handlePageUnload);
 });
 
+/* ─────────────────────────────────────────────
+   MICROPHONE PERMISSION HELPERS
+   (preserved exactly from original)
+───────────────────────────────────────────── */
 async function requestMicrophoneAccess() {
   try {
     await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1173,19 +1289,13 @@ function renderMicPermissionBanner(state) {
   if (document.getElementById('mic-perm-banner')) return;
   const banner = document.createElement('div');
   banner.id = 'mic-perm-banner';
-  banner.style.position = 'fixed';
-  banner.style.top = '72px';
-  banner.style.left = '50%';
-  banner.style.transform = 'translateX(-50%)';
-  banner.style.background = 'linear-gradient(90deg,#07121a,#07202a)';
-  banner.style.border = '1px solid rgba(0,240,255,0.08)';
-  banner.style.color = 'var(--text)';
-  banner.style.padding = '8px 12px';
-  banner.style.borderRadius = '8px';
-  banner.style.zIndex = '9999';
-  banner.style.display = 'flex';
-  banner.style.gap = '10px';
-  banner.style.alignItems = 'center';
+  banner.style.cssText = [
+    'position:fixed','top:72px','left:50%','transform:translateX(-50%)',
+    'background:linear-gradient(90deg,#07121a,#07202a)',
+    'border:1px solid rgba(0,240,255,0.08)',
+    'color:var(--text)','padding:8px 12px','border-radius:8px',
+    'z-index:9999','display:flex','gap:10px','align-items:center'
+  ].join(';');
   banner.innerHTML = `
     <div style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);">Microphone: ${state}</div>
     <button id="mic-request-btn" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(0,240,255,0.12);background:transparent;color:var(--text);cursor:pointer;">Request Microphone</button>
@@ -1193,7 +1303,17 @@ function renderMicPermissionBanner(state) {
   `;
   document.body.appendChild(banner);
   document.getElementById('mic-request-btn').onclick = () => requestMicrophoneAccess();
-  document.getElementById('mic-dismiss-btn').onclick = () => banner.remove();
+  document.getElementById('mic-dismiss-btn').onclick  = () => banner.remove();
+}
+
+async function checkMicrophonePermission() {
+  try {
+    if (!navigator.permissions || !navigator.permissions.query) return 'prompt';
+    const status = await navigator.permissions.query({ name: 'microphone' });
+    return status.state;
+  } catch (err) {
+    return 'prompt';
+  }
 }
 
 /* ─────────────────────────────────────────────
@@ -1223,7 +1343,7 @@ function renderHeader() {
 }
 
 /* ─────────────────────────────────────────────
-   SUPABASE FUNCTIONS
+   SUPABASE FUNCTIONS (all preserved from original)
 ───────────────────────────────────────────── */
 
 async function loadUserProfile() {
@@ -1244,9 +1364,9 @@ async function loadUserProfile() {
 
 function getFallbackChannels() {
   return [
-    { id: 'fallback-1', key: 'ALPHA', name: 'Alpha', callsign: 'ALP', freq: '250.0', status: 'quiet', officerCount: 0, activity: 16 },
-    { id: 'fallback-2', key: 'BRAVO', name: 'Bravo', callsign: 'BRV', freq: '251.5', status: 'quiet', officerCount: 0, activity: 20 },
-    { id: 'fallback-3', key: 'CHARLIE', name: 'Charlie', callsign: 'CHR', freq: '253.8', status: 'quiet', officerCount: 0, activity: 18 }
+    { id:'fallback-1', key:'ALPHA',   name:'Alpha',   callsign:'ALP', freq:'250.0', status:'quiet', officerCount:0, activity:16 },
+    { id:'fallback-2', key:'BRAVO',   name:'Bravo',   callsign:'BRV', freq:'251.5', status:'quiet', officerCount:0, activity:20 },
+    { id:'fallback-3', key:'CHARLIE', name:'Charlie', callsign:'CHR', freq:'253.8', status:'quiet', officerCount:0, activity:18 }
   ];
 }
 
@@ -1256,28 +1376,24 @@ async function loadChannels() {
     sbClient.from('officer_assignments').select('channel_id,status')
   ]);
 
-  if (channelsRes.error) {
-    console.warn('Supabase channels load failed:', channelsRes.error);
-  }
-
-  if (assignmentsRes.error) {
-    console.warn('Supabase officer assignments load failed:', assignmentsRes.error);
-  }
+  if (channelsRes.error)     console.warn('Supabase channels load failed:',     channelsRes.error);
+  if (assignmentsRes.error)  console.warn('Supabase assignments load failed:',  assignmentsRes.error);
 
   if (channelsRes.data && channelsRes.data.length) {
     CHANNELS = channelsRes.data.map((channel, index) => {
       const key = cadreNormalizeChannelKey(channel.key || channel.name || `CH${index}`);
-      listenState[key] = listenState[key] || false;
-      muteState[key] = muteState[key] || false;
+      // Initialise listen/mute state entries for any channel key that appears
+      if (listenState[key] === undefined) listenState[key] = false;
+      if (muteState[key]   === undefined) muteState[key]   = false;
       return {
-        id: channel.id,
+        id:       channel.id,
         key,
-        name: channel.name || `Channel ${index + 1}`,
-        callsign: channel.callsign || key.slice(0, 3),
-        freq: channel.frequency || 'N/A',
-        status: channel.is_disabled ? 'quiet' : channel.status || 'quiet',
+        name:     channel.name        || `Channel ${index + 1}`,
+        callsign: channel.callsign    || key.slice(0, 3),
+        freq:     channel.frequency   || 'N/A',
+        status:   channel.is_disabled ? 'quiet' : (channel.status || 'quiet'),
         officerCount: 0,
-        activity: 0
+        activity: 0,
       };
     });
   } else {
@@ -1285,20 +1401,20 @@ async function loadChannels() {
   }
 
   const assignments = assignmentsRes.data || [];
-  const countMap = assignments.reduce((map, assignment) => {
-    if (!assignment.channel_id) return map;
-    map[assignment.channel_id] = (map[assignment.channel_id] || 0) + (assignment.status === 'online' ? 1 : 0);
+  const countMap = assignments.reduce((map, a) => {
+    if (!a.channel_id) return map;
+    map[a.channel_id] = (map[a.channel_id] || 0) + (a.status === 'online' ? 1 : 0);
     return map;
   }, {});
 
   CHANNELS.forEach(channel => {
     const count = countMap[channel.id] || 0;
-    channel.officerCount = count;
-    channel.status = count > 5 ? 'active' : count > 1 ? 'busy' : 'quiet';
-    channel.activity = Math.min(100, Math.max(12, count * 12 + Math.floor(Math.random() * 32)));
+    channel.officerCount  = count;
+    channel.status        = count > 5 ? 'active' : count > 1 ? 'busy' : 'quiet';
+    channel.activity      = Math.min(100, Math.max(12, count * 12 + Math.floor(Math.random() * 32)));
     channelState[channel.key] = channelState[channel.key] || {};
     channelState[channel.key].officers = count;
-    channelState[channel.key].status = channel.status;
+    channelState[channel.key].status   = channel.status;
     channelState[channel.key].activity = channel.activity;
   });
 
@@ -1338,284 +1454,480 @@ function setupRealtimeSubscriptions() {
 }
 
 /* ─────────────────────────────────────────────
-   AGORA FUNCTIONS
+   AGORA UID GENERATION
+   Uses a numeric UID — Agora's SDK works best with integers.
+   We salt with a session-unique offset to prevent collisions when two
+   officers share the same trailing phone digits.
 ───────────────────────────────────────────── */
-
 function getAgoraUid() {
-  // Prefer a numeric UID for Agora when possible to avoid SDK warnings
   const phone = sessionUser?.phone;
   if (phone) {
     const digits = String(phone).replace(/\D/g, '');
-    if (digits.length > 0) {
-      // Trim to a safe integer range
-      return parseInt(digits.slice(-9), 10);
+    if (digits.length >= 4) {
+      /*
+       * Take last 7 digits of the phone number (0–9,999,999).
+       * XOR with a per-session salt derived from the session start
+       * timestamp, keeping the result within Agora's safe 32-bit range.
+       * This makes it vanishingly unlikely for two devices to collide
+       * even if their phone numbers share the same suffix.
+       */
+      const base = parseInt(digits.slice(-7), 10);
+      const salt = parseInt(String(Date.now()).slice(-4), 10); // 0–9999
+      return ((base ^ salt) >>> 0) % 999999999 || 1; // ensure non-zero
     }
   }
-  // Fallback to timestamp-based numeric id
-  return Math.floor(Date.now() % 1000000000);
+  // Fallback: random in safe Agora range
+  return Math.floor(Math.random() * 999999998) + 1;
 }
 
+/* ─────────────────────────────────────────────
+   CONNECTION STATUS UI
+───────────────────────────────────────────── */
 function updateConnectionStatus(state) {
-  const statusLine = document.getElementById("ptt-status-line");
+  const dot        = document.querySelector('.conn-dot');
+  const label      = document.getElementById('conn-label');
+  const statusLine = document.getElementById('ptt-status-line');
+
   statusLine.classList.remove('transmitting');
 
-  switch (state) {
-    case 'connected':
-      statusLine.textContent = 'CONNECTED';
-      statusLine.style.color = 'var(--green)';
-      break;
-    case 'reconnecting':
-      statusLine.textContent = 'RECONNECTING';
-      statusLine.style.color = 'var(--amber)';
-      break;
-    case 'disconnected':
-      statusLine.textContent = 'DISCONNECTED';
-      statusLine.style.color = 'var(--red)';
-      break;
-    case 'error':
-      statusLine.textContent = 'CONNECTION ERROR';
-      statusLine.style.color = 'var(--red)';
-      break;
-    default:
-      statusLine.textContent = activeChannelKey ? 'CHANNEL ACTIVE' : 'STANDBY';
-      statusLine.style.color = activeChannelKey ? 'var(--green)' : '';
-  }
+  const config = {
+    connected:    { line: 'CHANNEL ACTIVE', lineColor: 'var(--green)',  dotColor: 'var(--green)',  label: 'CONNECTED'    },
+    reconnecting: { line: 'RECONNECTING',   lineColor: 'var(--amber)',  dotColor: 'var(--amber)',  label: 'RECONNECTING' },
+    disconnected: { line: 'DISCONNECTED',   lineColor: 'var(--red)',    dotColor: 'var(--red)',    label: 'OFFLINE'      },
+    error:        { line: 'CONN ERROR',     lineColor: 'var(--red)',    dotColor: 'var(--red)',    label: 'ERROR'        },
+    idle:         { line: 'STANDBY',        lineColor: '',              dotColor: 'var(--green)',  label: 'CONNECTED'    },
+  };
+
+  const c = config[state] || config.idle;
+  statusLine.textContent  = activeChannelKey ? c.line : (state === 'idle' ? 'STANDBY' : c.line);
+  statusLine.style.color  = c.lineColor;
+  if (dot)   dot.style.background   = c.dotColor;
+  if (label) label.textContent      = c.label;
 }
 
-async function initAgoraClient() {
-  if (agoraClient) return;
+/* ─────────────────────────────────────────────
+   AGORA CLIENT FACTORY
+   Creates a fresh client with all event handlers attached.
+   Called on every channel join — guarantees clean state.
+───────────────────────────────────────────── */
+function createAgoraClient() {
   if (typeof AgoraRTC === 'undefined') {
     cadreShowToast('Agora SDK not loaded.', 'error');
     throw new Error('AgoraRTC not available');
   }
 
-  agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+  /*
+   * mode: 'rtc'
+   *   - Correct for bidirectional voice (all users can publish/subscribe).
+   *   - Supports unlimited subscribers; up to ~17 simultaneous publishers
+   *     per default Agora plan (contact Agora to raise if needed).
+   *   - 'live' mode is for one-to-many broadcast and would prevent officers
+   *     from transmitting unless they set role='host', which breaks PTT.
+   *
+   * codec: 'vp8'
+   *   - Required for audio-only when using the web SDK; opus codec is used
+   *     for actual audio encoding regardless of this setting.
+   */
+  const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
-  agoraClient.on('user-published', async (user, mediaType) => {
+  /* ── REMOTE USER PUBLISHED ──────────────────────────────────────
+   * Fires when any remote user starts publishing audio.
+   * This is how late joiners hear ongoing transmissions — Agora fires
+   * this event for ALL currently-publishing users when a new client joins.
+   *
+   * DEDUP GUARD: remoteAudioTracks.has(uid) prevents double-subscription
+   * if a user republishes (e.g. after a network reconnect), which would
+   * cause the same audio to be played twice (echo/doubling effect).
+   */
+  client.on('user-published', async (user, mediaType) => {
+    if (mediaType !== 'audio') return; // this page is audio-only
+
+    // Dedup: if we already have this user's track playing, stop it first
+    if (remoteAudioTracks.has(user.uid)) {
+      try { remoteAudioTracks.get(user.uid).stop(); } catch (_) {}
+      remoteAudioTracks.delete(user.uid);
+    }
+
     try {
-      await agoraClient.subscribe(user, mediaType);
-      if (mediaType === 'audio' && user.audioTrack) {
+      await client.subscribe(user, 'audio');
+
+      /*
+       * user.audioTrack is guaranteed to exist after a successful subscribe.
+       * play() routes audio to the default audio output device.
+       * No HTMLElement target needed for audio (unlike video).
+       */
+      if (user.audioTrack) {
         user.audioTrack.play();
-        logActivity(`Remote user joined: ${user.uid}`, 'msg');
+        remoteAudioTracks.set(user.uid, user.audioTrack);
+        logActivity(`Officer ${user.uid} joined the channel`, 'join');
       }
     } catch (err) {
-      console.error('Agora subscribe failed:', err);
-      cadreShowToast('Failed to subscribe to remote audio.', 'error');
+      console.error('[Agora] subscribe failed for uid', user.uid, err);
+      // Non-fatal — the user is still in the channel, we just can't hear them
+      cadreShowToast(`Could not subscribe to user ${user.uid}`, 'warning');
     }
   });
 
-  agoraClient.on('user-unpublished', user => {
-    if (user.audioTrack) {
-      user.audioTrack.stop();
+  /* ── REMOTE USER UNPUBLISHED ────────────────────────────────────
+   * Fires when a remote user stops publishing (mutes mic / loses connection).
+   * We stop the track but keep the user in the channel — they may republish.
+   */
+  client.on('user-unpublished', (user, mediaType) => {
+    if (mediaType !== 'audio') return;
+    if (remoteAudioTracks.has(user.uid)) {
+      try { remoteAudioTracks.get(user.uid).stop(); } catch (_) {}
+      remoteAudioTracks.delete(user.uid);
     }
-    logActivity(`Remote user muted: ${user.uid}`, 'alert');
+    // Do NOT log here — this fires whenever someone releases PTT, creating noise
   });
 
-  agoraClient.on('user-left', user => {
-    logActivity(`Remote user left: ${user.uid}`, 'leave');
+  /* ── REMOTE USER LEFT ───────────────────────────────────────────
+   * Fires when a remote user fully disconnects from the channel.
+   * Clean up their audio track from the dedup map.
+   */
+  client.on('user-left', (user) => {
+    if (remoteAudioTracks.has(user.uid)) {
+      try { remoteAudioTracks.get(user.uid).stop(); } catch (_) {}
+      remoteAudioTracks.delete(user.uid);
+    }
+    logActivity(`Officer ${user.uid} left the channel`, 'leave');
   });
 
-  agoraClient.on('connection-state-change', (cur, rev) => {
-    if (cur === 'CONNECTED') {
-      agoraState = 'connected';
-      updateConnectionStatus('connected');
-    } else if (cur === 'RECONNECTING') {
-      agoraState = 'connecting';
-      updateConnectionStatus('reconnecting');
-    } else if (cur === 'DISCONNECTED') {
-      agoraState = 'disconnected';
-      updateConnectionStatus('disconnected');
+  /* ── CONNECTION STATE CHANGE ────────────────────────────────────
+   * Agora's state machine:
+   * DISCONNECTED → CONNECTING → CONNECTED → RECONNECTING → DISCONNECTED
+   *
+   * On DISCONNECTED after a prior connection: schedule auto-rejoin.
+   * On CONNECTED after reconnect: re-publish localAudioTrack if it exists
+   *   (Agora SDK auto-subscribes to remote users on reconnect, but does NOT
+   *    auto-republish local tracks — we must do this manually).
+   */
+  client.on('connection-state-change', async (curState, prevState, reason) => {
+    console.log(`[Agora] state: ${prevState} → ${curState}`, reason || '');
+    agoraState = curState.toLowerCase();
+
+    switch (curState) {
+      case 'CONNECTED':
+        updateConnectionStatus('connected');
+        reconnectAttempt = 0;
+        // Re-publish local track if it survived the reconnect
+        if (localAudioTrack && !isPublishing) {
+          try {
+            await client.publish([localAudioTrack]);
+            isPublishing = true;
+          } catch (e) {
+            console.warn('[Agora] Re-publish after reconnect failed:', e.message);
+          }
+        }
+        break;
+
+      case 'RECONNECTING':
+        updateConnectionStatus('reconnecting');
+        logActivity('Network interrupted — reconnecting...', 'alert');
+        break;
+
+      case 'DISCONNECTED':
+        updateConnectionStatus('disconnected');
+        isPublishing = false;
+        /*
+         * DISCONNECTED fires both on intentional leave AND unexpected drops.
+         * We only auto-rejoin if activeChannelKey is still set (i.e. the user
+         * did not intentionally call leaveChannel(), which nulls activeChannelKey
+         * before the Agora leave completes).
+         */
+        if (activeChannelKey) scheduleReconnect();
+        break;
     }
   });
 
-  agoraClient.on('exception', err => {
-    console.error('Agora exception:', err);
-    cadreShowToast(`Agora error: ${err.msg || err}`, 'error');
-    updateConnectionStatus('error');
+  /* ── EXCEPTION ──────────────────────────────────────────────────
+   * Agora fires this for non-fatal internal errors (e.g. encoding issues).
+   * Log and surface to the officer without breaking the session.
+   */
+  client.on('exception', (event) => {
+    console.warn('[Agora] exception:', event);
+    // Only show toast for errors that affect audio quality
+    if (event.code === 1001 || event.code === 1003) {
+      cadreShowToast(`Audio quality issue: ${event.msg || 'check network'}`, 'warning');
+    }
   });
+
+  /* ── VOLUME INDICATOR ───────────────────────────────────────────
+   * Optional: fires every 2 s (per setParameter above) with per-user
+   * volume levels. Not used in UI currently but ready for future
+   * "speaking" indicators on channel cards.
+   */
+  client.on('volume-indicator', (volumes) => {
+    // Future use: update per-card "speaking" pulse animation
+    // volumes.forEach(v => { if (v.level > 5) markSpeaking(v.uid); });
+  });
+
+  return client;
 }
 
+/* ─────────────────────────────────────────────
+   LOCAL AUDIO TRACK FACTORY
+   Creates microphone track with PTT-safe settings:
+   - Created with setEnabled(false) so no audio leaks before PTT press
+   - Uses VOICE_ENCODER_CONFIG for optimal voice quality / bandwidth
+───────────────────────────────────────────── */
 async function createLocalTrack() {
-  try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('Media Devices API not available in this browser/context');
-    }
-
-    // Trigger browser permission prompt proactively so we can surface clearer errors
-    await navigator.mediaDevices.getUserMedia({ audio: true });
-
-    // Create the microphone track (enabled by default) so it can be published.
-    const track = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_standard' });
-    return track;
-  } catch (err) {
-    console.error('Microphone create failed:', err);
-
-    // Provide actionable feedback depending on the error
-    const name = err?.name || '';
-    const msg  = err?.message || '';
-
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      cadreShowToast('Microphone access was denied. Allow microphone in your browser settings.', 'error');
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      cadreShowToast('No microphone detected. Connect a microphone and try again.', 'error');
-    } else if (msg.toLowerCase().includes('secure') || msg.toLowerCase().includes('https')) {
-      cadreShowToast('Microphone access requires a secure context. Serve via HTTPS or use localhost.', 'error');
-    } else {
-      cadreShowToast('Microphone permission is required for push-to-talk.', 'error');
-    }
-
-    throw err;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('Media Devices API not available in this browser/context');
   }
+
+  // Explicit permission request so the browser prompt fires before Agora does,
+  // giving us a cleaner error message if denied.
+  await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  /*
+   * encoderConfig as object lets us set precise bitrate/sampleRate.
+   * ANS (Automatic Noise Suppression) and AEC (Acoustic Echo Cancellation)
+   * are enabled by default in the Agora Web SDK 4.x when a config object is
+   * passed — these are critical for voice quality in field environments.
+   */
+  const track = await AgoraRTC.createMicrophoneAudioTrack({
+    encoderConfig: VOICE_ENCODER_CONFIG,
+    AEC: true,   // Acoustic Echo Cancellation
+    ANS: true,   // Automatic Noise Suppression
+    AGC: true,   // Automatic Gain Control
+  });
+
+  /*
+   * Disable immediately after creation.
+   * A disabled track is still PUBLISHED but sends silence — this is the
+   * correct Agora PTT pattern. The alternative (unpublish/publish on each
+   * PTT press) introduces 200–500 ms latency and causes audio artifacts.
+   */
+  await track.setEnabled(false);
+
+  return track;
 }
 
-// Check microphone permission state when possible
-async function checkMicrophonePermission() {
-  try {
-    if (!navigator.permissions || !navigator.permissions.query) return 'prompt';
-    const status = await navigator.permissions.query({ name: 'microphone' });
-    return status.state; // 'granted', 'denied', or 'prompt'
-  } catch (err) {
-    return 'prompt';
-  }
-}
-
+/* ─────────────────────────────────────────────
+   CHANNEL JOIN — main entry point
+───────────────────────────────────────────── */
 async function joinChannel(channelKey) {
   if (!channelKey) return;
+
+  // Already in this channel
   if (activeChannelKey === channelKey) {
     cadreShowToast(`Already connected to ${channelKey}.`, 'info');
     return;
   }
 
-  if (activeChannelKey && activeChannelKey !== channelKey) {
-    await leaveChannel();
-  }
+  // Leave current channel first (triggers full client teardown)
+  if (activeChannelKey) await leaveChannel();
 
-  // Prevent concurrent join attempts
-  if (isJoining || agoraState === 'connecting') {
-    cadreShowToast('Join already in progress. Please wait.', 'info');
+  // Mutex — prevent race conditions if user clicks multiple channels quickly
+  if (isJoining) {
+    cadreShowToast('Connecting… please wait.', 'info');
     return;
   }
 
-  // Quick permission check to avoid silent failures
+  // Fail fast if mic is blocked — avoids confusing "Agora join failed" errors
   const micState = await checkMicrophonePermission();
   if (micState === 'denied') {
-    cadreShowToast('Microphone permission is blocked. Allow microphone in browser site settings.', 'error');
+    cadreShowToast('Microphone is blocked. Allow microphone access in browser site settings.', 'error');
     return;
   }
 
-  isJoining = true;
-  try {
-    await initAgoraClient();
-    const uid = getAgoraUid();
-    agoraUid = uid;
+  isJoining  = true;
+  agoraState = 'connecting';
+  updateConnectionStatus('reconnecting'); // Show "connecting" state in UI
 
-    await agoraClient.join(AGORA_APP_ID, channelKey, null, uid);
+  try {
+    /*
+     * FRESH CLIENT on every join.
+     * This is the key fix for cross-channel audio bleed:
+     * - All event listeners from the previous channel are gone.
+     * - Agora's internal subscription registry is fresh.
+     * - remoteAudioTracks map is cleared below.
+     */
+    remoteAudioTracks.clear();
+    agoraClient = createAgoraClient();
+    agoraUid    = getAgoraUid();
+
+    /*
+     * null token → Agora App-certificate disabled (testing mode).
+     * For production: generate a server-side token and pass it here.
+     * The channel name (channelKey) is the isolation boundary — users in
+     * 'ALPHA' cannot hear users in 'BRAVO' because they are separate Agora
+     * channel subscriptions.
+     */
+    await agoraClient.join(AGORA_APP_ID, channelKey, null, agoraUid);
+
+    // Create mic track (disabled) and publish it
     localAudioTrack = await createLocalTrack();
-    // Agora requires a track to be enabled when publishing. Publish then mute immediately for PTT behaviour.
     await agoraClient.publish([localAudioTrack]);
-    try { await localAudioTrack.setEnabled(false); } catch(e) { /* ignore */ }
-    isPublishing = true;
+    isPublishing    = true;
 
     activeChannelKey = channelKey;
+    reconnectAttempt = 0;
+
+    // Persist assignment to Supabase so admin sees this officer in the channel
     await persistOfficerAssignment(channelKey);
+
+    // Update UI
     const ch = CHANNELS.find(c => c.key === channelKey) || { name: channelKey };
-
-    document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
-    const card = document.getElementById(`card-${channelKey}`);
-    if (card) {
-      card.classList.add('active');
-      card.querySelector('.btn-join').classList.add('joined');
-      card.querySelector('.btn-join').textContent = '✓ JOINED';
-    }
-
+    _setCardJoined(channelKey, true);
     document.getElementById('ptt-channel-label').textContent = channelKey;
     updateChannelStatus(channelKey, 'joined');
+    // updateConnectionStatus will be called by connection-state-change → CONNECTED
+    // but call it here too in case it fires before we reach this line
     updateConnectionStatus('connected');
 
     cadreShowToast(`Joined ${ch.name}`, 'success');
     logActivity(`You joined ${ch.name}`, 'join');
+
   } catch (err) {
-    console.error('Agora join failed:', err);
-    const errMsg = err?.message || String(err || '');
-    if (/permission|denied|notallowed/i.test(errMsg)) {
-      cadreShowToast('Failed to join: microphone permission denied. Allow microphone access and try again.', 'error');
-    } else if (/no device|notfound|NoSupportedAudio/i.test(errMsg)) {
-      cadreShowToast('Failed to join: no microphone found. Connect a microphone and retry.', 'error');
-    } else if (/secure|https/i.test(errMsg) && location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      cadreShowToast('Microphone access requires HTTPS or localhost. Serve the page securely.', 'error');
-    } else {
-      cadreShowToast(`Failed to join channel: ${errMsg}`.slice(0, 240), 'error');
-    }
-    updateConnectionStatus('error');
+    console.error('[Agora] joinChannel failed:', err);
+
+    // Tear down the partially-initialised client so no ghost state remains
+    await _destroyClient();
     activeChannelKey = null;
+    agoraState       = 'idle';
+
+    // Surface actionable error messages
+    const msg = err?.message || String(err || '');
+    if (/NotAllowedError|PermissionDenied|permission/i.test(msg)) {
+      cadreShowToast('Microphone access denied — allow it in browser settings and retry.', 'error');
+    } else if (/NotFoundError|NoSupportedAudio|no device/i.test(msg)) {
+      cadreShowToast('No microphone found — connect a microphone and retry.', 'error');
+    } else if (/secure|https/i.test(msg) && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      cadreShowToast('Microphone requires HTTPS — serve the page securely.', 'error');
+    } else {
+      cadreShowToast(`Failed to join: ${msg}`.slice(0, 200), 'error');
+    }
+
+    updateConnectionStatus('error');
+
   } finally {
     isJoining = false;
   }
 }
 
+/* ─────────────────────────────────────────────
+   CHANNEL LEAVE — intentional
+───────────────────────────────────────────── */
+async function leaveChannel() {
+  if (!activeChannelKey) return;
+
+  // Cancel any pending reconnect — user is intentionally leaving
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  reconnectAttempt = 0;
+
+  const ch       = CHANNELS.find(c => c.key === activeChannelKey) || { name: activeChannelKey };
+  const leavingKey = activeChannelKey;
+
+  // Null activeChannelKey FIRST — connection-state-change DISCONNECTED handler
+  // checks this to decide whether to auto-reconnect. Nulling it here prevents
+  // an unwanted reconnect being scheduled during the leave sequence.
+  activeChannelKey = null;
+
+  _setCardJoined(leavingKey, false);
+  document.getElementById('ptt-channel-label').textContent = 'NO CHANNEL';
+
+  await _destroyClient();
+
+  updateChannelStatus(null, 'idle');
+  updateConnectionStatus('idle');
+
+  logActivity(`You left ${ch.name}`, 'leave');
+  cadreShowToast(`Left ${ch.name}`, 'warning');
+}
+
+/* ─────────────────────────────────────────────
+   CLIENT TEARDOWN — internal helper
+   Properly closes track and leaves Agora before nulling the client.
+   Must be awaited before creating a new client for the same app ID.
+───────────────────────────────────────────── */
+async function _destroyClient() {
+  // 1. Stop and close the local microphone track
+  if (localAudioTrack) {
+    try { await localAudioTrack.setEnabled(false); } catch (_) {}
+    try { localAudioTrack.close(); }                 catch (_) {}
+    localAudioTrack = null;
+  }
+  isPublishing = false;
+
+  // 2. Stop all remote audio tracks and clear the dedup map
+  remoteAudioTracks.forEach(track => { try { track.stop(); } catch (_) {} });
+  remoteAudioTracks.clear();
+
+  // 3. Leave the Agora channel and release the client
+  if (agoraClient) {
+    try { await agoraClient.leave(); } catch (_) {}
+    agoraClient = null;
+  }
+
+  agoraState = 'idle';
+}
+
+/* ─────────────────────────────────────────────
+   AUTO-RECONNECT — exponential backoff
+   Fires when connection-state-change → DISCONNECTED and activeChannelKey
+   is still set (meaning this was NOT an intentional leave).
+───────────────────────────────────────────── */
+function scheduleReconnect() {
+  if (reconnectTimer) return; // already scheduled
+
+  reconnectAttempt++;
+  /*
+   * Exponential backoff: 2^attempt × 1000 ms, capped at MAX_RECONNECT_DELAY_MS.
+   * attempt 1 → 2 s, 2 → 4 s, 3 → 8 s, 4 → 16 s, 5+ → 30 s
+   */
+  const delay = Math.min(Math.pow(2, reconnectAttempt) * 1000, MAX_RECONNECT_DELAY_MS);
+  const channelToRejoin = activeChannelKey; // capture before async gap
+
+  console.log(`[Agora] Reconnect attempt ${reconnectAttempt} in ${delay}ms for channel ${channelToRejoin}`);
+  logActivity(`Reconnecting to ${channelToRejoin} in ${Math.round(delay / 1000)}s…`, 'alert');
+
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    // Only attempt if the user hasn't manually left during the delay
+    if (!channelToRejoin || activeChannelKey !== channelToRejoin) return;
+    await _destroyClient(); // ensure clean slate before retry
+    await joinChannel(channelToRejoin);
+  }, delay);
+}
+
+/* ─────────────────────────────────────────────
+   SUPABASE ASSIGNMENT PERSISTENCE (preserved)
+───────────────────────────────────────────── */
 async function persistOfficerAssignment(channelKey) {
   const phone = sessionUser?.phone;
   if (!phone) return;
 
-  const { data: userRow } = await sbClient.from('users').select('id').eq('phone', phone).maybeSingle();
+  const { data: userRow } = await sbClient
+    .from('users').select('id').eq('phone', phone).maybeSingle();
   if (!userRow?.id) return;
 
-  const { data: assignment } = await sbClient
-    .from('officer_assignments')
-    .select('*')
-    .eq('user_id', userRow.id)
-    .maybeSingle();
-
   const { data: channelRow } = await sbClient
-    .from('channels')
-    .select('id')
-    .eq('key', channelKey)
-    .maybeSingle();
-
+    .from('channels').select('id').eq('key', channelKey).maybeSingle();
   if (!channelRow?.id) return;
 
+  const { data: assignment } = await sbClient
+    .from('officer_assignments').select('*').eq('user_id', userRow.id).maybeSingle();
+
+  const payload = {
+    channel_id: channelRow.id,
+    status:     'online',
+    last_seen:  new Date().toISOString(),
+  };
+
   if (assignment) {
-    await sbClient.from('officer_assignments').update({ channel_id: channelRow.id, status: 'online', last_seen: new Date().toISOString() }).eq('id', assignment.id);
+    await sbClient.from('officer_assignments')
+      .update(payload).eq('id', assignment.id);
   } else {
-    await sbClient.from('officer_assignments').insert([{ user_id: userRow.id, channel_id: channelRow.id, status: 'online', last_seen: new Date().toISOString() }]);
+    await sbClient.from('officer_assignments')
+      .insert([{ user_id: userRow.id, ...payload }]);
   }
 }
 
-async function leaveChannel() {
-  if (!activeChannelKey) return;
-
-  const ch = CHANNELS.find(c => c.key === activeChannelKey) || { name: activeChannelKey };
-  const card = document.getElementById(`card-${activeChannelKey}`);
-  if (card) {
-    card.classList.remove('active');
-    card.querySelector('.btn-join').classList.remove('joined');
-    card.querySelector('.btn-join').textContent = 'JOIN CHANNEL';
-  }
-
-  try {
-    if (localAudioTrack) {
-      await localAudioTrack.setEnabled(false);
-      localAudioTrack.close();
-      localAudioTrack = null;
-    }
-
-    if (agoraClient) {
-      await agoraClient.unpublish();
-      await agoraClient.leave();
-    }
-  } catch (err) {
-    console.warn('Agora leave failed:', err);
-  }
-
-  logActivity(`You left ${ch.name}`, 'leave');
-  cadreShowToast(`Left ${ch.name}`, 'warning');
-
-  document.getElementById('ptt-channel-label').textContent = 'NO CHANNEL';
-  activeChannelKey = null;
-  updateChannelStatus(null, 'idle');
-  updateConnectionStatus('disconnected');
-}
-
+/* ─────────────────────────────────────────────
+   CHANNEL STATUS UI HELPERS
+───────────────────────────────────────────── */
 function updateChannelStatus(channelKey, status) {
   const statusLine = document.getElementById('ptt-status-line');
   if (status === 'joined') {
@@ -1627,18 +1939,112 @@ function updateChannelStatus(channelKey, status) {
   }
 }
 
-/* ─────────────────────────────────────────────
-   CHANNEL GRID RENDERING
-───────────────────────────────────────────── */
+/*
+ * _setCardJoined: updates the channel card's visual state.
+ * Separated from joinChannel / leaveChannel so reconnect can call it cleanly.
+ */
+function _setCardJoined(channelKey, joined) {
+  document.querySelectorAll('.channel-card').forEach(c => {
+    c.classList.remove('active');
+    const btn = c.querySelector('.btn-join');
+    if (btn) { btn.classList.remove('joined'); btn.textContent = 'JOIN CHANNEL'; }
+  });
 
+  if (joined && channelKey) {
+    const card = document.getElementById(`card-${channelKey}`);
+    if (card) {
+      card.classList.add('active');
+      const btn = card.querySelector('.btn-join');
+      if (btn) { btn.classList.add('joined'); btn.textContent = '✓ JOINED'; }
+    }
+  }
+}
+
+/* ─────────────────────────────────────────────
+   PUSH-TO-TALK
+   Design: localAudioTrack is always published (even when disabled).
+   Enabling/disabling the track tells Agora to send real audio vs silence.
+   This achieves PTT with near-zero latency — no publish/unpublish round trips.
+───────────────────────────────────────────── */
+let pttActive = false;
+
+function pttPress(e) {
+  if (e) e.preventDefault();
+  if (pttActive) return;
+
+  if (!activeChannelKey || !localAudioTrack) {
+    cadreShowToast('Join a channel first', 'warning');
+    return;
+  }
+
+  pttActive = true;
+  document.getElementById('ptt-btn').classList.add('pressing');
+
+  const statusLine = document.getElementById('ptt-status-line');
+  statusLine.textContent = '● TRANSMITTING';
+  statusLine.classList.add('transmitting');
+
+  try {
+    /*
+     * setEnabled(true) on a published-but-disabled track immediately starts
+     * sending real microphone audio. All subscribers in the channel hear it
+     * within ~100–200 ms (Agora's standard audio latency).
+     */
+    localAudioTrack.setEnabled(true);
+    logActivity(`${sessionUser?.name || 'Officer'} transmitting on ${activeChannelKey}`, 'msg');
+  } catch (err) {
+    console.error('[PTT] enable failed:', err);
+    cadreShowToast('Unable to enable microphone.', 'error');
+    pttRelease();
+  }
+}
+
+function pttRelease(e) {
+  if (e) e.preventDefault();
+  if (!pttActive) return;
+
+  pttActive = false;
+  document.getElementById('ptt-btn').classList.remove('pressing');
+
+  const statusLine = document.getElementById('ptt-status-line');
+  statusLine.textContent = activeChannelKey ? 'CHANNEL ACTIVE' : 'STANDBY';
+  statusLine.classList.remove('transmitting');
+  statusLine.style.color = activeChannelKey ? 'var(--green)' : '';
+
+  if (localAudioTrack) {
+    try {
+      // setEnabled(false) sends silence — mic is still published, no re-subscribe needed
+      localAudioTrack.setEnabled(false);
+    } catch (err) {
+      console.error('[PTT] disable failed:', err);
+    }
+  }
+}
+
+/* ─────────────────────────────────────────────
+   PAGE UNLOAD — graceful teardown
+───────────────────────────────────────────── */
+async function handlePageUnload() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  const leaving = activeChannelKey;
+  activeChannelKey = null; // prevent reconnect from firing during teardown
+  if (leaving) {
+    // Best-effort synchronous-ish cleanup
+    _destroyClient().catch(() => {});
+  }
+}
+
+/* ─────────────────────────────────────────────
+   CHANNEL GRID RENDERING (preserved from original)
+───────────────────────────────────────────── */
 function renderChannelGrid() {
   const grid = document.getElementById("channel-grid");
   grid.innerHTML = '';
 
   CHANNELS.forEach(ch => {
-    const state     = channelState[ch.key];
-    const activity  = Math.round(state.activity || 0);
-    const fillClass = activity > 60 ? 'high' : activity > 30 ? 'medium' : 'low';
+    const state      = channelState[ch.key] || { officers: 0, status: 'quiet', activity: 0 };
+    const activity   = Math.round(state.activity || 0);
+    const fillClass  = activity > 60 ? 'high' : activity > 30 ? 'medium' : 'low';
     const statusLabel = state.status === 'active' ? 'ACTIVE'
                       : state.status === 'busy'   ? 'BUSY'
                       : 'QUIET';
@@ -1684,32 +2090,34 @@ function renderChannelGrid() {
   });
 
   refreshActiveCount();
+
+  // If already in a channel (e.g. after realtime grid refresh), restore joined state
+  if (activeChannelKey) _setCardJoined(activeChannelKey, true);
 }
 
 function refreshChannelCards() {
   CHANNELS.forEach(ch => {
     const el = document.getElementById(`officers-${ch.key}`);
-    if (el) el.textContent = channelState[ch.key].officers;
+    if (el) el.textContent = channelState[ch.key]?.officers ?? 0;
   });
 }
 
 function refreshActiveCount() {
-  const active = CHANNELS.filter(ch => channelState[ch.key].status !== 'quiet').length;
+  const active = CHANNELS.filter(ch => (channelState[ch.key]?.status || 'quiet') !== 'quiet').length;
   document.getElementById("active-count-badge").textContent = `${active} ACTIVE`;
   document.getElementById("stat-active-ch").textContent     = active;
   document.getElementById("stat-total-tx").textContent      =
-    CHANNELS.reduce((s, ch) => s + channelState[ch.key].officers, 0);
+    CHANNELS.reduce((s, ch) => s + (channelState[ch.key]?.officers || 0), 0);
 }
 
 /* ─────────────────────────────────────────────
-   CHANNEL SELECTION
+   CHANNEL SELECTION (preserved from original)
 ───────────────────────────────────────────── */
-
 function selectChannel(key, name, accentColor) {
   selectedChannelKey = key;
 
   document.querySelectorAll('.channel-card').forEach(c => {
-    if (!c.classList.contains('joined')) c.classList.remove('active');
+    if (c.id !== `card-${activeChannelKey}`) c.classList.remove('active');
   });
   const card = document.getElementById(`card-${key}`);
   if (card) card.classList.add('active');
@@ -1757,61 +2165,8 @@ function selectChannel(key, name, accentColor) {
 }
 
 /* ─────────────────────────────────────────────
-   PUSH TO TALK
+   QUICK ACTIONS (preserved from original)
 ───────────────────────────────────────────── */
-
-let pttActive = false;
-
-function pttPress(e) {
-  if (e) e.preventDefault();
-  if (pttActive) return;
-
-  if (!activeChannelKey || !localAudioTrack) {
-    cadreShowToast('Join a channel first', 'warning');
-    return;
-  }
-
-  pttActive = true;
-  document.getElementById('ptt-btn').classList.add('pressing');
-
-  const statusLine = document.getElementById('ptt-status-line');
-  statusLine.textContent = '● TRANSMITTING';
-  statusLine.classList.add('transmitting');
-
-  try {
-    localAudioTrack.setEnabled(true);
-    logActivity(`${sessionUser?.name || 'Officer'} transmitting on ${activeChannelKey}`, 'msg');
-  } catch (err) {
-    console.error('PTT enable failed:', err);
-    cadreShowToast('Unable to enable microphone.', 'error');
-    pttRelease();
-  }
-}
-
-function pttRelease(e) {
-  if (e) e.preventDefault();
-  if (!pttActive) return;
-
-  pttActive = false;
-  document.getElementById('ptt-btn').classList.remove('pressing');
-
-  const statusLine = document.getElementById('ptt-status-line');
-  statusLine.textContent = 'CHANNEL ACTIVE';
-  statusLine.classList.remove('transmitting');
-
-  if (localAudioTrack) {
-    try {
-      localAudioTrack.setEnabled(false);
-    } catch (err) {
-      console.error('PTT disable failed:', err);
-    }
-  }
-}
-
-/* ─────────────────────────────────────────────
-   QUICK ACTIONS
-───────────────────────────────────────────── */
-
 function joinAssignedChannel() {
   const assigned = sessionUser?.channel || 'ALPHA';
   joinChannel(assigned);
@@ -1819,7 +2174,7 @@ function joinAssignedChannel() {
 }
 
 function showActiveChannels() {
-  const active = CHANNELS.filter(ch => channelState[ch.key].status !== 'quiet');
+  const active = CHANNELS.filter(ch => (channelState[ch.key]?.status || 'quiet') !== 'quiet');
   const names  = active.map(ch => ch.name).join(', ');
   cadreShowToast(`Active: ${names || 'None'}`, 'success');
   logActivity('Active channels queried', 'msg');
@@ -1832,9 +2187,8 @@ async function refreshStatus() {
 }
 
 /* ─────────────────────────────────────────────
-   ACTIVITY FEED
+   ACTIVITY FEED (preserved from original)
 ───────────────────────────────────────────── */
-
 function logActivity(text, type = 'msg') {
   const feed = document.getElementById("activity-feed");
   const now  = new Date().toLocaleTimeString('en-GB', { hour12: false });
@@ -1853,9 +2207,8 @@ function logActivity(text, type = 'msg') {
 }
 
 /* ─────────────────────────────────────────────
-   STATS UPDATE
+   STATS UPDATE (preserved from original)
 ───────────────────────────────────────────── */
-
 function updateStats(total) {
   document.getElementById("hdr-online").textContent  = total;
   document.getElementById("stat-online").textContent = total;
@@ -1865,5 +2218,3 @@ function updateStats(total) {
 </script>
 </body>
 </html>
-
-

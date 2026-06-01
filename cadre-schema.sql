@@ -150,9 +150,12 @@
         drop policy if exists "select users" on users;
         create policy "select users" on users
         for select using (auth.role() = 'authenticated');
-                                drop policy if exists "insert own user" on users;
-                                create policy "insert own user" on users
-                                        for insert with check (auth.uid() = id);
+                                drop policy if exists "insert user profile" on users;
+                                create policy "insert user profile" on users
+                                        for insert with check (auth.role() = 'authenticated');
                                 drop policy if exists "update own user" on users;
                                 create policy "update own user" on users
                                         for update using (auth.uid() = id) with check (auth.uid() = id);
+                                drop policy if exists "delete own user" on users;
+                                create policy "delete own user" on users
+                                        for delete using (auth.uid() = id);
