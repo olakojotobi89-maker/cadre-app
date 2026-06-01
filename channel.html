@@ -1070,11 +1070,6 @@ body::after {
 
 /* ═══════════════════════════════════════════════════════════════════
    CADRE CHANNEL HUB — AGORA VOICE ENGINE
-   Architecture: One RTC client per session. Destroyed and recreated
-   on every channel switch to guarantee zero cross-channel audio bleed.
-   Remote audio tracked in a dedup Map to prevent double-subscription.
-   PTT: track created DISABLED → published DISABLED → enabled on press.
-   Auto-reconnect with exponential backoff on network loss.
 ═══════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────
@@ -1087,39 +1082,18 @@ const sbClient = CADRE_SB;
 ───────────────────────────────────────────── */
 const AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
 
-/*
- * AUDIO ENCODER CONFIG — tuned for voice PTT over potentially poor networks.
- * - sampleRate 16000: standard telephony quality, reduces bandwidth vs 48kHz.
- * - stereo false: mono is correct for voice radio — halves bitrate.
- * - bitrate 24: 24 kbps is the Agora recommended floor for clear voice.
- *   Raising to 32-48 gives better quality on good connections; admin can
- *   adjust per deployment environment.
- */
 const VOICE_ENCODER_CONFIG = {
   sampleRate:   16000,
   stereo:       false,
   bitrate:      24,
 };
 
-/*
- * AGORA SCALABILITY PARAMETERS
- * These must be set BEFORE the client is created to take effect.
- * - SUBSCRIBE_TCC_ENABLED false: disables Transport-CC feedback for audio-only
- *   rooms, reducing bandwidth overhead with 12+ users on the same channel.
- * - AUDIO_VOLUME_INDICATION_INTERVAL: enables the volume indicator event
- *   (used for speaking detection if needed in future).
- */
 function applyAgoraGlobalConfig() {
   try {
-    // Disable Transport Congestion Control feedback — not needed for audio-only
-    // channels; significantly reduces overhead with large groups.
     AgoraRTC.setParameter('SUBSCRIBE_TCC_ENABLED', false);
-    // Reduce unnecessary keep-alive traffic on idle audio channels
     AgoraRTC.setParameter('AUDIO_VOLUME_INDICATION_INTERVAL', 2000);
-    // Enable detailed log level only in development
-    AgoraRTC.setLogLevel(/* WARNING */ 2);
+    AgoraRTC.setLogLevel(2);
   } catch (e) {
-    // setParameter is best-effort; non-fatal if unavailable in older SDK versions
     console.warn('[Agora] setParameter failed (non-fatal):', e.message);
   }
 }
@@ -1127,107 +1101,133 @@ function applyAgoraGlobalConfig() {
 /* ─────────────────────────────────────────────
    STATE — Agora voice engine
 ───────────────────────────────────────────── */
-
-/*
- * agoraClient: always null when not in a channel.
- * DESTROYED (not just left) on channel switch to guarantee no ghost listeners
- * or stale internal state carry over between sessions.
- */
 let agoraClient      = null;
-
-/*
- * localAudioTrack: the officer's microphone track.
- * Created DISABLED so no audio is ever transmitted until PTT is pressed.
- * Closed and nulled on channel leave.
- */
 let localAudioTrack  = null;
-
-/*
- * remoteAudioTracks: Map<uid, IRemoteAudioTrack>
- * Tracks every remote user's audio track that is currently subscribed.
- * Used to:
- *   1. Prevent duplicate subscriptions (dedup guard)
- *   2. Properly stop and clean up audio when users leave
- *   3. Allow admin mute commands to target specific UIDs
- */
 const remoteAudioTracks = new Map();
-
-let activeChannelKey  = null;  // The Agora channel name this client is joined to
-let agoraUid          = null;  // This user's numeric Agora UID
-let isPublishing      = false; // True once localAudioTrack has been published
-let isJoining         = false; // Mutex — prevents concurrent joinChannel() calls
-
-/*
- * agoraState machine:
- * 'idle'        — no client, not connected
- * 'connecting'  — join in progress
- * 'connected'   — joined and published
- * 'reconnecting'— Agora SDK is auto-reconnecting (network blip)
- * 'disconnected'— fully disconnected, reconnect timer may be active
- */
-let agoraState = 'idle';
-
-/*
- * reconnectTimer: setTimeout handle for auto-rejoin after disconnect.
- * Cleared on intentional leave to prevent spurious rejoin.
- */
-let reconnectTimer   = null;
-let reconnectAttempt = 0;     // Used for exponential backoff
-const MAX_RECONNECT_DELAY_MS = 30000; // Cap backoff at 30 s
+let activeChannelKey  = null;
+let agoraUid          = null;
+let isPublishing      = false;
+let isJoining         = false;
+let agoraState        = 'idle';
+let reconnectTimer    = null;
+let reconnectAttempt  = 0;
+const MAX_RECONNECT_DELAY_MS = 30000;
 
 /* ─────────────────────────────────────────────
-   STATE — Supabase / UI (preserved from original)
-   listenState and muteState declared here (they were missing,
-   causing ReferenceError in loadChannels when it tried to set them)
+   STATE — Supabase / UI
 ───────────────────────────────────────────── */
-const listenState = {};  // { [channelKey]: boolean } — admin listen toggles (not used by officers but must exist)
-const muteState   = {};  // { [channelKey]: boolean } — admin mute toggles  (same)
+const listenState = {};
+const muteState   = {};
 
 /* ─────────────────────────────────────────────
-   SESSION
-   IMPORTANT: All session detection is ASYNC and runs inside DOMContentLoaded.
-   Nothing redirects at parse time — that caused the instant logout bug.
+   SESSION RESOLUTION
+   ─────────────────────────────────────────────
+   FIX FOR INSTANT-LOGOUT BUG:
 
-   Resolution order:
-   1. Try all known localStorage keys (sync — fastest, works offline)
-   2. Try Supabase getSession() (async — covers OAuth / magic-link flows)
-   3. Try cached_operator_phone as a last-resort stub
-   4. Only redirect to login if ALL three fail
+   Root cause: the old resolveSession() only checked a handful of
+   hard-coded localStorage keys. If your login page saves the session
+   under ANY other key (e.g. "cadre_user", "loggedInUser", etc.) the
+   check failed silently and the page redirected immediately.
+
+   Fix strategy — four passes, most-to-least reliable:
+   1. Scan EVERY key in localStorage for any JSON object with a phone/id field.
+   2. Check all common named keys explicitly.
+   3. Check Supabase async session (handles OAuth / magic-link / token refresh).
+   4. Accept a plain phone string stored under any key containing "phone".
+   5. Redirect only if ALL four passes return nothing — and only after a
+      300 ms grace period so Supabase has time to hydrate its token.
 ───────────────────────────────────────────── */
 let sessionUser = null;
 
-/*
- * resolveSession()
- * Returns a session object with at minimum { phone } or null.
- * Never throws — all errors are caught and treated as "no session".
- */
 async function resolveSession() {
-  // ── Pass 1: synchronous localStorage scan ──────────────────────
-  const SESSION_KEYS = ["session_user", "user", "officer", "currentUser"];
-  for (const k of SESSION_KEYS) {
+
+  // ── DEBUG: log every localStorage key so you can see what's there ──
+  // Check the browser console (F12 → Console) when you open channel.html.
+  // This will tell you exactly what key your login page is saving to.
+  console.group('[CADRE Session Debug]');
+  console.log('All localStorage keys:', Object.keys(localStorage));
+  Object.keys(localStorage).forEach(k => {
     try {
-      const p = JSON.parse(localStorage.getItem(k));
-      if (p?.phone) return p;
+      const raw = localStorage.getItem(k);
+      console.log(`  ${k}:`, raw?.slice(0, 120));
+    } catch (_) {}
+  });
+  console.groupEnd();
+
+  // ── Pass 1: scan EVERY key for a JSON object with phone OR id ──────
+  // This catches any key name your login.html might use.
+  for (const k of Object.keys(localStorage)) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw || raw[0] !== '{') continue; // skip non-JSON values fast
+      const parsed = JSON.parse(raw);
+      // Accept if it has a phone, id, userId, or uid field — enough to identify the user
+      const phone = parsed?.phone || parsed?.phoneNumber || parsed?.mobile;
+      const id    = parsed?.id    || parsed?.userId      || parsed?.uid || parsed?.user_id;
+      if (phone || id) {
+        console.log(`[CADRE Session] Found session under key "${k}":`, parsed);
+        return {
+          phone: String(phone || id),
+          name:  parsed?.name  || parsed?.displayName || parsed?.full_name || 'Officer',
+          rank:  parsed?.rank  || parsed?.role        || 'UNIT',
+          id:    parsed?.id    || parsed?.userId       || parsed?.uid,
+          channel: parsed?.channel || parsed?.assigned_channel || null,
+        };
+      }
+    } catch (_) {
+      // Not valid JSON — skip
+    }
+  }
+
+  // ── Pass 2: explicit common key list (fast path for known apps) ─────
+  const NAMED_KEYS = [
+    'session_user', 'user', 'officer', 'currentUser',
+    'cadre_user', 'cadreUser', 'loggedInUser', 'authUser',
+    'operator', 'agent', 'member', 'profile',
+  ];
+  for (const k of NAMED_KEYS) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      // Handle plain string (e.g. just a phone number stored directly)
+      if (raw[0] !== '{') {
+        if (/^\+?[\d\s\-()]{7,15}$/.test(raw.trim())) {
+          console.log(`[CADRE Session] Found plain phone under key "${k}"`);
+          return { phone: raw.trim(), name: 'Field Agent', rank: 'UNIT' };
+        }
+        continue;
+      }
+      const p = JSON.parse(raw);
+      const phone = p?.phone || p?.phoneNumber;
+      if (phone) {
+        console.log(`[CADRE Session] Found session under named key "${k}"`);
+        return {
+          phone: String(phone),
+          name:    p?.name    || 'Officer',
+          rank:    p?.rank    || 'UNIT',
+          id:      p?.id,
+          channel: p?.channel || null,
+        };
+      }
     } catch (_) {}
   }
 
-  // ── Pass 2: Supabase async session (handles token-based auth) ──
-  // CADRE_SB is defined by cadre-common.js. Guard in case that script
-  // failed to load (wrong path, network error, etc.)
+  // ── Pass 3: Supabase async session ──────────────────────────────────
   try {
     if (typeof CADRE_SB !== 'undefined' && CADRE_SB?.auth?.getSession) {
       const { data } = await CADRE_SB.auth.getSession();
       const sbUser = data?.session?.user;
       if (sbUser) {
-        // Supabase user metadata may carry phone/name set at registration
         const meta  = sbUser.user_metadata || {};
         const phone = meta.phone || sbUser.phone || sbUser.email || sbUser.id;
         if (phone) {
+          console.log('[CADRE Session] Found Supabase session, user:', sbUser.id);
           return {
-            phone: String(phone),
-            name:  meta.name  || meta.display_name || 'Officer',
-            rank:  meta.rank  || 'UNIT',
-            id:    sbUser.id,
+            phone:   String(phone),
+            name:    meta.name || meta.display_name || 'Officer',
+            rank:    meta.rank || 'UNIT',
+            id:      sbUser.id,
+            channel: meta.channel || null,
           };
         }
       }
@@ -1236,20 +1236,24 @@ async function resolveSession() {
     console.warn('[Session] Supabase getSession failed (non-fatal):', e.message);
   }
 
-  // ── Pass 3: bare phone number cached by login page ─────────────
-  try {
-    const plainPhone = localStorage.getItem("cached_operator_phone");
-    if (plainPhone) {
-      return { phone: plainPhone, name: "Field Agent", rank: "UNIT" };
-    }
-  } catch (_) {}
+  // ── Pass 4: any key that contains "phone" as a plain string ─────────
+  for (const k of Object.keys(localStorage)) {
+    if (!/phone|mobile|number/i.test(k)) continue;
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw && /^\+?[\d\s\-()]{7,15}$/.test(raw.trim())) {
+        console.log(`[CADRE Session] Found phone string under key "${k}"`);
+        return { phone: raw.trim(), name: 'Field Agent', rank: 'UNIT' };
+      }
+    } catch (_) {}
+  }
 
-  return null; // No session found anywhere
+  console.warn('[CADRE Session] No session found in any pass.');
+  return null;
 }
 
 /* ─────────────────────────────────────────────
    CHANNEL DEFINITIONS
-   Let — can be overwritten by loadChannels() with live Supabase data
 ───────────────────────────────────────────── */
 let CHANNELS = [
   { key:'ALPHA',   name:'Alpha Channel',   callsign:'CH-01', freq:'462.550 MHz' },
@@ -1276,17 +1280,26 @@ let selectedChannelKey = null;
 window.addEventListener('DOMContentLoaded', async () => {
 
   /* ── STEP 1: Resolve session BEFORE anything else ──────────────
-   * This is the fix for the instant-logout bug.
-   * We await the async session lookup so cadre-common.js / Supabase
-   * has time to restore any stored token before we decide to redirect.
+   *
+   * CRITICAL FIX: We give Supabase an extra 300ms grace period on
+   * first load. This is because Supabase's auth.getSession() internally
+   * reads from localStorage and sometimes needs one tick to refresh
+   * an expired token before it returns a valid session.
+   *
+   * Without this, a valid session can appear as null on a fresh page
+   * load, causing an instant redirect to login.html even though the
+   * user is genuinely logged in.
    */
+  await new Promise(r => setTimeout(r, 300)); // grace period for Supabase token hydration
   sessionUser = await resolveSession();
 
   if (!sessionUser) {
-    console.warn('[Session] No session found. localStorage keys:', Object.keys(localStorage));
+    console.warn('[Session] No session found after all passes. Redirecting to login.');
     window.location.href = 'login.html';
-    return; // stop boot — page is navigating away
+    return;
   }
+
+  console.log('[CADRE] Session resolved:', sessionUser);
 
   // Apply global Agora tuning before any client is created
   if (typeof AgoraRTC !== 'undefined') applyAgoraGlobalConfig();
@@ -1315,7 +1328,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const perm = await checkMicrophonePermission();
   if (perm !== 'granted') renderMicPermissionBanner(perm);
 
-  // Safety net: release PTT if the window loses focus (e.g. alt-tab mid-press)
+  // Safety net: release PTT if the window loses focus
   window.addEventListener('blur', () => { if (pttActive) pttRelease(); });
 
   // Clean up Agora gracefully on page unload
@@ -1324,7 +1337,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 /* ─────────────────────────────────────────────
    MICROPHONE PERMISSION HELPERS
-   (preserved exactly from original)
 ───────────────────────────────────────────── */
 async function requestMicrophoneAccess() {
   try {
@@ -1396,7 +1408,7 @@ function renderHeader() {
 }
 
 /* ─────────────────────────────────────────────
-   SUPABASE FUNCTIONS (all preserved from original)
+   SUPABASE FUNCTIONS
 ───────────────────────────────────────────── */
 
 async function loadUserProfile() {
@@ -1429,13 +1441,12 @@ async function loadChannels() {
     sbClient.from('officer_assignments').select('channel_id,status')
   ]);
 
-  if (channelsRes.error)     console.warn('Supabase channels load failed:',     channelsRes.error);
-  if (assignmentsRes.error)  console.warn('Supabase assignments load failed:',  assignmentsRes.error);
+  if (channelsRes.error)    console.warn('Supabase channels load failed:',    channelsRes.error);
+  if (assignmentsRes.error) console.warn('Supabase assignments load failed:', assignmentsRes.error);
 
   if (channelsRes.data && channelsRes.data.length) {
     CHANNELS = channelsRes.data.map((channel, index) => {
       const key = cadreNormalizeChannelKey(channel.key || channel.name || `CH${index}`);
-      // Initialise listen/mute state entries for any channel key that appears
       if (listenState[key] === undefined) listenState[key] = false;
       if (muteState[key]   === undefined) muteState[key]   = false;
       return {
@@ -1508,28 +1519,17 @@ function setupRealtimeSubscriptions() {
 
 /* ─────────────────────────────────────────────
    AGORA UID GENERATION
-   Uses a numeric UID — Agora's SDK works best with integers.
-   We salt with a session-unique offset to prevent collisions when two
-   officers share the same trailing phone digits.
 ───────────────────────────────────────────── */
 function getAgoraUid() {
   const phone = sessionUser?.phone;
   if (phone) {
     const digits = String(phone).replace(/\D/g, '');
     if (digits.length >= 4) {
-      /*
-       * Take last 7 digits of the phone number (0–9,999,999).
-       * XOR with a per-session salt derived from the session start
-       * timestamp, keeping the result within Agora's safe 32-bit range.
-       * This makes it vanishingly unlikely for two devices to collide
-       * even if their phone numbers share the same suffix.
-       */
       const base = parseInt(digits.slice(-7), 10);
-      const salt = parseInt(String(Date.now()).slice(-4), 10); // 0–9999
-      return ((base ^ salt) >>> 0) % 999999999 || 1; // ensure non-zero
+      const salt = parseInt(String(Date.now()).slice(-4), 10);
+      return ((base ^ salt) >>> 0) % 999999999 || 1;
     }
   }
-  // Fallback: random in safe Agora range
   return Math.floor(Math.random() * 999999998) + 1;
 }
 
@@ -1560,8 +1560,6 @@ function updateConnectionStatus(state) {
 
 /* ─────────────────────────────────────────────
    AGORA CLIENT FACTORY
-   Creates a fresh client with all event handlers attached.
-   Called on every channel join — guarantees clean state.
 ───────────────────────────────────────────── */
 function createAgoraClient() {
   if (typeof AgoraRTC === 'undefined') {
@@ -1569,33 +1567,11 @@ function createAgoraClient() {
     throw new Error('AgoraRTC not available');
   }
 
-  /*
-   * mode: 'rtc'
-   *   - Correct for bidirectional voice (all users can publish/subscribe).
-   *   - Supports unlimited subscribers; up to ~17 simultaneous publishers
-   *     per default Agora plan (contact Agora to raise if needed).
-   *   - 'live' mode is for one-to-many broadcast and would prevent officers
-   *     from transmitting unless they set role='host', which breaks PTT.
-   *
-   * codec: 'vp8'
-   *   - Required for audio-only when using the web SDK; opus codec is used
-   *     for actual audio encoding regardless of this setting.
-   */
   const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
-  /* ── REMOTE USER PUBLISHED ──────────────────────────────────────
-   * Fires when any remote user starts publishing audio.
-   * This is how late joiners hear ongoing transmissions — Agora fires
-   * this event for ALL currently-publishing users when a new client joins.
-   *
-   * DEDUP GUARD: remoteAudioTracks.has(uid) prevents double-subscription
-   * if a user republishes (e.g. after a network reconnect), which would
-   * cause the same audio to be played twice (echo/doubling effect).
-   */
   client.on('user-published', async (user, mediaType) => {
-    if (mediaType !== 'audio') return; // this page is audio-only
+    if (mediaType !== 'audio') return;
 
-    // Dedup: if we already have this user's track playing, stop it first
     if (remoteAudioTracks.has(user.uid)) {
       try { remoteAudioTracks.get(user.uid).stop(); } catch (_) {}
       remoteAudioTracks.delete(user.uid);
@@ -1603,12 +1579,6 @@ function createAgoraClient() {
 
     try {
       await client.subscribe(user, 'audio');
-
-      /*
-       * user.audioTrack is guaranteed to exist after a successful subscribe.
-       * play() routes audio to the default audio output device.
-       * No HTMLElement target needed for audio (unlike video).
-       */
       if (user.audioTrack) {
         user.audioTrack.play();
         remoteAudioTracks.set(user.uid, user.audioTrack);
@@ -1616,28 +1586,18 @@ function createAgoraClient() {
       }
     } catch (err) {
       console.error('[Agora] subscribe failed for uid', user.uid, err);
-      // Non-fatal — the user is still in the channel, we just can't hear them
       cadreShowToast(`Could not subscribe to user ${user.uid}`, 'warning');
     }
   });
 
-  /* ── REMOTE USER UNPUBLISHED ────────────────────────────────────
-   * Fires when a remote user stops publishing (mutes mic / loses connection).
-   * We stop the track but keep the user in the channel — they may republish.
-   */
   client.on('user-unpublished', (user, mediaType) => {
     if (mediaType !== 'audio') return;
     if (remoteAudioTracks.has(user.uid)) {
       try { remoteAudioTracks.get(user.uid).stop(); } catch (_) {}
       remoteAudioTracks.delete(user.uid);
     }
-    // Do NOT log here — this fires whenever someone releases PTT, creating noise
   });
 
-  /* ── REMOTE USER LEFT ───────────────────────────────────────────
-   * Fires when a remote user fully disconnects from the channel.
-   * Clean up their audio track from the dedup map.
-   */
   client.on('user-left', (user) => {
     if (remoteAudioTracks.has(user.uid)) {
       try { remoteAudioTracks.get(user.uid).stop(); } catch (_) {}
@@ -1646,15 +1606,6 @@ function createAgoraClient() {
     logActivity(`Officer ${user.uid} left the channel`, 'leave');
   });
 
-  /* ── CONNECTION STATE CHANGE ────────────────────────────────────
-   * Agora's state machine:
-   * DISCONNECTED → CONNECTING → CONNECTED → RECONNECTING → DISCONNECTED
-   *
-   * On DISCONNECTED after a prior connection: schedule auto-rejoin.
-   * On CONNECTED after reconnect: re-publish localAudioTrack if it exists
-   *   (Agora SDK auto-subscribes to remote users on reconnect, but does NOT
-   *    auto-republish local tracks — we must do this manually).
-   */
   client.on('connection-state-change', async (curState, prevState, reason) => {
     console.log(`[Agora] state: ${prevState} → ${curState}`, reason || '');
     agoraState = curState.toLowerCase();
@@ -1663,7 +1614,6 @@ function createAgoraClient() {
       case 'CONNECTED':
         updateConnectionStatus('connected');
         reconnectAttempt = 0;
-        // Re-publish local track if it survived the reconnect
         if (localAudioTrack && !isPublishing) {
           try {
             await client.publish([localAudioTrack]);
@@ -1682,37 +1632,20 @@ function createAgoraClient() {
       case 'DISCONNECTED':
         updateConnectionStatus('disconnected');
         isPublishing = false;
-        /*
-         * DISCONNECTED fires both on intentional leave AND unexpected drops.
-         * We only auto-rejoin if activeChannelKey is still set (i.e. the user
-         * did not intentionally call leaveChannel(), which nulls activeChannelKey
-         * before the Agora leave completes).
-         */
         if (activeChannelKey) scheduleReconnect();
         break;
     }
   });
 
-  /* ── EXCEPTION ──────────────────────────────────────────────────
-   * Agora fires this for non-fatal internal errors (e.g. encoding issues).
-   * Log and surface to the officer without breaking the session.
-   */
   client.on('exception', (event) => {
     console.warn('[Agora] exception:', event);
-    // Only show toast for errors that affect audio quality
     if (event.code === 1001 || event.code === 1003) {
       cadreShowToast(`Audio quality issue: ${event.msg || 'check network'}`, 'warning');
     }
   });
 
-  /* ── VOLUME INDICATOR ───────────────────────────────────────────
-   * Optional: fires every 2 s (per setParameter above) with per-user
-   * volume levels. Not used in UI currently but ready for future
-   * "speaking" indicators on channel cards.
-   */
   client.on('volume-indicator', (volumes) => {
-    // Future use: update per-card "speaking" pulse animation
-    // volumes.forEach(v => { if (v.level > 5) markSpeaking(v.uid); });
+    // Future: per-card speaking indicators
   });
 
   return client;
@@ -1720,65 +1653,44 @@ function createAgoraClient() {
 
 /* ─────────────────────────────────────────────
    LOCAL AUDIO TRACK FACTORY
-   Creates microphone track with PTT-safe settings:
-   - Created with setEnabled(false) so no audio leaks before PTT press
-   - Uses VOICE_ENCODER_CONFIG for optimal voice quality / bandwidth
 ───────────────────────────────────────────── */
 async function createLocalTrack() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error('Media Devices API not available in this browser/context');
   }
 
-  // Explicit permission request so the browser prompt fires before Agora does,
-  // giving us a cleaner error message if denied.
   await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  /*
-   * encoderConfig as object lets us set precise bitrate/sampleRate.
-   * ANS (Automatic Noise Suppression) and AEC (Acoustic Echo Cancellation)
-   * are enabled by default in the Agora Web SDK 4.x when a config object is
-   * passed — these are critical for voice quality in field environments.
-   */
   const track = await AgoraRTC.createMicrophoneAudioTrack({
     encoderConfig: VOICE_ENCODER_CONFIG,
-    AEC: true,   // Acoustic Echo Cancellation
-    ANS: true,   // Automatic Noise Suppression
-    AGC: true,   // Automatic Gain Control
+    AEC: true,
+    ANS: true,
+    AGC: true,
   });
 
-  /*
-   * Disable immediately after creation.
-   * A disabled track is still PUBLISHED but sends silence — this is the
-   * correct Agora PTT pattern. The alternative (unpublish/publish on each
-   * PTT press) introduces 200–500 ms latency and causes audio artifacts.
-   */
   await track.setEnabled(false);
 
   return track;
 }
 
 /* ─────────────────────────────────────────────
-   CHANNEL JOIN — main entry point
+   CHANNEL JOIN
 ───────────────────────────────────────────── */
 async function joinChannel(channelKey) {
   if (!channelKey) return;
 
-  // Already in this channel
   if (activeChannelKey === channelKey) {
     cadreShowToast(`Already connected to ${channelKey}.`, 'info');
     return;
   }
 
-  // Leave current channel first (triggers full client teardown)
   if (activeChannelKey) await leaveChannel();
 
-  // Mutex — prevent race conditions if user clicks multiple channels quickly
   if (isJoining) {
     cadreShowToast('Connecting… please wait.', 'info');
     return;
   }
 
-  // Fail fast if mic is blocked — avoids confusing "Agora join failed" errors
   const micState = await checkMicrophonePermission();
   if (micState === 'denied') {
     cadreShowToast('Microphone is blocked. Allow microphone access in browser site settings.', 'error');
@@ -1787,30 +1699,15 @@ async function joinChannel(channelKey) {
 
   isJoining  = true;
   agoraState = 'connecting';
-  updateConnectionStatus('reconnecting'); // Show "connecting" state in UI
+  updateConnectionStatus('reconnecting');
 
   try {
-    /*
-     * FRESH CLIENT on every join.
-     * This is the key fix for cross-channel audio bleed:
-     * - All event listeners from the previous channel are gone.
-     * - Agora's internal subscription registry is fresh.
-     * - remoteAudioTracks map is cleared below.
-     */
     remoteAudioTracks.clear();
     agoraClient = createAgoraClient();
     agoraUid    = getAgoraUid();
 
-    /*
-     * null token → Agora App-certificate disabled (testing mode).
-     * For production: generate a server-side token and pass it here.
-     * The channel name (channelKey) is the isolation boundary — users in
-     * 'ALPHA' cannot hear users in 'BRAVO' because they are separate Agora
-     * channel subscriptions.
-     */
     await agoraClient.join(AGORA_APP_ID, channelKey, null, agoraUid);
 
-    // Create mic track (disabled) and publish it
     localAudioTrack = await createLocalTrack();
     await agoraClient.publish([localAudioTrack]);
     isPublishing    = true;
@@ -1818,16 +1715,12 @@ async function joinChannel(channelKey) {
     activeChannelKey = channelKey;
     reconnectAttempt = 0;
 
-    // Persist assignment to Supabase so admin sees this officer in the channel
     await persistOfficerAssignment(channelKey);
 
-    // Update UI
     const ch = CHANNELS.find(c => c.key === channelKey) || { name: channelKey };
     _setCardJoined(channelKey, true);
     document.getElementById('ptt-channel-label').textContent = channelKey;
     updateChannelStatus(channelKey, 'joined');
-    // updateConnectionStatus will be called by connection-state-change → CONNECTED
-    // but call it here too in case it fires before we reach this line
     updateConnectionStatus('connected');
 
     cadreShowToast(`Joined ${ch.name}`, 'success');
@@ -1836,12 +1729,10 @@ async function joinChannel(channelKey) {
   } catch (err) {
     console.error('[Agora] joinChannel failed:', err);
 
-    // Tear down the partially-initialised client so no ghost state remains
     await _destroyClient();
     activeChannelKey = null;
     agoraState       = 'idle';
 
-    // Surface actionable error messages
     const msg = err?.message || String(err || '');
     if (/NotAllowedError|PermissionDenied|permission/i.test(msg)) {
       cadreShowToast('Microphone access denied — allow it in browser settings and retry.', 'error');
@@ -1861,21 +1752,17 @@ async function joinChannel(channelKey) {
 }
 
 /* ─────────────────────────────────────────────
-   CHANNEL LEAVE — intentional
+   CHANNEL LEAVE
 ───────────────────────────────────────────── */
 async function leaveChannel() {
   if (!activeChannelKey) return;
 
-  // Cancel any pending reconnect — user is intentionally leaving
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   reconnectAttempt = 0;
 
-  const ch       = CHANNELS.find(c => c.key === activeChannelKey) || { name: activeChannelKey };
+  const ch         = CHANNELS.find(c => c.key === activeChannelKey) || { name: activeChannelKey };
   const leavingKey = activeChannelKey;
 
-  // Null activeChannelKey FIRST — connection-state-change DISCONNECTED handler
-  // checks this to decide whether to auto-reconnect. Nulling it here prevents
-  // an unwanted reconnect being scheduled during the leave sequence.
   activeChannelKey = null;
 
   _setCardJoined(leavingKey, false);
@@ -1891,12 +1778,9 @@ async function leaveChannel() {
 }
 
 /* ─────────────────────────────────────────────
-   CLIENT TEARDOWN — internal helper
-   Properly closes track and leaves Agora before nulling the client.
-   Must be awaited before creating a new client for the same app ID.
+   CLIENT TEARDOWN
 ───────────────────────────────────────────── */
 async function _destroyClient() {
-  // 1. Stop and close the local microphone track
   if (localAudioTrack) {
     try { await localAudioTrack.setEnabled(false); } catch (_) {}
     try { localAudioTrack.close(); }                 catch (_) {}
@@ -1904,11 +1788,9 @@ async function _destroyClient() {
   }
   isPublishing = false;
 
-  // 2. Stop all remote audio tracks and clear the dedup map
   remoteAudioTracks.forEach(track => { try { track.stop(); } catch (_) {} });
   remoteAudioTracks.clear();
 
-  // 3. Leave the Agora channel and release the client
   if (agoraClient) {
     try { await agoraClient.leave(); } catch (_) {}
     agoraClient = null;
@@ -1918,35 +1800,28 @@ async function _destroyClient() {
 }
 
 /* ─────────────────────────────────────────────
-   AUTO-RECONNECT — exponential backoff
-   Fires when connection-state-change → DISCONNECTED and activeChannelKey
-   is still set (meaning this was NOT an intentional leave).
+   AUTO-RECONNECT
 ───────────────────────────────────────────── */
 function scheduleReconnect() {
-  if (reconnectTimer) return; // already scheduled
+  if (reconnectTimer) return;
 
   reconnectAttempt++;
-  /*
-   * Exponential backoff: 2^attempt × 1000 ms, capped at MAX_RECONNECT_DELAY_MS.
-   * attempt 1 → 2 s, 2 → 4 s, 3 → 8 s, 4 → 16 s, 5+ → 30 s
-   */
   const delay = Math.min(Math.pow(2, reconnectAttempt) * 1000, MAX_RECONNECT_DELAY_MS);
-  const channelToRejoin = activeChannelKey; // capture before async gap
+  const channelToRejoin = activeChannelKey;
 
   console.log(`[Agora] Reconnect attempt ${reconnectAttempt} in ${delay}ms for channel ${channelToRejoin}`);
   logActivity(`Reconnecting to ${channelToRejoin} in ${Math.round(delay / 1000)}s…`, 'alert');
 
   reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
-    // Only attempt if the user hasn't manually left during the delay
     if (!channelToRejoin || activeChannelKey !== channelToRejoin) return;
-    await _destroyClient(); // ensure clean slate before retry
+    await _destroyClient();
     await joinChannel(channelToRejoin);
   }, delay);
 }
 
 /* ─────────────────────────────────────────────
-   SUPABASE ASSIGNMENT PERSISTENCE (preserved)
+   SUPABASE ASSIGNMENT PERSISTENCE
 ───────────────────────────────────────────── */
 async function persistOfficerAssignment(channelKey) {
   const phone = sessionUser?.phone;
@@ -1992,10 +1867,6 @@ function updateChannelStatus(channelKey, status) {
   }
 }
 
-/*
- * _setCardJoined: updates the channel card's visual state.
- * Separated from joinChannel / leaveChannel so reconnect can call it cleanly.
- */
 function _setCardJoined(channelKey, joined) {
   document.querySelectorAll('.channel-card').forEach(c => {
     c.classList.remove('active');
@@ -2015,9 +1886,6 @@ function _setCardJoined(channelKey, joined) {
 
 /* ─────────────────────────────────────────────
    PUSH-TO-TALK
-   Design: localAudioTrack is always published (even when disabled).
-   Enabling/disabling the track tells Agora to send real audio vs silence.
-   This achieves PTT with near-zero latency — no publish/unpublish round trips.
 ───────────────────────────────────────────── */
 let pttActive = false;
 
@@ -2038,11 +1906,6 @@ function pttPress(e) {
   statusLine.classList.add('transmitting');
 
   try {
-    /*
-     * setEnabled(true) on a published-but-disabled track immediately starts
-     * sending real microphone audio. All subscribers in the channel hear it
-     * within ~100–200 ms (Agora's standard audio latency).
-     */
     localAudioTrack.setEnabled(true);
     logActivity(`${sessionUser?.name || 'Officer'} transmitting on ${activeChannelKey}`, 'msg');
   } catch (err) {
@@ -2066,7 +1929,6 @@ function pttRelease(e) {
 
   if (localAudioTrack) {
     try {
-      // setEnabled(false) sends silence — mic is still published, no re-subscribe needed
       localAudioTrack.setEnabled(false);
     } catch (err) {
       console.error('[PTT] disable failed:', err);
@@ -2075,20 +1937,19 @@ function pttRelease(e) {
 }
 
 /* ─────────────────────────────────────────────
-   PAGE UNLOAD — graceful teardown
+   PAGE UNLOAD
 ───────────────────────────────────────────── */
 async function handlePageUnload() {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   const leaving = activeChannelKey;
-  activeChannelKey = null; // prevent reconnect from firing during teardown
+  activeChannelKey = null;
   if (leaving) {
-    // Best-effort synchronous-ish cleanup
     _destroyClient().catch(() => {});
   }
 }
 
 /* ─────────────────────────────────────────────
-   CHANNEL GRID RENDERING (preserved from original)
+   CHANNEL GRID RENDERING
 ───────────────────────────────────────────── */
 function renderChannelGrid() {
   const grid = document.getElementById("channel-grid");
@@ -2144,7 +2005,6 @@ function renderChannelGrid() {
 
   refreshActiveCount();
 
-  // If already in a channel (e.g. after realtime grid refresh), restore joined state
   if (activeChannelKey) _setCardJoined(activeChannelKey, true);
 }
 
@@ -2164,7 +2024,7 @@ function refreshActiveCount() {
 }
 
 /* ─────────────────────────────────────────────
-   CHANNEL SELECTION (preserved from original)
+   CHANNEL SELECTION
 ───────────────────────────────────────────── */
 function selectChannel(key, name, accentColor) {
   selectedChannelKey = key;
@@ -2218,7 +2078,7 @@ function selectChannel(key, name, accentColor) {
 }
 
 /* ─────────────────────────────────────────────
-   QUICK ACTIONS (preserved from original)
+   QUICK ACTIONS
 ───────────────────────────────────────────── */
 function joinAssignedChannel() {
   const assigned = sessionUser?.channel || 'ALPHA';
@@ -2240,7 +2100,7 @@ async function refreshStatus() {
 }
 
 /* ─────────────────────────────────────────────
-   ACTIVITY FEED (preserved from original)
+   ACTIVITY FEED
 ───────────────────────────────────────────── */
 function logActivity(text, type = 'msg') {
   const feed = document.getElementById("activity-feed");
@@ -2260,7 +2120,7 @@ function logActivity(text, type = 'msg') {
 }
 
 /* ─────────────────────────────────────────────
-   STATS UPDATE (preserved from original)
+   STATS UPDATE
 ───────────────────────────────────────────── */
 function updateStats(total) {
   document.getElementById("hdr-online").textContent  = total;
