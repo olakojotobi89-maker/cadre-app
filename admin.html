@@ -45,8 +45,7 @@
             transition:all 0.4s cubic-bezier(0.16,1,0.3,1);
         }
         .status-banner.alert-active {
-            border-left-color:var(--hud-crimson);
-            box-shadow:0 0 35px var(--hud-crimson-glow);
+            border-left-color:var(--hud-crimson); box-shadow:0 0 35px var(--hud-crimson-glow);
             background:linear-gradient(90deg,#2a080d 0%,#0d0507 100%);
             animation:warning-pulse 1s infinite alternate,glitch-alert-shake 0.35s infinite;
         }
@@ -88,8 +87,7 @@
             display:inline-block; margin-top:10px; padding:7px 16px;
             background:rgba(255,170,0,0.1); border:1px solid var(--hud-amber);
             color:var(--hud-amber); font-family:var(--tech-font); font-size:0.75rem;
-            text-decoration:none; letter-spacing:1px; cursor:pointer;
-            transition:all 0.2s ease;
+            text-decoration:none; letter-spacing:1px; cursor:pointer; transition:all 0.2s ease;
         }
         .sos-alert-card .sos-map-btn:hover { background:var(--hud-amber); color:#000; }
         .sos-empty { text-align:center; padding:24px; color:#334155; font-family:var(--tech-font); font-size:0.8rem; }
@@ -156,16 +154,51 @@
             margin-top:15px; letter-spacing:2px; transition:all 0.25s ease;
         }
         #initialize-audio-btn:hover { background:var(--hud-cyan); color:#000; box-shadow:0 0 20px var(--hud-cyan-glow); }
+        /* ── LIVE AUDIO MONITOR ── */
+        .live-stream-card {
+            background:rgba(255,51,51,0.06); border:1px solid rgba(255,51,51,0.4);
+            border-left:4px solid var(--hud-crimson); border-radius:4px;
+            padding:14px; margin-bottom:14px; font-family:var(--tech-font);
+            font-size:0.8rem; animation:flash-badge 1.5s infinite alternate;
+        }
+        .live-stream-card .stream-officer-name {
+            font-size:0.95rem; font-weight:bold; color:var(--hud-crimson);
+            letter-spacing:2px; margin-bottom:6px; display:flex; align-items:center; gap:8px;
+        }
+        .live-dot { display:inline-block; width:8px; height:8px; background:var(--hud-crimson); border-radius:50%; animation:heartbeat 0.8s infinite ease-in-out; flex-shrink:0; }
+        .stream-controls { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+        .stream-btn { padding:6px 12px; font-family:var(--tech-font); font-size:0.72rem; letter-spacing:1px; border-radius:2px; cursor:pointer; border:1px solid; transition:all 0.2s ease; text-transform:uppercase; }
+        .stream-btn.btn-listen { background:rgba(0,240,255,0.08); border-color:var(--hud-cyan); color:var(--hud-cyan); }
+        .stream-btn.btn-listen:hover,.stream-btn.btn-listen.active { background:var(--hud-cyan); color:#000; }
+        .stream-btn.btn-pause { background:rgba(255,170,0,0.08); border-color:var(--hud-amber); color:var(--hud-amber); }
+        .stream-btn.btn-pause:hover { background:var(--hud-amber); color:#000; }
+        .stream-btn.btn-record { background:rgba(255,51,51,0.08); border-color:var(--hud-crimson); color:var(--hud-crimson); }
+        .stream-btn.btn-record:hover,.stream-btn.btn-record.recording { background:var(--hud-crimson); color:#fff; }
+        .stream-btn.btn-stop-rec { background:rgba(100,116,139,0.08); border-color:#64748b; color:#94a3b8; }
+        .stream-btn.btn-stop-rec:hover { background:#334155; color:#fff; }
+        .stream-status-tag { font-size:0.7rem; color:#475569; margin-top:6px; }
+        .stream-status-tag.rec-active { color:var(--hud-crimson); animation:heartbeat 1s infinite; }
+        /* ── RECORDINGS VAULT ── */
+        .recording-card { background:rgba(9,17,28,0.9); border:1px solid #243b61; border-left:3px solid var(--hud-emerald); border-radius:4px; padding:12px 14px; margin-bottom:10px; font-family:var(--tech-font); font-size:0.78rem; }
+        .recording-card .rec-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+        .recording-card .rec-officer { color:var(--hud-emerald); font-weight:bold; letter-spacing:1px; font-size:0.85rem; }
+        .recording-card .rec-timestamp { color:#475569; font-size:0.7rem; }
+        .recording-card audio { width:100%; margin:8px 0; filter:invert(1) hue-rotate(180deg); opacity:0.85; }
+        .recording-card .rec-footer { display:flex; justify-content:space-between; align-items:center; margin-top:6px; }
+        .recording-card .rec-session-id { color:#334155; font-size:0.68rem; }
+        .btn-delete-rec { padding:4px 10px; background:rgba(255,51,51,0.08); border:1px solid rgba(255,51,51,0.4); color:#f87171; font-family:var(--tech-font); font-size:0.7rem; cursor:pointer; border-radius:2px; letter-spacing:1px; transition:all 0.2s ease; }
+        .btn-delete-rec:hover { background:var(--hud-crimson); color:#fff; border-color:var(--hud-crimson); }
+        #recordings-empty { text-align:center; padding:20px; color:#1e293b; font-family:var(--tech-font); font-size:0.75rem; }
+        #recordings-count { color:var(--hud-emerald); font-family:var(--tech-font); font-size:0.75rem; }
         @media(max-width:768px){
-            .admin-grid{padding:10px;gap:14px;}
-            .status-banner{padding:16px;}
+            .admin-grid{padding:10px;gap:14px;} .status-banner{padding:16px;}
             .admin-terminal{height:220px;font-size:0.78rem;padding:10px;}
             .split-column-row{display:flex;flex-direction:column;gap:14px;}
             .units-roster{grid-template-columns:repeat(2,1fr);gap:8px;}
             .hud-icon-nav-matrix{grid-template-columns:repeat(2,1fr);gap:8px;}
         }
         @keyframes warning-pulse{0%{box-shadow:0 0 15px rgba(255,51,51,0.1);border-left-color:#990000;}100%{box-shadow:0 0 35px rgba(255,51,51,0.5);border-left-color:#ff3333;}}
-        @keyframes glitch-alert-shake{0%{transform:translate(0,0) skewX(0deg);}20%{transform:translate(-1.5px,1px) skewX(-1deg);}40%{transform:translate(1px,-1px) skewX(1deg);}60%{transform:translate(-1px,-1px) skewX(0deg);}80%{transform:translate(1.5px,1px) skewX(0deg);}100%{transform:translate(0,0) skewX(0deg);}}
+        @keyframes glitch-alert-shake{0%{transform:translate(0,0);}20%{transform:translate(-1.5px,1px);}40%{transform:translate(1px,-1px);}60%{transform:translate(-1px,-1px);}80%{transform:translate(1.5px,1px);}100%{transform:translate(0,0);}}
         @keyframes flash-badge{0%{opacity:0.7;transform:scale(0.98);}100%{opacity:1;transform:scale(1);}}
         @keyframes wave-bounce{0%{height:10%;background-color:#440000;}100%{height:100%;background-color:var(--hud-crimson);}}
         @keyframes append-row{from{opacity:0;transform:translateX(-5px);}to{opacity:1;transform:translateX(0);}}
@@ -192,7 +225,6 @@
     </header>
 
     <main class="admin-grid">
-
         <div class="status-banner full-width-panel alert-secure" id="master-status-banner">
             <div style="font-family:var(--tech-font);font-size:0.75rem;color:var(--hud-cyan);margin-bottom:4px;">SYS_SAFETY_OVERVIEW // MATRIX_ONLINE</div>
             <h2 id="master-status-title" style="margin:0;font-size:clamp(1.1rem,4vw,1.6rem);letter-spacing:3px;font-weight:900;">SYSTEMS STATUS: NOMINAL</h2>
@@ -200,7 +232,6 @@
         </div>
 
         <div class="split-column-row">
-
             <div class="dashboard-panel">
                 <div class="panel-header">
                     <span><span class="pulse-dot" id="ticker-dot"></span>Intercepted Telemetry Stream Feed</span>
@@ -257,7 +288,30 @@
                 </div>
                 <div id="vibration-relay-box">VIBRATION_MODULE: IDLE</div>
             </div>
+        </div>
 
+        <!-- LIVE SOS AUDIO MONITOR -->
+        <div class="dashboard-panel full-width-panel" id="live-audio-monitor-panel">
+            <div class="panel-header">
+                <span>🎧 Live SOS Audio Monitor — Field Intercept</span>
+                <span id="live-streams-count" style="color:var(--hud-crimson);font-family:var(--tech-font);">0 STREAMS</span>
+            </div>
+            <div id="audio-streams-container">
+                <div id="audio-streams-empty" style="text-align:center;padding:24px;color:#334155;font-family:var(--tech-font);font-size:0.78rem;">
+                    NO ACTIVE AUDIO STREAMS — AWAITING SOS BROADCAST SIGNAL
+                </div>
+            </div>
+        </div>
+
+        <!-- RECORDINGS VAULT -->
+        <div class="dashboard-panel full-width-panel">
+            <div class="panel-header">
+                <span>⏺ Evidence Recordings Vault</span>
+                <span id="recordings-count">0 RECORDINGS</span>
+            </div>
+            <div id="recordings-container">
+                <div id="recordings-empty">NO RECORDINGS — VAULT SECURE</div>
+            </div>
         </div>
 
         <div class="dashboard-panel full-width-panel">
@@ -267,10 +321,12 @@
             </div>
             <div class="units-roster" id="roster-grid"></div>
         </div>
-
     </main>
 </div>
 
+<!-- ══════════════════════════════════════════════════
+     ADMIN CORE SCRIPT
+══════════════════════════════════════════════════ -->
 <script>
 const sbClient = supabase.createClient(
     'https://ihroattnnnsckvvbosfz.supabase.co',
@@ -282,88 +338,86 @@ let audioCtx             = null;
 let alarmInterval        = null;
 let alarmMuted           = false;
 let locationPollInterval = null;
+let _alarmQueued         = false;
 
-/* ══════════════════════════════════════════
-   BOOT
-══════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', function() {
     loadRoster();
     subscribeToDistressSignals();
     refreshDistressSignals();
 
-    document.getElementById('initialize-audio-btn').addEventListener('click', function() {
+    /* ── Start audio monitor subscription IMMEDIATELY on load
+       so we never miss an SOS announcement regardless of
+       when the admin clicks the init button ── */
+    CADRE_AUDIO_MONITOR.startListening();
+
+    document.getElementById('initialize-audio-btn').addEventListener('click', async function() {
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-        } catch(e) { console.warn('AudioContext failed, alarm will be silent:', e); }
+            /* FIX: await resume so context is truly running before alarm plays */
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+        } catch(e) { console.warn('AudioContext failed:', e); }
+
         document.getElementById('audio-lock-overlay').style.display = 'none';
         addTerminalLog('[SYS] Audio matrix initialized and armed.', 'ok');
-        // If signals are already active when admin opens, start alarm immediately
-        if (Object.keys(activeSignals).length > 0) startAlarm();
+
+        /* FIX: Fire any queued alarm now that AudioContext is ready */
+        if (_alarmQueued || Object.keys(activeSignals).length > 0) {
+            _alarmQueued = false;
+            startAlarm();
+        }
     });
 });
 
-/* ══════════════════════════════════════════
-   TACTICAL MILITARY ALARM
-   Two-tone hi/lo wail — repeats every 900ms
-══════════════════════════════════════════ */
+/* ══ TACTICAL ALARM ══ */
 function playAlarmCycle() {
     if (!audioCtx || alarmMuted) return;
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         var t = audioCtx.currentTime;
-
-        // ── HI tone: 980Hz → 490Hz over 400ms ──
         var g1 = audioCtx.createGain();
         g1.gain.setValueAtTime(0, t);
         g1.gain.linearRampToValueAtTime(0.55, t + 0.04);
         g1.gain.setValueAtTime(0.55, t + 0.36);
         g1.gain.linearRampToValueAtTime(0, t + 0.42);
         g1.connect(audioCtx.destination);
-
         var o1 = audioCtx.createOscillator();
         o1.type = 'sawtooth';
         o1.frequency.setValueAtTime(980, t);
         o1.frequency.linearRampToValueAtTime(490, t + 0.42);
-        o1.connect(g1);
-        o1.start(t);
-        o1.stop(t + 0.42);
-
-        // ── LO tone: 490Hz → 245Hz over 400ms (offset by 450ms) ──
+        o1.connect(g1); o1.start(t); o1.stop(t + 0.42);
         var g2 = audioCtx.createGain();
         g2.gain.setValueAtTime(0, t + 0.45);
         g2.gain.linearRampToValueAtTime(0.45, t + 0.49);
         g2.gain.setValueAtTime(0.45, t + 0.82);
         g2.gain.linearRampToValueAtTime(0, t + 0.88);
         g2.connect(audioCtx.destination);
-
         var o2 = audioCtx.createOscillator();
         o2.type = 'sawtooth';
         o2.frequency.setValueAtTime(490, t + 0.45);
         o2.frequency.linearRampToValueAtTime(245, t + 0.88);
-        o2.connect(g2);
-        o2.start(t + 0.45);
-        o2.stop(t + 0.90);
+        o2.connect(g2); o2.start(t + 0.45); o2.stop(t + 0.90);
     } catch(e) { console.warn('Alarm cycle error:', e); }
 }
 
 function startAlarm() {
-    if (alarmInterval || !audioCtx) return;
+    /* Queue alarm if AudioContext not ready yet */
+    if (!audioCtx) { _alarmQueued = true; return; }
+    if (alarmInterval) return;
     alarmMuted = false;
     playAlarmCycle();
     alarmInterval = setInterval(playAlarmCycle, 950);
     var muteBtn = document.getElementById('alarm-mute-btn');
-    muteBtn.style.display   = 'block';
-    muteBtn.textContent     = '🔇 MUTE TACTICAL ALARM';
-    muteBtn.style.opacity   = '1';
+    muteBtn.style.display = 'block';
+    muteBtn.textContent   = '🔇 MUTE TACTICAL ALARM';
+    muteBtn.style.opacity = '1';
     document.getElementById('audio-status-tag').textContent = '🚨 ALARM_ACTIVE';
     document.getElementById('audio-status-tag').style.color = 'var(--hud-crimson)';
-    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+    if (navigator.vibrate) navigator.vibrate([200,100,200,100,400]);
 }
 
 function stopAlarm() {
     if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
-    alarmMuted = false;
+    alarmMuted = false; _alarmQueued = false;
     document.getElementById('alarm-mute-btn').style.display = 'none';
     document.getElementById('audio-status-tag').textContent = 'STANDBY_DISPATCH';
     document.getElementById('audio-status-tag').style.color = '#64748b';
@@ -373,79 +427,52 @@ function muteAlarm() {
     alarmMuted = true;
     if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
     var muteBtn = document.getElementById('alarm-mute-btn');
-    muteBtn.textContent  = '🔇 ALARM MUTED';
+    muteBtn.textContent   = '🔇 ALARM MUTED';
     muteBtn.style.opacity = '0.5';
     document.getElementById('audio-status-tag').textContent = 'MUTED';
     addTerminalLog('[SYS] Tactical alarm muted by operator.', 'ok');
 }
 
-/* ══════════════════════════════════════════
-   REALTIME SUBSCRIPTION
-══════════════════════════════════════════ */
+/* ══ REALTIME ══ */
 function subscribeToDistressSignals() {
     sbClient.channel('realtime:distress_signals')
-        .on('postgres_changes', { event:'INSERT', schema:'public', table:'distress_signals' }, function(payload) {
-            addTerminalLog('[🚨 SOS] NEW DISTRESS — ' + (payload.new.officer_name || 'Unknown'), 'crit');
+        .on('postgres_changes', { event:'INSERT', schema:'public', table:'distress_signals' }, function(p) {
+            addTerminalLog('[🚨 SOS] NEW DISTRESS — ' + (p.new.officer_name || 'Unknown'), 'crit');
             refreshDistressSignals();
         })
-        .on('postgres_changes', { event:'UPDATE', schema:'public', table:'distress_signals' }, function(payload) {
-            if (payload.new && payload.new.lat && payload.new.lng) {
-                updateCoordsOnCard(payload.new);
-            } else {
-                addTerminalLog('[UPDATE] Telemetry from ' + (payload.new.officer_name || 'Unknown'), 'ok');
-                refreshDistressSignals();
-            }
+        .on('postgres_changes', { event:'UPDATE', schema:'public', table:'distress_signals' }, function(p) {
+            if (p.new && p.new.lat && p.new.lng) { updateCoordsOnCard(p.new); }
+            else { addTerminalLog('[UPDATE] Telemetry from ' + (p.new.officer_name || 'Unknown'), 'ok'); refreshDistressSignals(); }
         })
-        .on('postgres_changes', { event:'DELETE', schema:'public', table:'distress_signals' }, function(payload) {
-            addTerminalLog('[✅ CLEAR] Signal stood down — ' + (payload.old.officer_name || 'Unknown'), 'ok');
+        .on('postgres_changes', { event:'DELETE', schema:'public', table:'distress_signals' }, function(p) {
+            addTerminalLog('[✅ CLEAR] Signal stood down — ' + (p.old.officer_name || 'Unknown'), 'ok');
             refreshDistressSignals();
         })
-        .subscribe(function(status) {
-            addTerminalLog('[SYS] Realtime: ' + status, 'ok');
-        });
+        .subscribe(function(status) { addTerminalLog('[SYS] Realtime: ' + status, 'ok'); });
 }
 
-/* ══════════════════════════════════════════
-   LIVE COORD UPDATE — patches card in-place
-══════════════════════════════════════════ */
 function updateCoordsOnCard(signal) {
     if (!signal.lat || !signal.lng) return;
     var card = document.getElementById('sos-card-' + signal.user_id);
     if (!card) { refreshDistressSignals(); return; }
-
     var coordEl = card.querySelector('.sos-coords');
     var mapBtn  = card.querySelector('.sos-map-btn');
     var mapsUrl = 'https://www.google.com/maps?q=' + signal.lat + ',' + signal.lng;
-
     if (coordEl) coordEl.textContent = '📍 COORDS: ' + signal.lat + ', ' + signal.lng;
-    if (mapBtn) {
-        mapBtn.href                  = mapsUrl;
-        mapBtn.style.opacity         = '1';
-        mapBtn.style.pointerEvents   = 'auto';
-    }
-    if (activeSignals[signal.user_id]) {
-        activeSignals[signal.user_id].lat = signal.lat;
-        activeSignals[signal.user_id].lng = signal.lng;
-    }
+    if (mapBtn)  { mapBtn.href = mapsUrl; mapBtn.style.opacity = '1'; mapBtn.style.pointerEvents = 'auto'; }
+    if (activeSignals[signal.user_id]) { activeSignals[signal.user_id].lat = signal.lat; activeSignals[signal.user_id].lng = signal.lng; }
     addTerminalLog('[GPS] ' + (signal.officer_name || signal.user_id) + ' → ' + signal.lat + ', ' + signal.lng, 'ok');
 }
 
-/* ══════════════════════════════════════════
-   FETCH ALL ACTIVE SIGNALS
-══════════════════════════════════════════ */
 async function refreshDistressSignals() {
     var res = await sbClient.from('distress_signals').select('*').eq('active', true);
     if (res.error) { addTerminalLog('[ERROR] ' + res.error.message, 'crit'); return; }
-
     var signals = res.data || [];
     activeSignals = {};
     signals.forEach(function(s) { activeSignals[s.user_id] = s; });
-
     updateBanner(signals.length, signals);
     renderSosCards(signals);
     syncRosterBadges();
-
-    // Start/stop 5-second coord polling
     if (signals.length > 0 && !locationPollInterval) {
         locationPollInterval = setInterval(pollFreshCoords, 5000);
     } else if (signals.length === 0 && locationPollInterval) {
@@ -453,58 +480,38 @@ async function refreshDistressSignals() {
     }
 }
 
-/* ══════════════════════════════════════════
-   POLL COORDS EVERY 5 SECONDS
-══════════════════════════════════════════ */
 async function pollFreshCoords() {
-    var res = await sbClient
-        .from('distress_signals')
-        .select('user_id,officer_name,lat,lng')
-        .eq('active', true);
+    var res = await sbClient.from('distress_signals').select('user_id,officer_name,lat,lng').eq('active', true);
     if (res.error || !res.data) return;
     res.data.forEach(function(s) { updateCoordsOnCard(s); });
 }
 
-/* ══════════════════════════════════════════
-   BANNER
-══════════════════════════════════════════ */
 function updateBanner(count, signals) {
-    var banner       = document.getElementById('master-status-banner');
-    var title        = document.getElementById('master-status-title');
-    var desc         = document.getElementById('master-status-desc');
-    var vibBox       = document.getElementById('vibration-relay-box');
+    var banner = document.getElementById('master-status-banner');
+    var title  = document.getElementById('master-status-title');
+    var desc   = document.getElementById('master-status-desc');
+    var vibBox = document.getElementById('vibration-relay-box');
     var audioWrapper = document.getElementById('audio-container-wrapper');
-    var sidebar      = document.getElementById('sidebar-interactive-panel');
-
+    var sidebar = document.getElementById('sidebar-interactive-panel');
     if (count > 0) {
         banner.className = 'status-banner full-width-panel alert-active';
-        audioWrapper.classList.add('alert-active');
-        sidebar.classList.add('alert-active');
+        audioWrapper.classList.add('alert-active'); sidebar.classList.add('alert-active');
         title.textContent = '🚨 CRITICAL DISTRESS SIGNAL — ' + count + ' UNIT' + (count > 1 ? 'S' : '');
         desc.textContent  = 'Active alert from: ' + signals.map(function(s){ return s.officer_name || 'Unknown'; }).join(', ');
         startAlarm();
-        vibBox.textContent           = '🚨 ALARM RELAY ACTIVE — DISTRESS PAYLOAD INBOUND';
-        vibBox.style.color           = 'var(--hud-crimson)';
-        vibBox.style.backgroundColor = 'rgba(255,51,51,0.1)';
-        vibBox.style.borderColor     = 'var(--hud-crimson)';
+        vibBox.textContent = '🚨 ALARM RELAY ACTIVE — DISTRESS PAYLOAD INBOUND';
+        vibBox.style.color = 'var(--hud-crimson)'; vibBox.style.backgroundColor = 'rgba(255,51,51,0.1)'; vibBox.style.borderColor = 'var(--hud-crimson)';
         if (navigator.vibrate) navigator.vibrate([150,75,150]);
     } else {
         banner.className = 'status-banner full-width-panel alert-secure';
-        audioWrapper.classList.remove('alert-active');
-        sidebar.classList.remove('alert-active');
-        title.textContent            = 'SYSTEMS STATUS: NOMINAL';
-        desc.textContent             = 'All operational field fleet trackers displaying nominal telemetry data configurations.';
+        audioWrapper.classList.remove('alert-active'); sidebar.classList.remove('alert-active');
+        title.textContent = 'SYSTEMS STATUS: NOMINAL';
+        desc.textContent  = 'All operational field fleet trackers displaying nominal telemetry data configurations.';
         stopAlarm();
-        vibBox.textContent           = 'VIBRATION_MODULE: IDLE';
-        vibBox.style.color           = '#475569';
-        vibBox.style.backgroundColor = '#04080f';
-        vibBox.style.borderColor     = '#14213d';
+        vibBox.textContent = 'VIBRATION_MODULE: IDLE'; vibBox.style.color = '#475569'; vibBox.style.backgroundColor = '#04080f'; vibBox.style.borderColor = '#14213d';
     }
 }
 
-/* ══════════════════════════════════════════
-   SOS CARDS
-══════════════════════════════════════════ */
 function resolveTriggerTime(s) {
     var ts = s.initiated_at || s.created_at || s.inserted_at || null;
     if (!ts) return 'UNKNOWN';
@@ -515,40 +522,28 @@ function renderSosCards(signals) {
     var container = document.getElementById('sos-alerts-container');
     var countTag  = document.getElementById('sos-count-tag');
     countTag.textContent = signals.length + ' ACTIVE';
-
-    if (signals.length === 0) {
-        container.innerHTML = '<div class="sos-empty">NO ACTIVE DISTRESS SIGNALS — ALL UNITS NOMINAL</div>';
-        return;
-    }
-
+    if (signals.length === 0) { container.innerHTML = '<div class="sos-empty">NO ACTIVE DISTRESS SIGNALS — ALL UNITS NOMINAL</div>'; return; }
     var frag = document.createDocumentFragment();
     signals.forEach(function(s) {
-        var card      = document.createElement('div');
-        card.className = 'sos-alert-card';
-        card.id        = 'sos-card-' + s.user_id;
-        var hasCoords  = s.lat && s.lng;
-        var coordText  = hasCoords ? s.lat + ', ' + s.lng : 'AWAITING COORD LOCK...';
-        var mapsUrl    = hasCoords ? 'https://www.google.com/maps?q=' + s.lat + ',' + s.lng : '#';
+        var card = document.createElement('div');
+        card.className = 'sos-alert-card'; card.id = 'sos-card-' + s.user_id;
+        var hasCoords = s.lat && s.lng;
+        var coordText = hasCoords ? s.lat + ', ' + s.lng : 'AWAITING COORD LOCK...';
+        var mapsUrl   = hasCoords ? 'https://www.google.com/maps?q=' + s.lat + ',' + s.lng : '#';
         card.innerHTML =
-            '<div class="sos-name">🚨 ' + ((s.officer_name || 'UNKNOWN').toUpperCase()) + '</div>' +
-            '<div class="sos-detail">RANK: '      + (s.officer_rank  || 'UNIT') + '</div>' +
-            '<div class="sos-detail">EMAIL: '     + (s.officer_email || '—')    + '</div>' +
-            '<div class="sos-detail">TRIGGERED: ' + resolveTriggerTime(s)       + '</div>' +
-            '<div class="sos-coords">📍 COORDS: ' + coordText + '</div>' +
-            '<a class="sos-map-btn" href="' + mapsUrl + '" target="_blank" rel="noopener"' +
-            (hasCoords ? '' : ' style="opacity:0.4;pointer-events:none;"') +
-            '>🗺 OPEN IN MAPS</a>';
+            '<div class="sos-name">🚨 ' + ((s.officer_name||'UNKNOWN').toUpperCase()) + '</div>' +
+            '<div class="sos-detail">RANK: '+(s.officer_rank||'UNIT')+'</div>' +
+            '<div class="sos-detail">EMAIL: '+(s.officer_email||'—')+'</div>' +
+            '<div class="sos-detail">TRIGGERED: '+resolveTriggerTime(s)+'</div>' +
+            '<div class="sos-coords">📍 COORDS: '+coordText+'</div>' +
+            '<a class="sos-map-btn" href="'+mapsUrl+'" target="_blank" rel="noopener"'+(hasCoords?'':' style="opacity:0.4;pointer-events:none;"')+'>🗺 OPEN IN MAPS</a>';
         frag.appendChild(card);
     });
-    container.innerHTML = '';
-    container.appendChild(frag);
+    container.innerHTML = ''; container.appendChild(frag);
 }
 
-/* ══════════════════════════════════════════
-   ROSTER
-══════════════════════════════════════════ */
 async function loadRoster() {
-    var grid     = document.getElementById('roster-grid');
+    var grid = document.getElementById('roster-grid');
     var countTag = document.getElementById('unit-count-tag');
     var res = await sbClient.from('users').select('*');
     grid.innerHTML = '';
@@ -556,10 +551,9 @@ async function loadRoster() {
     if (res.data && res.data.length > 0) {
         var frag = document.createDocumentFragment();
         res.data.forEach(function(u) {
-            var badge      = document.createElement('div');
-            badge.className = 'unit-badge';
-            badge.id        = 'badge-unit-' + u.id;
-            badge.innerHTML = '<strong>' + ((u.rank || 'UNIT').toUpperCase()) + '</strong><br><span style="color:#94a3b8">' + (u.name || '—') + '</span>';
+            var badge = document.createElement('div');
+            badge.className = 'unit-badge'; badge.id = 'badge-unit-' + u.id;
+            badge.innerHTML = '<strong>'+((u.rank||'UNIT').toUpperCase())+'</strong><br><span style="color:#94a3b8">'+(u.name||'—')+'</span>';
             frag.appendChild(badge);
         });
         grid.appendChild(frag);
@@ -575,9 +569,6 @@ function syncRosterBadges() {
     });
 }
 
-/* ══════════════════════════════════════════
-   TERMINAL LOG
-══════════════════════════════════════════ */
 function addTerminalLog(msg, type) {
     var feed = document.getElementById('terminal-feed');
     var row  = document.createElement('div');
@@ -587,6 +578,372 @@ function addTerminalLog(msg, type) {
     while (feed.children.length > 80) feed.removeChild(feed.lastChild);
 }
 </script>
+
+<!-- ══════════════════════════════════════════════════
+     MODULE: CADRE_AUDIO_MONITOR — FULLY REBUILT
+     
+     KEY FIXES vs previous version:
+     1. startListening() called immediately on page load —
+        NOT gated behind the init button — so SOS announces
+        are never missed.
+     2. Listens on 'sos_sig_<officerId>' (matches emergency.html).
+     3. On sos_announce, subscribes to 'sos_sig_<officerId>' and
+        immediately sends admin_join so officer creates the offer.
+     4. Handles repeat announcements (heartbeat) without creating
+        duplicate peer connections.
+     5. All onclick methods exposed on window.CADRE_AUDIO_MONITOR
+        before IIFE closes.
+══════════════════════════════════════════════════ -->
+<script>
+(function() {
+    'use strict';
+
+    const _SB_URL  = 'https://ihroattnnnsckvvbosfz.supabase.co';
+    const _SB_KEY  = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+    /* Fresh Supabase client — independent WS connection */
+    const _sb      = supabase.createClient(_SB_URL, _SB_KEY);
+    const _adminId = 'admin_' + Math.random().toString(36).substr(2, 9);
+
+    const _ICE = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    };
+
+    /* officerId → { pc, stream, audioEl, mediaRecorder, isRecording, sessionId, officerName, paused } */
+    let _streams      = {};
+    /* officerId → Supabase channel */
+    let _sigChannels  = {};
+    let _annChannel   = null;
+    let _recordings   = [];
+    let _recIdCounter = 0;
+
+    /* Declare public object immediately so onclick handlers always find it */
+    window.CADRE_AUDIO_MONITOR = {
+        startListening:  _startListening,
+        _listenStream:   _listenStream,
+        _pauseStream:    _pauseStream,
+        _startRecording: _startRecording,
+        _stopRecording:  _stopRecording,
+        _deleteRecording:_deleteRecording
+    };
+
+    /* ── startListening — called on DOMContentLoaded (before init button) ── */
+    function _startListening() {
+        console.log('[AUDIO_MONITOR] startListening — admin:', _adminId);
+        _subscribeAnnouncements();
+        addTerminalLog('[AUDIO] Broadcast intercept channel armed. Admin: ' + _adminId, 'ok');
+    }
+
+    /* ── Subscribe to shared announcement channel ── */
+    function _subscribeAnnouncements() {
+        _annChannel = _sb.channel('sos_announcements', {
+            config: { broadcast: { self: false } }
+        });
+
+        _annChannel
+            .on('broadcast', { event: 'sos_announce' }, function(msg) {
+                const { officerId, officerName, sessionId } = msg.payload || {};
+                if (!officerId) return;
+                console.log('[AUDIO_MONITOR] sos_announce from:', officerName, officerId);
+                addTerminalLog('[🎧 AUDIO] SOS stream incoming — ' + (officerName || officerId), 'crit');
+                /* Join the officer's signaling channel (idempotent) */
+                _joinOfficerChannel(officerId, officerName, sessionId);
+            })
+            .on('broadcast', { event: 'sos_ended' }, function(msg) {
+                const { officerId } = msg.payload || {};
+                if (!officerId) return;
+                console.log('[AUDIO_MONITOR] sos_ended for:', officerId);
+                addTerminalLog('[AUDIO] Stream ended — ' + officerId, 'ok');
+                _removeStream(officerId);
+            });
+
+        _annChannel.subscribe(function(status) {
+            console.log('[AUDIO_MONITOR] annChannel status:', status);
+        });
+    }
+
+    /* ── Join officer's signaling channel, send admin_join ── */
+    function _joinOfficerChannel(officerId, officerName, sessionId) {
+        /* If already have a peer connection for this officer, skip */
+        if (_streams[officerId] && _streams[officerId].pc) {
+            const state = _streams[officerId].connectionState;
+            if (state !== 'failed' && state !== 'disconnected' && state !== 'closed') {
+                console.log('[AUDIO_MONITOR] Already have stream for:', officerId);
+                return;
+            }
+        }
+
+        /* Subscribe to signaling channel if not already */
+        if (!_sigChannels[officerId]) {
+            const ch = _sb.channel('sos_sig_' + officerId, {
+                config: { broadcast: { ack: false } }
+            });
+
+            ch.on('broadcast', { event: 'officer_offer' }, async function(msg) {
+                const { sdp, adminId: tgt } = msg.payload || {};
+                /* Accept if directed to us or no specific target */
+                if (tgt && tgt !== _adminId) return;
+                if (!sdp) return;
+                console.log('[AUDIO_MONITOR] officer_offer received from:', officerId);
+                await _handleOffer(officerId, officerName, sessionId, sdp, ch);
+            });
+
+            ch.on('broadcast', { event: 'officer_ice' }, async function(msg) {
+                const { candidate, adminId: tgt } = msg.payload || {};
+                if (tgt && tgt !== _adminId) return;
+                if (!candidate) return;
+                const state = _streams[officerId];
+                if (!state || !state.pc) return;
+                try { await state.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
+            });
+
+            _sigChannels[officerId] = ch;
+
+            ch.subscribe(async function(status) {
+                if (status !== 'SUBSCRIBED') return;
+                console.log('[AUDIO_MONITOR] Subscribed to sig channel for:', officerId);
+                /* Tell officer we are here — triggers offer creation */
+                await ch.send({
+                    type: 'broadcast', event: 'admin_join',
+                    payload: { adminId: _adminId }
+                });
+                console.log('[AUDIO_MONITOR] admin_join sent to officer:', officerId);
+            });
+        } else {
+            /* Already subscribed — just re-send admin_join in case officer missed it */
+            _sigChannels[officerId].send({
+                type: 'broadcast', event: 'admin_join',
+                payload: { adminId: _adminId }
+            }).catch(function(){});
+        }
+    }
+
+    /* ── Handle incoming WebRTC offer ── */
+    async function _handleOffer(officerId, officerName, sessionId, sdp, sigChannel) {
+        /* Close existing PC if any */
+        if (_streams[officerId] && _streams[officerId].pc) {
+            try { _streams[officerId].pc.close(); } catch(e) {}
+        }
+
+        const pc = new RTCPeerConnection(_ICE);
+
+        _streams[officerId] = {
+            pc: pc, stream: null, audioEl: null,
+            mediaRecorder: null, isRecording: false,
+            sessionId: sessionId || officerId,
+            officerName: officerName || officerId,
+            paused: false
+        };
+
+        pc.onicecandidate = async function(evt) {
+            if (!evt.candidate) return;
+            try {
+                await sigChannel.send({
+                    type: 'broadcast', event: 'admin_ice',
+                    payload: { adminId: _adminId, candidate: evt.candidate.toJSON() }
+                });
+            } catch(e) {}
+        };
+
+        pc.ontrack = function(evt) {
+            console.log('[AUDIO_MONITOR] ontrack fired for officer:', officerId);
+            addTerminalLog('[AUDIO] Live stream active — ' + (officerName || officerId), 'ok');
+
+            const stream  = evt.streams[0];
+            _streams[officerId].stream = stream;
+
+            const audioEl = new Audio();
+            audioEl.srcObject = stream;
+            audioEl.autoplay  = false;
+            _streams[officerId].audioEl = audioEl;
+
+            _renderStreamCard(officerId, officerName, sessionId);
+        };
+
+        pc.onconnectionstatechange = function() {
+            console.log('[AUDIO_MONITOR] peer state:', pc.connectionState, '— officer:', officerId);
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                _removeStream(officerId);
+            }
+        };
+
+        await pc.setRemoteDescription({ type: 'offer', sdp });
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        await sigChannel.send({
+            type: 'broadcast', event: 'admin_answer',
+            payload: { adminId: _adminId, sdp: answer.sdp }
+        });
+        console.log('[AUDIO_MONITOR] answer sent to officer:', officerId);
+    }
+
+    /* ── Render stream card ── */
+    function _renderStreamCard(officerId, officerName, sessionId) {
+        const container = document.getElementById('audio-streams-container');
+        const emptyEl   = document.getElementById('audio-streams-empty');
+        const countTag  = document.getElementById('live-streams-count');
+        if (emptyEl) emptyEl.style.display = 'none';
+
+        /* Remove stale card */
+        const old = document.getElementById('stream-card-' + officerId);
+        if (old) old.remove();
+
+        const card = document.createElement('div');
+        card.className = 'live-stream-card';
+        card.id        = 'stream-card-' + officerId;
+        const ts = new Date().toLocaleTimeString();
+        const sid = (sessionId || '—').substring(0, 16);
+
+        card.innerHTML =
+            '<div class="stream-officer-name">' +
+                '<span class="live-dot"></span>' +
+                '🚨 ' + (officerName || officerId).toUpperCase() +
+                '<span style="font-size:0.65rem;color:#475569;margin-left:auto;">SESSION: ' + sid + '</span>' +
+            '</div>' +
+            '<div style="color:#475569;font-size:0.7rem;font-family:var(--tech-font);">STREAM CONNECTED: ' + ts + '</div>' +
+            '<div class="stream-status-tag" id="stream-status-' + officerId + '">● LIVE — NOT MONITORING</div>' +
+            '<div class="stream-controls">' +
+                '<button class="stream-btn btn-listen"   id="btn-listen-'  + officerId + '" onclick="CADRE_AUDIO_MONITOR._listenStream(\''   + officerId + '\')">▶ LISTEN</button>' +
+                '<button class="stream-btn btn-pause"    id="btn-pause-'   + officerId + '" onclick="CADRE_AUDIO_MONITOR._pauseStream(\''    + officerId + '\')" style="display:none">⏸ PAUSE</button>' +
+                '<button class="stream-btn btn-record"   id="btn-rec-'     + officerId + '" onclick="CADRE_AUDIO_MONITOR._startRecording(\'' + officerId + '\')">⏺ RECORD</button>' +
+                '<button class="stream-btn btn-stop-rec" id="btn-stoprec-' + officerId + '" onclick="CADRE_AUDIO_MONITOR._stopRecording(\''  + officerId + '\')" style="display:none">⏹ STOP REC</button>' +
+            '</div>';
+
+        container.appendChild(card);
+        countTag.textContent = Object.keys(_streams).length + ' STREAM' + (Object.keys(_streams).length !== 1 ? 'S' : '');
+    }
+
+    /* ── Remove stream ── */
+    function _removeStream(officerId) {
+        const state = _streams[officerId];
+        if (state) {
+            if (state.isRecording && state.mediaRecorder) { try { state.mediaRecorder.stop(); } catch(e) {} }
+            if (state.audioEl) { state.audioEl.pause(); state.audioEl.srcObject = null; }
+            if (state.pc) { try { state.pc.close(); } catch(e) {} }
+            delete _streams[officerId];
+        }
+        if (_sigChannels[officerId]) { _sigChannels[officerId].unsubscribe(); delete _sigChannels[officerId]; }
+        const card = document.getElementById('stream-card-' + officerId);
+        if (card) card.remove();
+        const remaining = Object.keys(_streams).length;
+        document.getElementById('live-streams-count').textContent = remaining + ' STREAM' + (remaining !== 1 ? 'S' : '');
+        if (remaining === 0) { const e = document.getElementById('audio-streams-empty'); if (e) e.style.display = 'block'; }
+    }
+
+    /* ══ PLAYBACK ══ */
+    function _listenStream(officerId) {
+        const state = _streams[officerId];
+        if (!state || !state.audioEl) return;
+        state.paused = false;
+        state.audioEl.play().then(function() {
+            addTerminalLog('[AUDIO] Monitoring live — ' + (state.officerName || officerId), 'ok');
+            var st = document.getElementById('stream-status-' + officerId);
+            var lb = document.getElementById('btn-listen-' + officerId);
+            var pb = document.getElementById('btn-pause-' + officerId);
+            if (st) { st.textContent = '● LIVE — MONITORING ACTIVE'; st.className = 'stream-status-tag rec-active'; }
+            if (lb) { lb.classList.add('active'); lb.style.display = 'none'; }
+            if (pb) { pb.style.display = 'inline-block'; }
+        }).catch(function(e) { addTerminalLog('[AUDIO] Playback error: ' + e.message, 'crit'); });
+    }
+
+    function _pauseStream(officerId) {
+        const state = _streams[officerId];
+        if (!state || !state.audioEl) return;
+        state.audioEl.pause(); state.paused = true;
+        var st = document.getElementById('stream-status-' + officerId);
+        var lb = document.getElementById('btn-listen-' + officerId);
+        var pb = document.getElementById('btn-pause-' + officerId);
+        if (st) { st.textContent = '⏸ PAUSED'; st.className = 'stream-status-tag'; }
+        if (lb) { lb.classList.remove('active'); lb.style.display = 'inline-block'; }
+        if (pb) { pb.style.display = 'none'; }
+    }
+
+    /* ══ RECORDING ══ */
+    function _startRecording(officerId) {
+        const state = _streams[officerId];
+        if (!state || !state.stream || state.isRecording) return;
+        let mimeType = 'audio/webm;codecs=opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = MediaRecorder.isTypeSupported('audio/ogg') ? 'audio/ogg' : '';
+        const chunks = [];
+        const mr = mimeType ? new MediaRecorder(state.stream, { mimeType }) : new MediaRecorder(state.stream);
+        mr.ondataavailable = function(e) { if (e.data && e.data.size > 0) chunks.push(e.data); };
+        mr.onstop = function() {
+            const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+            const url  = URL.createObjectURL(blob);
+            const recId = 'rec_' + (++_recIdCounter) + '_' + Date.now();
+            addTerminalLog('[⏺ REC] Saved — ' + (state.officerName||officerId) + ' (' + (blob.size/1024).toFixed(1) + 'KB)', 'ok');
+            _recordings.push({ id: recId, officerId, officerName: state.officerName||officerId, sessionId: state.sessionId, blob, url, timestamp: new Date().toLocaleString() });
+            _renderRecordingCard(recId);
+            _updateRecordingsCount();
+        };
+        mr.start(1000); state.mediaRecorder = mr; state.isRecording = true;
+        addTerminalLog('[⏺ REC] Recording started — ' + (state.officerName||officerId), 'crit');
+        var st = document.getElementById('stream-status-' + officerId);
+        var rb = document.getElementById('btn-rec-' + officerId);
+        var sb = document.getElementById('btn-stoprec-' + officerId);
+        if (st) { st.textContent = '⏺ RECORDING IN PROGRESS'; st.className = 'stream-status-tag rec-active'; }
+        if (rb) { rb.classList.add('recording'); rb.style.display = 'none'; }
+        if (sb) { sb.style.display = 'inline-block'; }
+    }
+
+    function _stopRecording(officerId) {
+        const state = _streams[officerId];
+        if (!state || !state.isRecording || !state.mediaRecorder) return;
+        state.mediaRecorder.stop(); state.isRecording = false; state.mediaRecorder = null;
+        addTerminalLog('[AUDIO] Recording stopped — processing...', 'ok');
+        var st = document.getElementById('stream-status-' + officerId);
+        var rb = document.getElementById('btn-rec-' + officerId);
+        var sb = document.getElementById('btn-stoprec-' + officerId);
+        if (st) { st.textContent = '● LIVE — MONITORING ACTIVE'; st.className = 'stream-status-tag'; }
+        if (rb) { rb.classList.remove('recording'); rb.style.display = 'inline-block'; }
+        if (sb) { sb.style.display = 'none'; }
+    }
+
+    /* ══ RECORDINGS VAULT ══ */
+    function _renderRecordingCard(recId) {
+        const rec = _recordings.find(function(r) { return r.id === recId; });
+        if (!rec) return;
+        const container = document.getElementById('recordings-container');
+        const emptyEl   = document.getElementById('recordings-empty');
+        if (emptyEl) emptyEl.style.display = 'none';
+        const card = document.createElement('div');
+        card.className = 'recording-card'; card.id = 'rec-card-' + recId;
+        card.innerHTML =
+            '<div class="rec-header">' +
+                '<span class="rec-officer">⏺ ' + (rec.officerName||rec.officerId).toUpperCase() + '</span>' +
+                '<span class="rec-timestamp">' + rec.timestamp + '</span>' +
+            '</div>' +
+            '<audio controls src="' + rec.url + '"></audio>' +
+            '<div class="rec-footer">' +
+                '<span class="rec-session-id">SESSION: ' + rec.sessionId.substring(0,20) + '</span>' +
+                '<button class="btn-delete-rec" onclick="CADRE_AUDIO_MONITOR._deleteRecording(\'' + recId + '\')">🗑 DELETE</button>' +
+            '</div>';
+        container.insertBefore(card, container.firstChild);
+    }
+
+    function _deleteRecording(recId) {
+        const idx = _recordings.findIndex(function(r) { return r.id === recId; });
+        if (idx === -1) return;
+        URL.revokeObjectURL(_recordings[idx].url);
+        addTerminalLog('[🗑] Recording deleted: ' + _recordings[idx].officerName, 'ok');
+        _recordings.splice(idx, 1);
+        const card = document.getElementById('rec-card-' + recId);
+        if (card) card.remove();
+        if (_recordings.length === 0) { const e = document.getElementById('recordings-empty'); if (e) e.style.display = 'block'; }
+        _updateRecordingsCount();
+    }
+
+    function _updateRecordingsCount() {
+        const el = document.getElementById('recordings-count');
+        if (el) el.textContent = _recordings.length + ' RECORDING' + (_recordings.length !== 1 ? 'S' : '');
+    }
+
+})();
+</script>
+
 <script src="ai-voice.js"></script>
 <script src="ai-integration.js"></script>
 </body>
