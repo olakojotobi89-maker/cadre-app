@@ -103,7 +103,7 @@
             background:rgba(255,51,51,0.08); box-shadow:0 0 15px rgba(255,51,51,0.2);
             animation:flash-badge 1s infinite alternate;
         }
-        .hud-icon-nav-matrix { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:8px; }
+        .hud-icon-nav-matrix { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-top:8px; }
         .hud-icon-btn {
             background:rgba(14,26,45,0.6); border:1px solid #1e293b; padding:12px 6px;
             display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -195,7 +195,7 @@
             .admin-terminal{height:220px;font-size:0.78rem;padding:10px;}
             .split-column-row{display:flex;flex-direction:column;gap:14px;}
             .units-roster{grid-template-columns:repeat(2,1fr);gap:8px;}
-            .hud-icon-nav-matrix{grid-template-columns:repeat(2,1fr);gap:8px;}
+            .hud-icon-nav-matrix{grid-template-columns:repeat(3,1fr);gap:8px;}
         }
         @keyframes warning-pulse{0%{box-shadow:0 0 15px rgba(255,51,51,0.1);border-left-color:#990000;}100%{box-shadow:0 0 35px rgba(255,51,51,0.5);border-left-color:#ff3333;}}
         @keyframes glitch-alert-shake{0%{transform:translate(0,0);}20%{transform:translate(-1.5px,1px);}40%{transform:translate(1px,-1px);}60%{transform:translate(-1px,-1px);}80%{transform:translate(1.5px,1px);}100%{transform:translate(0,0);}}
@@ -281,6 +281,9 @@
                     </a>
                     <a href="login.html" class="hud-icon-btn" style="border-bottom-color:var(--hud-crimson);">
                         <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Log Off
+                    </a>
+                    <a href="channel_admin.html" class="hud-icon-btn" style="border-bottom-color:var(--hud-amber);">
+                        <svg viewBox="0 0 24 24"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path><circle cx="12" cy="12" r="4"></circle></svg>Ch Admin
                     </a>
                 </div>
                 <div class="panel-header" style="margin-top:20px;padding-bottom:6px;border-bottom:1px dashed #1e293b;">
