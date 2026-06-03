@@ -342,7 +342,7 @@
         <button type="button" class="more-menu-close" id="more-menu-close" aria-label="Close more menu">✕</button>
     </div>
     <div class="more-menu-grid">
-        <a href="tactical-plotter.html" class="more-menu-item">
+        <a href="plotter.html" class="more-menu-item">
             <span class="more-menu-icon">📍</span><span>Plotter</span>
         </a>
         <a href="compass.html" class="more-menu-item">
@@ -400,8 +400,6 @@ function escHtml(str) {
 
 /* ─────────────────────────────────────────────
    SESSION RESOLUTION
-   Tries cadre_uid first, then old keys, then
-   live Supabase session.
 ───────────────────────────────────────────── */
 async function resolveSession() {
     let uid = localStorage.getItem("cadre_uid");
@@ -431,7 +429,6 @@ async function resolveSession() {
 
 /* ─────────────────────────────────────────────
    USER INFO CACHE
-   Fetch name/rank/pfp by user_id from users table
 ───────────────────────────────────────────── */
 async function getUserInfo(userId) {
     if (!userId) return null;
@@ -477,7 +474,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     const uid = await resolveSession();
     if (!uid) { window.location.href = "login.html"; return; }
 
-    /* Fetch own profile from DB — single source of truth */
     const { data: profile, error: profileErr } = await sbClient
         .from('users')
         .select('*')
@@ -486,8 +482,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     if (profileErr || !profile) {
         console.error("Profile fetch failed:", profileErr);
-        
-        /* Try to recover: create profile if it's missing */
         try {
             const { data: { user } } = await sbClient.auth.getUser();
             if (user) {
@@ -497,17 +491,9 @@ window.addEventListener('DOMContentLoaded', async () => {
                     rank:  user.user_metadata?.rank  || 'UNIT',
                     email: user.email
                 });
-
-                if (!createErr) {
-                    /* Profile created, reload page */
-                    window.location.reload();
-                    return;
-                }
+                if (!createErr) { window.location.reload(); return; }
             }
-        } catch(e) {
-            console.error("Recovery attempt failed:", e);
-        }
-
+        } catch(e) { console.error("Recovery attempt failed:", e); }
         window.location.href = "login.html";
         return;
     }
@@ -515,19 +501,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     currentUser = profile;
     nameCache.set(uid, profile);
 
-    /* Header rank badge */
     document.getElementById("officer-header-tag").textContent = profile.rank || 'UNIT';
 
-    /* Composer avatar */
     if (profile.pfp) {
         document.getElementById("composer-avatar").src = profile.pfp;
         pfpCache.set(uid, profile.pfp);
     }
 
     const adminButton = document.getElementById("admin-btn");
-    if (adminButton) {
-        adminButton.addEventListener("click", checkAdminAccess);
-    }
+    if (adminButton) adminButton.addEventListener("click", checkAdminAccess);
 
     const moreDockBtn      = document.getElementById("more-dock-btn");
     const moreMenuClose    = document.getElementById("more-menu-close");
@@ -535,15 +517,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     const moreAdminItem    = document.querySelector("[data-more-admin-item]");
     const moreMenu         = document.getElementById("more-menu");
 
-    if (moreDockBtn) {
-        moreDockBtn.addEventListener("click", () => toggleMoreMenu(true));
-    }
-    if (moreMenuClose) {
-        moreMenuClose.addEventListener("click", () => toggleMoreMenu(false));
-    }
-    if (moreMenuOverlay) {
-        moreMenuOverlay.addEventListener("click", () => toggleMoreMenu(false));
-    }
+    if (moreDockBtn)     moreDockBtn.addEventListener("click", () => toggleMoreMenu(true));
+    if (moreMenuClose)   moreMenuClose.addEventListener("click", () => toggleMoreMenu(false));
+    if (moreMenuOverlay) moreMenuOverlay.addEventListener("click", () => toggleMoreMenu(false));
+
     document.addEventListener("keydown", function(event) {
         if (event.key === 'Escape' && moreMenu && moreMenu.classList.contains('active')) {
             event.preventDefault();
@@ -558,19 +535,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     await Promise.all([
         loadMyLikes(uid),
-        backfillMyPosts(uid),   /* one-time fix: stamp user_id on old null posts */
+        backfillMyPosts(uid),
         loadPostsPage(0)
     ]);
 
-    /* ─────────────────────────────────────────────
-       AI VOICE INTEGRATION — Welcome message
-       Fire asynchronously after profile loads.
-    ───────────────────────────────────────────── */
-    if (window.CADRE && window.CADRE.ai) {
-        CADRE.ai.welcome(currentUser);
-    }
+    if (window.CADRE && window.CADRE.ai) CADRE.ai.welcome(currentUser);
 
-    /* Realtime */
     sbClient
         .channel('public:ig_feed_posts')
         .on('postgres_changes',
@@ -580,30 +550,22 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 /* ─────────────────────────────────────────────
-   BACKFILL — stamp user_id on this user's old
-   posts that were saved before the column existed.
-   Runs once on boot, silently in background.
+   BACKFILL
 ───────────────────────────────────────────── */
 async function backfillMyPosts(uid) {
     try {
-        /* Find posts by this user that have no user_id yet.
-           Match on email stored in users table vs auth email. */
         const { data: myPosts } = await sbClient
             .from('ig_feed_posts')
             .select('id, name')
             .is('user_id', null)
-            .eq('name', currentUser.name);  /* best match we have */
-
+            .eq('name', currentUser.name);
         if (!myPosts || myPosts.length === 0) return;
-
-        /* Stamp all matching posts with this user's id */
         await sbClient
             .from('ig_feed_posts')
             .update({ user_id: uid, rank: currentUser.rank })
             .is('user_id', null)
             .eq('name', currentUser.name);
-
-    } catch(e) { /* silent — non-critical */ }
+    } catch(e) {}
 }
 
 /* ─────────────────────────────────────────────
@@ -663,19 +625,12 @@ async function loadMorePosts() {
 
 /* ─────────────────────────────────────────────
    BUILD POST CARD
-   Posts store user_id (the Supabase auth ID).
-   Name/rank/pfp are always fetched live from
-   the users table so they're always up to date.
 ───────────────────────────────────────────── */
 async function buildPostCard(post) {
     let posterInfo = null;
 
-    /* 1. Best case: post has user_id — look up from users table */
-    if (post.user_id) {
-        posterInfo = await getUserInfo(post.user_id);
-    }
+    if (post.user_id) posterInfo = await getUserInfo(post.user_id);
 
-    /* 2. No user_id but has a name — search users table by name */
     if (!posterInfo && post.name) {
         const { data } = await sbClient
             .from('users')
@@ -685,11 +640,7 @@ async function buildPostCard(post) {
         if (data) {
             posterInfo = data;
             nameCache.set(data.id, data);
-            /* Silently backfill user_id so future loads skip this lookup */
-            sbClient.from('ig_feed_posts')
-                .update({ user_id: data.id })
-                .eq('id', post.id)
-                .then(() => {});
+            sbClient.from('ig_feed_posts').update({ user_id: data.id }).eq('id', post.id).then(() => {});
         }
     }
 
@@ -702,7 +653,6 @@ async function buildPostCard(post) {
                 '| posterInfo:', posterInfo,
                 '| name:', posterName, '| rank:', posterRank, '| pfp:', posterPfp);
 
-    /* Can delete only if we can confirm ownership via user_id */
     const canDelete = currentUser && post.user_id && currentUser.id === post.user_id;
 
     const likes        = Number(post.likes ?? 0);
@@ -713,7 +663,6 @@ async function buildPostCard(post) {
     article.className = 'feed-post-card';
     article.id = 'post-' + post.id;
 
-    /* Header */
     const header = document.createElement('div');
     header.className = 'feed-post-header';
 
@@ -725,7 +674,6 @@ async function buildPostCard(post) {
     avatar.className = 'post-avatar';
     avatar.src = posterPfp || DEFAULT_AVATAR;
     avatar.alt = posterName;
-    /* No lazy loading — Edge blocks lazy images */
     userDiv.appendChild(avatar);
 
     const userInfo = document.createElement('div');
@@ -745,7 +693,6 @@ async function buildPostCard(post) {
     }
     article.appendChild(header);
 
-    /* Caption */
     if (post.caption) {
         const cap = document.createElement('div');
         cap.className = 'feed-post-caption';
@@ -753,7 +700,6 @@ async function buildPostCard(post) {
         article.appendChild(cap);
     }
 
-    /* Image */
     if (post.image) {
         const img = document.createElement('img');
         img.className = 'feed-post-image';
@@ -763,7 +709,6 @@ async function buildPostCard(post) {
         article.appendChild(img);
     }
 
-    /* Like button */
     const actions = document.createElement('div');
     actions.className = 'post-actions';
     const likeBtn = document.createElement('button');
@@ -775,14 +720,12 @@ async function buildPostCard(post) {
     actions.appendChild(likeBtn);
     article.appendChild(actions);
 
-    /* Likes count */
     const likesDiv = document.createElement('div');
     likesDiv.className = 'likes-count';
     likesDiv.id = 'likes-count-' + post.id;
     likesDiv.textContent = likes + ' ' + (likes === 1 ? 'Like' : 'Likes');
     article.appendChild(likesDiv);
 
-    /* Comments */
     const commentBox = document.createElement('div');
     commentBox.className = 'comment-box';
 
@@ -842,7 +785,6 @@ function patchPostCard(post) {
 
 /* ─────────────────────────────────────────────
    RENDER COMMENTS
-   Format stored: "name||user_id||text"
 ───────────────────────────────────────────── */
 async function renderCommentsList(container, comments) {
     container.innerHTML = '';
@@ -861,7 +803,6 @@ async function renderCommentsList(container, comments) {
             commentText = parts[2] || '';
         }
 
-        /* Try to get latest name/pfp from DB if we have a user_id */
         let pfpSrc = DEFAULT_AVATAR;
         if (authorId) {
             const info = await getUserInfo(authorId);
@@ -896,7 +837,6 @@ async function renderCommentsList(container, comments) {
     container.appendChild(frag);
 }
 
-/* Prepend new post with animation */
 async function prependPostCard(post) {
     const container = document.getElementById("instagram-stream");
     const card = await buildPostCard(post);
@@ -962,8 +902,6 @@ function showSkeletons(container, count) {
 
 /* ─────────────────────────────────────────────
    CREATE POST
-   Stores user_id (auth ID) so profile lookup
-   always works, even if name/rank changes later.
 ───────────────────────────────────────────── */
 async function submitInstagramPost() {
     const caption    = document.getElementById("post-input").value.trim();
@@ -975,7 +913,6 @@ async function submitInstagramPost() {
     postBtn.disabled = true;
     postBtn.textContent = 'Sending...';
 
-    /* Safety check — should never happen but guards against blank posts */
     if (!currentUser || !currentUser.id) {
         alert("Session error — please log out and back in.");
         postBtn.disabled = false;
@@ -1005,19 +942,14 @@ async function submitInstagramPost() {
 
     if (error) { console.error("POST ERROR:", error); alert("Post failed: " + error.message); return; }
 
-    /* Clear composer */
     document.getElementById("post-input").value = "";
     base64ImageString = "";
     const preview = document.getElementById("post-img-preview");
     preview.src = "";
     preview.style.display = "none";
 
-    /* Transmission sound */
-    if (window.SFX && typeof SFX.transmit === 'function') {
-        SFX.transmit();
-    }
+    if (window.SFX && typeof SFX.transmit === 'function') SFX.transmit();
 
-    /* Instantly prepend the new post — no refresh needed */
     const postToShow = inserted || newPost;
     if (!postToShow.id) postToShow.id = 'temp-' + Date.now();
     postCache.set(postToShow.id, postToShow);
@@ -1042,11 +974,7 @@ async function deletePost(postId) {
     const { error } = await sbClient.from('ig_feed_posts').delete().eq('id', postId);
     if (error) {
         console.error("DELETE ERROR:", error);
-        /* Restore card if delete failed */
-        if (card) {
-            card.style.opacity = '1';
-            card.style.transform = 'scale(1)';
-        }
+        if (card) { card.style.opacity = '1'; card.style.transform = 'scale(1)'; }
         alert("Delete failed: " + error.message);
     } else {
         postCache.delete(postId);
@@ -1057,13 +985,11 @@ async function deletePost(postId) {
    LIKE POST
 ───────────────────────────────────────────── */
 async function likePost(postId) {
-    /* Always check DB first — prevents double-like even across sessions/devices */
     if (hasLiked(postId)) return;
 
     const btn = document.getElementById('like-btn-' + postId);
     if (btn) btn.disabled = true;
 
-    /* Double-check DB in case likedSet is stale */
     const { data: existingLike } = await sbClient
         .from('post_likes')
         .select('post_id')
@@ -1072,13 +998,8 @@ async function likePost(postId) {
         .maybeSingle();
 
     if (existingLike) {
-        /* Already liked in DB — update UI to reflect this */
         likedSet.add(String(postId));
-        if (btn) {
-            btn.classList.add('liked');
-            btn.innerHTML = '👍 Liked';
-            btn.disabled = true;
-        }
+        if (btn) { btn.classList.add('liked'); btn.innerHTML = '👍 Liked'; btn.disabled = true; }
         return;
     }
 
@@ -1086,7 +1007,6 @@ async function likePost(postId) {
     const oldLikes = Number(cached && cached.likes ? cached.likes : 0);
     const newLikes = oldLikes + 1;
 
-    /* Optimistic UI update */
     const likesEl = document.getElementById('likes-count-' + postId);
     if (likesEl) likesEl.textContent = newLikes + ' ' + (newLikes === 1 ? 'Like' : 'Likes');
 
@@ -1103,16 +1023,11 @@ async function likePost(postId) {
     await markLikedInDB(postId);
     if (cached) cached.likes = newLikes;
 
-    if (btn) {
-        btn.classList.add('liked');
-        btn.innerHTML = '👍 Liked';
-        btn.disabled  = true;
-    }
+    if (btn) { btn.classList.add('liked'); btn.innerHTML = '👍 Liked'; btn.disabled = true; }
 }
 
 /* ─────────────────────────────────────────────
    COMMENT
-   Stores "name||user_id||text" format
 ───────────────────────────────────────────── */
 async function addComment(postId) {
     const input = document.getElementById('comment-' + postId);
@@ -1126,7 +1041,6 @@ async function addComment(postId) {
     const comments = Array.isArray(cached && cached.comments ? cached.comments : [])
         ? [...(cached.comments || [])] : [];
 
-    /* "name||user_id||text" — user_id lets any device fetch latest pfp */
     const commentEntry = currentUser.name + '||' + currentUser.id + '||' + text;
     comments.push(commentEntry);
 
@@ -1192,9 +1106,7 @@ function previewSelectedImage(input) {
 }
 
 function handleTypingSound() {
-    if (window.SFX && typeof SFX.type === 'function') {
-        SFX.type();
-    }
+    if (window.SFX && typeof SFX.type === 'function') SFX.type();
 }
 </script>
 <script src="ai-voice.js"></script>
