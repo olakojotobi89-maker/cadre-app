@@ -640,14 +640,21 @@ async function _joinChannel() {
     addLog('VOICE LINK :: Microphone published to channel');
 
     // Register presence in Supabase
-    await sbClient.from('group_call_members').upsert({
-      phone:      currentUser.phone,
-      name:       currentUser.name,
-      rank:       currentUser.rank,
-      avatar_url: currentUser.avatar_url || null,
-      status:     'ONLINE',
-      joined_at:  Date.now(),
-    }).catch(() => {});
+    // NOTE: Supabase JS v2 query builders are thenables but do NOT expose
+    // .catch() — always use try/catch or plain await (no .catch() chaining).
+    try {
+      await sbClient.from('group_call_members').upsert({
+        phone:      currentUser.phone,
+        name:       currentUser.name,
+        rank:       currentUser.rank,
+        avatar_url: currentUser.avatar_url || null,
+        status:     'ONLINE',
+        joined_at:  Date.now(),
+      });
+    } catch (_) {
+      // Presence registration failed — non-fatal, call continues
+      addLog('WARN :: Presence table upsert failed (non-fatal)');
+    }
 
     ParticipantManager.addLocalToPanel();
     ParticipantManager.refreshFromDB();
@@ -708,7 +715,17 @@ async function _joinChannel() {
     addLog(`ERROR :: ${err.message}`);
     showToast('Failed to connect — check microphone permissions', 'info');
 
-    // Rollback state on failure
+    // Close mic track if it was created before the error
+    if (localAudioTrack) {
+      try { localAudioTrack.close(); } catch (_) {}
+      localAudioTrack = null;
+    }
+
+    // Leave Agora channel if it was joined before the error
+    // (prevents a "half-joined" state that blocks future join attempts)
+    try { await agoraClient.leave(); } catch (_) {}
+
+    // Rollback all state flags
     activeStream         = false;
     window.CADRE_IN_CALL = false;
     callRole             = null;
@@ -766,8 +783,11 @@ async function terminateComms(broadcastEnd = true) {
   try { await agoraClient.leave(); } catch (_) {}
 
   // Remove from Supabase presence table
+  // Wrap in try/catch — Supabase v2 builders don't support .catch() chaining
   if (currentUser?.phone) {
-    sbClient.from('group_call_members').delete().eq('phone', currentUser.phone).catch(() => {});
+    try {
+      await sbClient.from('group_call_members').delete().eq('phone', currentUser.phone);
+    } catch (_) {}
   }
 
   ParticipantManager.clear();
