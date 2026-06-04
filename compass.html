@@ -159,41 +159,18 @@ body::before {
 
 <body>
 
-<div class="dashboard-panel">
-    <div class="panel-header">Tactical Heading Vector</div>
-
-    <div class="compass-ring">
-        <div id="needle"></div>
-    </div>
-
-    <div class="bearing-display" id="bearing">000°</div>
-
-    <a href="admin.html" class="back-btn">Return to Node</a>
+<div id="view-container" class="spa-view">
 </div>
 
-<!-- NAV -->
-<div class="bottom-nav">
-    <a href="home.html"><span>🏠</span>Feed</a>
-    <a href="map.html"><span>🗺️</span>Map</a>
-    <a href="compass.html"><span>🧭</span>Compass</a>
-    <a href="tactical-plotter.html"><span>📍</span>Plotter</a>
-    <a href="profile.html"><span>👤</span>Profile</a>
-</div>
-
-<script>
-const needle = document.getElementById('needle');
-const bearingDisplay = document.getElementById('bearing');
-
-window.addEventListener('deviceorientationabsolute', (event) => {
-    const alpha = event.alpha;
-
-    if (alpha !== null) {
-        const rotation = 360 - alpha;
-        needle.style.transform = `rotate(${rotation}deg)`;
-        bearingDisplay.textContent = `${Math.round(alpha).toString().padStart(3, '0')}°`;
-    }
-}, true);
+<script type="module">
+  // Backward-compatible shim: if someone opens compass.html directly,
+  // mount the SPA view into #view-container.
+  import { mount } from './compass.js';
+  // ai-voice.js must be initialized once globally by the SPA bootstrap.
+  // If compass.html is opened directly, rely on the host page/manifest
+  // to have loaded AI scripts already.
+  const container = document.getElementById('view-container');
+  mount(container, {});
 </script>
-<script src="ai-voice.js"></script>
 </body>
 </html>
