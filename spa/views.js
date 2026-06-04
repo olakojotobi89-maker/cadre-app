@@ -1,8 +1,11 @@
 // Central view registry (no lazy-load).
 // Each view module must export: async mount(container, params) + unmount(container)
 
+import * as loginView from './views/login.js';
+
 export const routes = new Map([
-  ['/login', (await import('./views/login.js'))],
+  ['/login', loginView],
+
   ['/dashboard', (await import('./views/home.js'))],
   ['/home', (await import('./views/home.js'))],
   ['/profile', (await import('./views/profile.js'))],
