@@ -1,6 +1,27 @@
 /* ============================================================
    GROUPCALL.JS — CADRE Group Voice Communication Engine
-   v2.0 — Production-ready, modular, fully commented
+   v3.0
+
+   CALL FLOW OVERVIEW
+   ─────────────────
+   INITIATOR (person who clicks START CALL):
+     1. Clicks START CALL → joinAsInitiator()
+     2. Joins Agora channel silently (no ringtone)
+     3. Broadcasts  call_invite  so other pages ring
+     4. Sees "CALLING… WAITING FOR OPERATORS" status
+     5. When someone joins → status updates to LIVE
+     6. If they leave → broadcasts  call_cancelled / call_host_ended
+
+   ANSWERER (person who taps ANSWER on the overlay):
+     1. incoming-call-manager.js shows overlay on their page
+     2. They tap ANSWER → sessionStorage flag set → navigate to groupcall.html
+     3. groupcall.js detects the flag → joinAsAnswerer()
+     4. Joins Agora quietly, no ringtone, no re-broadcast
+
+   ANSWERER already on groupcall.html (not yet in call):
+     1. call_invite broadcast arrives
+     2. groupcall.js shows the on-page incoming overlay + rings
+     3. They tap ANSWER → joinAsAnswerer()
    ============================================================ */
 
 'use strict';
@@ -16,11 +37,7 @@ const AGORA_APP_ID  = '8f88034e0a9545868b55af604b268e1e';
 const AGORA_CHANNEL = 'GROUP_CALL_ALPHA';
 const AGORA_TOKEN   = null;
 
-// Volume threshold (0–255) above which a user is considered "speaking"
-const SPEAKING_THRESHOLD = 18;
-
-// How often (ms) to poll volume levels for active speaker detection
-const VOLUME_INTERVAL_MS = 200;
+const SPEAKING_THRESHOLD = 18; // volume level (0–255) for active speaker
 
 
 /* ══════════════════════════════════════════════════════════════
@@ -32,17 +49,15 @@ const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ══════════════════════════════════════════════════════════════
    3. SESSION / USER IDENTITY
-   Load profile from localStorage (set by your auth system).
-   Falls back to an anonymous operator ID so the call always works.
+   Loaded from localStorage — written by your auth system.
+   Shape: { name, rank, phone, avatar_url }
    ══════════════════════════════════════════════════════════════ */
 
 const currentUser = (() => {
   try {
-    const stored = JSON.parse(localStorage.getItem('session_user'));
-    if (stored && stored.name) return stored;
+    const s = JSON.parse(localStorage.getItem('session_user'));
+    if (s && s.name) return s;
   } catch (_) {}
-
-  // Anonymous fallback
   return {
     name:       'OPERATOR_' + Math.floor(Math.random() * 9000 + 1000),
     rank:       'UNIT',
@@ -51,52 +66,62 @@ const currentUser = (() => {
   };
 })();
 
-// Apply local user info to the local card immediately
+// Populate local card immediately
 document.getElementById('local-name').textContent = currentUser.name || 'UNKNOWN';
 document.getElementById('local-rank').textContent = currentUser.rank || 'UNIT';
-
-if (currentUser.avatar_url) {
-  document.getElementById('local-avatar').src = currentUser.avatar_url;
-} else {
-  document.getElementById('local-avatar').src =
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=0f172a&color=00f0ff`;
-}
+document.getElementById('local-avatar').src = currentUser.avatar_url ||
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=0f172a&color=00f0ff`;
 
 
 /* ══════════════════════════════════════════════════════════════
    4. AGORA CLIENT
-   mode:"rtc" is correct for audio-only group calls.
    ══════════════════════════════════════════════════════════════ */
 
 const agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+AgoraRTC.setLogLevel(3); // ERROR only — suppress verbose logs
 
-// Suppress noisy Agora console output in production
-AgoraRTC.setLogLevel(3); // 3 = ERROR only
-
-let localAudioTrack = null;  // microphone track
-let activeStream    = false; // true once joined
+let localAudioTrack = null;
+let activeStream    = false;  // true while in an active Agora session
 let isMuted         = false;
 let handRaised      = false;
 let isRecording     = false;
-let speakerEnabled  = true;  // loudspeaker vs. earpiece toggle
+let speakerEnabled  = true;
+
+/*
+  callRole tracks WHY the user is in the call:
+    'initiator' — they clicked START CALL and own the session
+    'answerer'  — they accepted an incoming invite
+    null        — not in a call
+*/
+let callRole = null;
+
+/*
+  callId is a unique ID for the active call session.
+  The initiator generates it and includes it in broadcasts so
+  all cancel/end events can be matched to the correct call.
+*/
+let callId = null;
+
+// Expose in-call state globally so incoming-call-manager.js
+// (running on other pages) knows to skip the overlay.
+// On THIS page the flag is managed below; it is not used here.
+window.CADRE_IN_CALL = false;
 
 
 /* ══════════════════════════════════════════════════════════════
    5. RINGTONE MANAGER
-   Handles the Hip-hop_Alarm.mp3 ringtone for incoming calls.
-   Browser autoplay policy requires a prior user gesture before
-   audio can play. We unlock the audio context on the first
-   interaction with the page, then play/stop as needed.
+   Only plays on this page when someone ELSE starts a call while
+   the local user is viewing groupcall.html but hasn't joined.
+   NEVER plays on page load or on join.
    ══════════════════════════════════════════════════════════════ */
 
 const RingtoneManager = (() => {
-  const audio = document.getElementById('ringtone');
-  let unlocked = false;
+  const audio    = document.getElementById('ringtone');
+  let   unlocked = false;
 
-  // Pre-unlock audio on first user gesture (click, touch, keydown)
+  // Satisfy browser autoplay policy on first user gesture
   function unlock() {
-    if (unlocked) return;
-    // Play-then-pause at volume 0 to satisfy autoplay policy
+    if (unlocked || !audio) return;
     audio.volume = 0;
     audio.play().then(() => {
       audio.pause();
@@ -104,9 +129,6 @@ const RingtoneManager = (() => {
       audio.volume = 1;
       unlocked = true;
     }).catch(() => {});
-    document.removeEventListener('click',   unlock);
-    document.removeEventListener('touchend', unlock);
-    document.removeEventListener('keydown', unlock);
   }
 
   document.addEventListener('click',    unlock, { once: true });
@@ -115,15 +137,11 @@ const RingtoneManager = (() => {
 
   function play() {
     if (!audio) return;
-    audio.volume = 1;
+    audio.volume      = 1;
     audio.currentTime = 0;
-    const promise = audio.play();
-    if (promise !== undefined) {
-      promise.catch((err) => {
-        // Autoplay blocked — the user hasn't interacted yet
-        addLog('RINGTONE :: Autoplay blocked. Waiting for user gesture.');
-      });
-    }
+    audio.play().catch(() => {
+      addLog('RINGTONE :: Autoplay blocked — tap anywhere to allow audio');
+    });
   }
 
   function stop() {
@@ -138,8 +156,7 @@ const RingtoneManager = (() => {
 
 /* ══════════════════════════════════════════════════════════════
    6. WAKE LOCK MANAGER
-   Requests a screen wake lock when a call is active so the
-   device doesn't sleep and cut the audio stream on mobile.
+   Prevents the screen from sleeping on mobile during a call.
    ══════════════════════════════════════════════════════════════ */
 
 const WakeLockManager = (() => {
@@ -149,22 +166,20 @@ const WakeLockManager = (() => {
     if (!('wakeLock' in navigator)) return;
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      addLog('SYSTEM :: Wake lock acquired — screen will stay on');
-
-      // Re-acquire if the page becomes visible again (e.g. after tab switch)
       wakeLock.addEventListener('release', () => {
+        // Re-acquire automatically if the call is still live
         if (activeStream) request();
       });
+      addLog('SYSTEM :: Wake lock active — screen stays on');
     } catch (err) {
-      addLog(`SYSTEM :: Wake lock denied — ${err.message}`);
+      addLog(`SYSTEM :: Wake lock unavailable — ${err.message}`);
     }
   }
 
   async function release() {
-    if (wakeLock) {
-      await wakeLock.release();
-      wakeLock = null;
-    }
+    if (!wakeLock) return;
+    try { await wakeLock.release(); } catch (_) {}
+    wakeLock = null;
   }
 
   return { request, release };
@@ -173,30 +188,27 @@ const WakeLockManager = (() => {
 
 /* ══════════════════════════════════════════════════════════════
    7. CALL DURATION TIMER
-   Shows elapsed time since joining. Updates every second.
    ══════════════════════════════════════════════════════════════ */
 
 const CallTimer = (() => {
   let startTime  = null;
   let intervalId = null;
-  const el = document.getElementById('call-timer');
+  const el       = document.getElementById('call-timer');
 
-  function format(ms) {
-    const totalSec = Math.floor(ms / 1000);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    const mm = String(m).padStart(2, '0');
-    const ss = String(s).padStart(2, '0');
+  function fmt(ms) {
+    const s   = Math.floor(ms / 1000);
+    const h   = Math.floor(s / 3600);
+    const m   = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const mm  = String(m).padStart(2, '0');
+    const ss  = String(sec).padStart(2, '0');
     return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
   }
 
   function start() {
-    startTime = Date.now();
+    startTime        = Date.now();
     el.style.display = 'block';
-    intervalId = setInterval(() => {
-      el.textContent = format(Date.now() - startTime);
-    }, 1000);
+    intervalId       = setInterval(() => { el.textContent = fmt(Date.now() - startTime); }, 1000);
   }
 
   function stop() {
@@ -212,30 +224,23 @@ const CallTimer = (() => {
 
 /* ══════════════════════════════════════════════════════════════
    8. CONNECTION QUALITY INDICATOR
-   Listens to Agora's "network-quality" event and updates the
-   four-bar signal indicator in the top bar.
+   Agora quality scale: 1–2 good, 3 medium, 4 poor, 5–6 bad.
    ══════════════════════════════════════════════════════════════ */
 
 const QualityIndicator = (() => {
   const el = document.getElementById('quality-indicator');
 
-  // Agora network quality: 0=unknown, 1=excellent, 2=good,
-  //                         3=poor, 4=bad, 5=very bad, 6=disconnected
-  function update(uplinkQuality, downlinkQuality) {
-    // Use the worse of uplink / downlink
-    const quality = Math.max(uplinkQuality, downlinkQuality);
+  function update(up, down) {
+    const q = Math.max(up, down);
     el.className = 'quality-indicator';
-
-    if (quality === 0 || quality === 6) return; // unknown / disconnected
-    if (quality <= 2) el.classList.add('good');
-    else if (quality === 3) el.classList.add('medium');
-    else if (quality === 4) el.classList.add('poor');
-    else el.classList.add('bad');
+    if      (q === 0 || q === 6) return;
+    else if (q <= 2) el.classList.add('good');
+    else if (q === 3) el.classList.add('medium');
+    else if (q === 4) el.classList.add('poor');
+    else              el.classList.add('bad');
   }
 
-  function reset() {
-    el.className = 'quality-indicator';
-  }
+  function reset() { el.className = 'quality-indicator'; }
 
   return { update, reset };
 })();
@@ -243,42 +248,27 @@ const QualityIndicator = (() => {
 
 /* ══════════════════════════════════════════════════════════════
    9. ACTIVE SPEAKER DETECTION
-   Polls Agora volume levels every VOLUME_INTERVAL_MS ms.
-   Highlights the card and participant-panel item of the loudest
-   speaker above the threshold.
+   Uses Agora's volume-indicator event. Highlights the loudest
+   speaker above the threshold in real time.
    ══════════════════════════════════════════════════════════════ */
 
 const SpeakerDetection = (() => {
-  let intervalId      = null;
-  let currentSpeaker  = null; // uid of the current highlighted speaker
+  let currentSpeaker = null;
 
   function start() {
-    // Enable Agora's volume indicator (fires every 2s by default)
     agoraClient.enableAudioVolumeIndicator();
 
-    // Listen to volume events from Agora
     agoraClient.on('volume-indicator', (volumes) => {
-      if (!volumes || volumes.length === 0) {
-        clearSpeaker();
-        return;
-      }
+      if (!volumes || volumes.length === 0) { clearSpeaker(); return; }
 
-      // Find the loudest user above threshold
       let loudest = null;
       let maxVol  = SPEAKING_THRESHOLD;
 
       for (const { uid, level } of volumes) {
-        if (level > maxVol) {
-          maxVol  = level;
-          loudest = uid;
-        }
+        if (level > maxVol) { maxVol = level; loudest = uid; }
       }
 
-      if (loudest === null) {
-        clearSpeaker();
-      } else {
-        setSpeaker(loudest);
-      }
+      loudest === null ? clearSpeaker() : setSpeaker(loudest);
     });
   }
 
@@ -286,66 +276,49 @@ const SpeakerDetection = (() => {
     if (currentSpeaker === uid) return;
     clearSpeaker(false);
     currentSpeaker = uid;
-
-    // Highlight the grid card
-    const card = document.getElementById(`remote-${uid}`);
-    if (card) card.classList.add('speaking');
-
-    // Highlight the participant panel item
-    const item = document.getElementById(`pitem-${uid}`);
-    if (item) item.classList.add('speaking');
+    document.getElementById(`remote-${uid}`)?.classList.add('speaking');
+    document.getElementById(`pitem-${uid}`)?.classList.add('speaking');
   }
 
   function clearSpeaker(resetVar = true) {
     if (currentSpeaker !== null) {
-      const card = document.getElementById(`remote-${currentSpeaker}`);
-      if (card) card.classList.remove('speaking');
-      const item = document.getElementById(`pitem-${currentSpeaker}`);
-      if (item) item.classList.remove('speaking');
+      document.getElementById(`remote-${currentSpeaker}`)?.classList.remove('speaking');
+      document.getElementById(`pitem-${currentSpeaker}`)?.classList.remove('speaking');
     }
     if (resetVar) currentSpeaker = null;
   }
 
-  function stop() {
-    clearInterval(intervalId);
-    clearSpeaker();
-  }
+  function stop() { clearSpeaker(); }
 
-  return { start, stop, setSpeaker, clearSpeaker };
+  return { start, stop, clearSpeaker };
 })();
 
 
 /* ══════════════════════════════════════════════════════════════
    10. PARTICIPANT MANAGER
-   Manages both the grid cards and the slide-in participant panel.
-   Uses a Map to track all remote users and prevent duplicates.
+   Map-backed; prevents duplicate cards. Drives both the main
+   grid and the slide-in participants panel.
    ══════════════════════════════════════════════════════════════ */
 
 const ParticipantManager = (() => {
-  // Map<uid, { name, rank, avatar }>
-  const participants = new Map();
+  const map = new Map(); // uid → { name, rank, avatar }
 
-  // ── GRID CARD ──────────────────────────────────────────────
+  /* ── helpers ──────────────────────────────────────────────── */
+  function avatarFor(name, url) {
+    return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0f172a&color=00f0ff`;
+  }
 
-  function addCard(uid, meta = {}) {
-    if (document.getElementById(`remote-${uid}`)) return; // prevent duplicates
+  /* ── grid card ────────────────────────────────────────────── */
+  function addCard(uid, meta) {
+    if (document.getElementById(`remote-${uid}`)) return;
+    const { name, rank, avatar } = meta;
+    map.set(uid, meta);
 
-    const name   = meta.name   || String(uid);
-    const rank   = meta.rank   || 'REMOTE OPERATOR';
-    const avatar = meta.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0f172a&color=00f0ff`;
-
-    participants.set(uid, { name, rank, avatar });
-
-    const grid = document.getElementById('participant-grid');
     const card = document.createElement('div');
     card.className = 'user-card speaking';
     card.id        = `remote-${uid}`;
-
     card.innerHTML = `
-      <div class="user-top-icons">
-        <div class="user-badge">🎤 LIVE</div>
-      </div>
+      <div class="user-top-icons"><div class="user-badge">🎤 LIVE</div></div>
       <div class="avatar-wrapper">
         <img src="${avatar}" class="user-avatar" alt="${escapeHtml(name)}">
         <div class="speaking-ring"></div>
@@ -358,55 +331,45 @@ const ParticipantManager = (() => {
           <button class="small-btn" onclick="pinParticipant('remote-${uid}')">📌</button>
           <button class="small-btn" onclick="remoteMute('${uid}')">🔇</button>
         </div>
-      </div>
-    `;
-
-    grid.appendChild(card);
-    updateCounts();
+      </div>`;
+    document.getElementById('participant-grid').appendChild(card);
+    _updateCounts();
   }
 
   function removeCard(uid) {
-    const card = document.getElementById(`remote-${uid}`);
-    if (card) card.remove();
-    participants.delete(uid);
-    updateCounts();
+    document.getElementById(`remote-${uid}`)?.remove();
+    map.delete(uid);
+    _updateCounts();
   }
 
-  // ── PARTICIPANT PANEL ITEM ─────────────────────────────────
-
-  function addPanelItem(uid, meta = {}) {
+  /* ── panel item ───────────────────────────────────────────── */
+  function addPanelItem(uid, meta) {
     if (document.getElementById(`pitem-${uid}`)) return;
-
-    const name   = meta.name   || String(uid);
-    const rank   = meta.rank   || 'REMOTE OPERATOR';
-    const avatar = meta.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0f172a&color=00f0ff`;
-
-    const list = document.getElementById('participants-list');
+    const { name, rank, avatar } = meta;
     const item = document.createElement('div');
     item.className = 'participant-item';
     item.id        = `pitem-${uid}`;
-
     item.innerHTML = `
       <img src="${avatar}" class="participant-item-avatar" alt="${escapeHtml(name)}">
       <div class="participant-item-info">
         <div class="participant-item-name">${escapeHtml(name)}</div>
         <div class="participant-item-rank">${escapeHtml(rank)}</div>
       </div>
-      <div class="participant-item-status">● LIVE</div>
-    `;
-
-    list.appendChild(item);
+      <div class="participant-item-status">● LIVE</div>`;
+    document.getElementById('participants-list').appendChild(item);
   }
 
   function removePanelItem(uid) {
-    const item = document.getElementById(`pitem-${uid}`);
-    if (item) item.remove();
+    document.getElementById(`pitem-${uid}`)?.remove();
   }
 
-  // ── COMBINED ADD / REMOVE ──────────────────────────────────
-
-  function add(uid, meta = {}) {
+  /* ── public API ───────────────────────────────────────────── */
+  function add(uid, rawMeta = {}) {
+    const meta = {
+      name:   rawMeta.name   || String(uid),
+      rank:   rawMeta.rank   || 'REMOTE OPERATOR',
+      avatar: avatarFor(rawMeta.name || String(uid), rawMeta.avatar_url || rawMeta.avatar),
+    };
     addCard(uid, meta);
     addPanelItem(uid, meta);
   }
@@ -416,158 +379,163 @@ const ParticipantManager = (() => {
     removePanelItem(uid);
   }
 
-  // ── LOCAL USER IN PANEL ────────────────────────────────────
-
   function addLocalToPanel() {
     if (document.getElementById('pitem-local')) return;
-
-    const list   = document.getElementById('participants-list');
+    const avatar = avatarFor(currentUser.name, currentUser.avatar_url);
     const item   = document.createElement('div');
     item.className = 'participant-item';
     item.id        = 'pitem-local';
-
-    const avatar = currentUser.avatar_url ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=0f172a&color=00f0ff`;
-
     item.innerHTML = `
       <img src="${avatar}" class="participant-item-avatar" alt="${escapeHtml(currentUser.name)}">
       <div class="participant-item-info">
-        <div class="participant-item-name">${escapeHtml(currentUser.name)} <span style="font-size:10px;color:#2563eb;">(YOU)</span></div>
+        <div class="participant-item-name">
+          ${escapeHtml(currentUser.name)}
+          <span style="font-size:10px;color:#2563eb;">(YOU)</span>
+        </div>
         <div class="participant-item-rank">${escapeHtml(currentUser.rank || 'UNIT')}</div>
       </div>
-      <div class="participant-item-status">● LIVE</div>
-    `;
-
-    // Prepend so local user is always first
-    list.prepend(item);
+      <div class="participant-item-status">● LIVE</div>`;
+    document.getElementById('participants-list').prepend(item);
   }
 
   function removeLocalFromPanel() {
-    const item = document.getElementById('pitem-local');
-    if (item) item.remove();
+    document.getElementById('pitem-local')?.remove();
   }
 
-  // ── COUNTS ────────────────────────────────────────────────
-
-  function updateCounts() {
-    const count = participants.size + (activeStream ? 1 : 0);
-    document.getElementById('member-count').textContent =
-      `${count} OPERATOR${count !== 1 ? 'S' : ''} CONNECTED`;
-    document.getElementById('participants-panel-count').textContent = count;
+  function _updateCounts() {
+    const total = map.size + (activeStream ? 1 : 0);
+    const label = `${total} OPERATOR${total !== 1 ? 'S' : ''} CONNECTED`;
+    document.getElementById('member-count').textContent              = label;
+    document.getElementById('participants-panel-count').textContent  = total;
   }
-
-  // ── SUPABASE-BACKED FULL REFRESH ───────────────────────────
-  // Loads the member list from the DB and updates the count label.
-  // Individual cards are driven by Agora events for accuracy.
 
   async function refreshFromDB() {
     try {
       const { data } = await sbClient.from('group_call_members').select('*');
       if (!data) return;
-      const count = data.length;
-      document.getElementById('member-count').textContent =
-        `${count} OPERATOR${count !== 1 ? 'S' : ''} CONNECTED`;
-      document.getElementById('participants-panel-count').textContent = count;
+      const total = data.length;
+      document.getElementById('member-count').textContent             = `${total} OPERATOR${total !== 1 ? 'S' : ''} CONNECTED`;
+      document.getElementById('participants-panel-count').textContent = total;
     } catch (_) {}
   }
 
   function clear() {
-    participants.forEach((_, uid) => remove(uid));
+    map.forEach((_, uid) => remove(uid));
     removeLocalFromPanel();
   }
 
-  return {
-    add,
-    remove,
-    addLocalToPanel,
-    removeLocalFromPanel,
-    updateCounts,
-    refreshFromDB,
-    clear,
-  };
+  return { add, remove, addLocalToPanel, removeLocalFromPanel, refreshFromDB, clear };
 })();
 
 
 /* ══════════════════════════════════════════════════════════════
    11. SUPABASE REALTIME CHANNEL
-   One shared broadcast channel for chat messages, reactions,
-   hand-raise signals, and call activity detection.
+   Shared broadcast channel for: chat, reactions, call signals.
+   self:false → the sender never receives its own broadcasts.
    ══════════════════════════════════════════════════════════════ */
 
 const realtimeChannel = sbClient.channel('cadre_comms', {
   config: { broadcast: { self: false } },
 });
 
-// Incoming chat message from a peer
+// ── Chat ──────────────────────────────────────────────────────
 realtimeChannel.on('broadcast', { event: 'chat_message' }, ({ payload }) => {
   renderChatMessage(payload.name, payload.text, payload.time, false);
 });
 
-// Incoming reaction from a peer
+// ── Reactions ─────────────────────────────────────────────────
 realtimeChannel.on('broadcast', { event: 'reaction' }, ({ payload }) => {
   showFloatingReaction(payload.emoji);
 });
 
-// Incoming call signal — another operator started a call session
-// Only show overlay if the local user has not yet joined
-realtimeChannel.on('broadcast', { event: 'call_started' }, ({ payload }) => {
-  if (!activeStream) {
-    showIncomingCallOverlay(payload);
+// ── Incoming call invite ───────────────────────────────────────
+// Shows the on-page overlay only when the user is currently on
+// groupcall.html but has NOT yet joined (activeStream === false).
+// incoming-call-manager.js handles this on all other pages.
+realtimeChannel.on('broadcast', { event: 'call_invite' }, ({ payload }) => {
+  // Never ring for the person who started the call
+  if (payload.callerPhone === currentUser.phone) return;
+  // Already in the call — just a new participant joining, not an invite
+  if (activeStream) return;
+  // Show the inline incoming call overlay and ring
+  showIncomingCallOverlay(payload);
+});
+
+// ── Caller cancelled (before anyone joined) ───────────────────
+realtimeChannel.on('broadcast', { event: 'call_cancelled' }, ({ payload }) => {
+  hideIncomingCallOverlay();
+  if (payload?.callerName) {
+    addLog(`SYSTEM :: ${payload.callerName} cancelled the call`);
+    showToast(`${payload.callerName} cancelled the call`, 'info');
   }
 });
 
-// Subscribe to the channel up-front (works even without an active voice session)
+// ── Host ended the call (for everyone in the call) ────────────
+realtimeChannel.on('broadcast', { event: 'call_host_ended' }, () => {
+  if (activeStream) {
+    showToast('The host has ended the call', 'info');
+    addLog('SYSTEM :: Host ended the call');
+    terminateComms(false); // false = don't re-broadcast (we're the receiver)
+  }
+});
+
 realtimeChannel.subscribe((status) => {
-  if (status === 'SUBSCRIBED') {
-    addLog('COMMS :: Realtime broadcast channel active');
-  }
+  if (status === 'SUBSCRIBED') addLog('COMMS :: Realtime broadcast channel active');
 });
 
-// DB changes → refresh member count
+// DB presence changes → refresh count label
+let membersChannelCreated = false;
 function listenForMembers() {
+  if (membersChannelCreated) return; // prevent duplicate subscriptions on rejoin
+  membersChannelCreated = true;
   sbClient
     .channel('group_call_members_changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'group_call_members' },
-      () => ParticipantManager.refreshFromDB()
-    )
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_call_members' },
+        () => ParticipantManager.refreshFromDB())
     .subscribe();
 }
 
 
 /* ══════════════════════════════════════════════════════════════
-   12. INCOMING CALL OVERLAY
-   Shows when another operator broadcasts a "call_started" event
-   and the local user is not already in the call.
+   12. INCOMING CALL OVERLAY (on groupcall.html)
+   Only shown when a call_invite arrives and the user hasn't
+   joined yet. NEVER triggered by page load.
    ══════════════════════════════════════════════════════════════ */
 
 function showIncomingCallOverlay(payload = {}) {
   const overlay = document.getElementById('incoming-call-overlay');
-  const nameEl  = document.getElementById('incoming-call-name');
-  const subEl   = document.getElementById('incoming-call-sub');
+  if (!overlay) return;
 
-  nameEl.textContent = AGORA_CHANNEL;
-  subEl.textContent  = payload.callerName
-    ? `${payload.callerName} has started a secure channel`
-    : 'Active operators in secure channel';
+  const callerName   = payload.callerName   || 'CADRE OPERATOR';
+  const callerAvatar = payload.callerAvatar  || null;
+
+  document.getElementById('incoming-call-name').textContent = callerName;
+  document.getElementById('incoming-call-sub').textContent  =
+    `${callerName} has started a secure channel`;
+
+  // Show caller's real avatar if provided
+  const avatarEl = document.getElementById('incoming-call-avatar');
+  if (avatarEl) {
+    avatarEl.src = callerAvatar ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(callerName)}&background=0f172a&color=00f0ff`;
+  }
 
   overlay.classList.add('active');
-  RingtoneManager.play();
+  RingtoneManager.play(); // Only plays when a real invite is received
 }
 
 function hideIncomingCallOverlay() {
-  document.getElementById('incoming-call-overlay').classList.remove('active');
+  document.getElementById('incoming-call-overlay')?.classList.remove('active');
   RingtoneManager.stop();
 }
 
-// User taps ANSWER on the overlay
+// ANSWER button on the in-page overlay
 function answerIncomingCall() {
   hideIncomingCallOverlay();
-  initializeComms();
+  joinAsAnswerer();
 }
 
-// User taps DECLINE on the overlay
+// DECLINE button on the in-page overlay
 function declineIncomingCall() {
   hideIncomingCallOverlay();
   addLog('SYSTEM :: Incoming call declined');
@@ -575,92 +543,130 @@ function declineIncomingCall() {
 
 
 /* ══════════════════════════════════════════════════════════════
-   13. JOIN — initializeComms()
-   Full join flow: Agora join → mic track → publish → Supabase
-   upsert → start quality / speaker / timer monitoring.
+   13A. JOIN AS INITIATOR
+   Called when the user clicks START CALL on groupcall.html.
+   Joins the channel, broadcasts call_invite to all other pages,
+   and shows "CALLING…" state until someone answers.
    ══════════════════════════════════════════════════════════════ */
 
 async function initializeComms() {
-  if (activeStream) return; // prevent double-join
+  // Check sessionStorage: did the user arrive here by tapping ANSWER
+  // in incoming-call-manager.js on another page?
+  const action = sessionStorage.getItem('cadre_call_action');
+  if (action === 'answer') {
+    sessionStorage.removeItem('cadre_call_action');
+    sessionStorage.removeItem('cadre_call_id');
+    await joinAsAnswerer();
+    return;
+  }
 
-  // Guard: remove any lingering Agora listeners from a previous session
-  // to prevent event-listener duplication on rejoin.
+  // Otherwise, this user is the initiator
+  await joinAsInitiator();
+}
+
+async function joinAsInitiator() {
+  if (activeStream) return;
+
+  callRole = 'initiator';
+  callId   = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  _enterCallingState();
+  await _joinChannel();
+
+  // Broadcast invite to all other users' pages AFTER successfully joining
+  // so the channel is guaranteed to be live when they navigate to it
+  realtimeChannel.send({
+    type:    'broadcast',
+    event:   'call_invite',
+    payload: {
+      callId,
+      callerPhone:  currentUser.phone,
+      callerName:   currentUser.name,
+      callerRank:   currentUser.rank   || '',
+      callerAvatar: currentUser.avatar_url || null,
+    },
+  }).catch(() => {});
+
+  addLog('COMMS :: Call invite broadcast to all operators');
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   13B. JOIN AS ANSWERER
+   Called when the user taps ANSWER (either on the in-page
+   overlay or after navigating from another page).
+   Joins the channel quietly — NO ringtone, NO broadcast.
+   ══════════════════════════════════════════════════════════════ */
+
+async function joinAsAnswerer() {
+  if (activeStream) return;
+
+  callRole = 'answerer';
+  callId   = sessionStorage.getItem('cadre_call_id') || null;
+
+  _enterLiveState(); // Skip "CALLING…" — go straight to LIVE
+  await _joinChannel();
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   13C. SHARED CHANNEL JOIN LOGIC
+   ══════════════════════════════════════════════════════════════ */
+
+async function _joinChannel() {
+  // Remove any lingering listeners from a previous session
+  // to prevent duplicate event handlers on rejoin
   agoraClient.removeAllListeners('user-published');
   agoraClient.removeAllListeners('user-left');
   agoraClient.removeAllListeners('network-quality');
   agoraClient.removeAllListeners('connection-state-change');
+  agoraClient.removeAllListeners('volume-indicator');
 
   try {
-    activeStream = true;
+    activeStream         = true;
+    window.CADRE_IN_CALL = true;
 
-    // Update UI: entering call state
-    document.getElementById('connection-status').textContent = 'LIVE SECURE CHANNEL ACTIVE';
-    document.getElementById('joinBtn').style.display  = 'none';
-    document.getElementById('leaveBtn').style.display = 'block';
-    document.getElementById('muteBtn').style.display  = 'block';
-    document.getElementById('speakerBtn').style.display = 'block';
+    await agoraClient.join(AGORA_APP_ID, AGORA_CHANNEL, AGORA_TOKEN, currentUser.phone || null);
 
-    addLog('SYSTEM :: Initializing secure audio bridge');
-
-    // ── JOIN AGORA CHANNEL ─────────────────────────────────
-    await agoraClient.join(
-      AGORA_APP_ID,
-      AGORA_CHANNEL,
-      AGORA_TOKEN,
-      currentUser.phone || null
-    );
-
-    // ── CREATE MICROPHONE TRACK ───────────────────────────
-    // AEC=echo cancel, ANS=noise suppress, AGC=auto gain
+    // Microphone track with echo cancel, noise suppress, auto gain
     localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
       AEC: true,
       ANS: true,
       AGC: true,
-      encoderConfig: {
-        sampleRate:    48000,
-        stereo:        false,
-        bitrate:       64,      // good quality, lower battery cost
-      },
+      encoderConfig: { sampleRate: 48000, stereo: false, bitrate: 64 },
     });
 
     await agoraClient.publish([localAudioTrack]);
-    addLog('VOICE LINK :: Connected to tactical channel');
+    addLog('VOICE LINK :: Microphone published to channel');
 
-    // ── SUPABASE: register presence ───────────────────────
+    // Register presence in Supabase
     await sbClient.from('group_call_members').upsert({
-      phone:     currentUser.phone,
-      name:      currentUser.name,
-      rank:      currentUser.rank,
+      phone:      currentUser.phone,
+      name:       currentUser.name,
+      rank:       currentUser.rank,
       avatar_url: currentUser.avatar_url || null,
-      status:    'ONLINE',
-      joined_at: Date.now(),
-    });
+      status:     'ONLINE',
+      joined_at:  Date.now(),
+    }).catch(() => {});
 
-    // ── BROADCAST: tell others a call is active ───────────
-    realtimeChannel.send({
-      type:    'broadcast',
-      event:   'call_started',
-      payload: { callerName: currentUser.name },
-    });
-
-    // ── LOCAL PANEL ───────────────────────────────────────
     ParticipantManager.addLocalToPanel();
     ParticipantManager.refreshFromDB();
     listenForMembers();
-
-    // ── START MONITORING ──────────────────────────────────
     CallTimer.start();
     WakeLockManager.request();
     SpeakerDetection.start();
 
-    // ── AGORA EVENT: remote user published audio ──────────
+    // ── Remote user joined ────────────────────────────────
     agoraClient.on('user-published', async (user, mediaType) => {
       if (mediaType !== 'audio') return;
 
       await agoraClient.subscribe(user, mediaType);
       user.audioTrack.play();
 
-      // Fetch profile from Supabase (best-effort, non-blocking)
+      // If initiator was in "CALLING…" state, switch to LIVE now
+      if (callRole === 'initiator') _enterLiveState();
+
+      // Fetch real profile from Supabase (non-blocking)
       let meta = {};
       try {
         const { data } = await sbClient
@@ -668,84 +674,75 @@ async function initializeComms() {
           .select('name, rank, avatar_url')
           .eq('phone', String(user.uid))
           .single();
-        if (data) {
-          meta = {
-            name:   data.name,
-            rank:   data.rank,
-            avatar: data.avatar_url || undefined,
-          };
-        }
+        if (data) meta = { name: data.name, rank: data.rank, avatar_url: data.avatar_url };
       } catch (_) {}
 
       ParticipantManager.add(user.uid, meta);
-      showToast(`${meta.name || user.uid} joined the channel`, 'join');
-      addLog(`VOICE LINK :: ${meta.name || user.uid} connected`);
+      const displayName = meta.name || String(user.uid);
+      showToast(`${displayName} joined the channel`, 'join');
+      addLog(`VOICE LINK :: ${displayName} connected`);
     });
 
-    // ── AGORA EVENT: remote user left ────────────────────
+    // ── Remote user left ──────────────────────────────────
     agoraClient.on('user-left', (user) => {
-      const name = ParticipantManager.participants
-        ? (document.getElementById(`remote-${user.uid}`)
-            ?.querySelector('.user-name')?.textContent || String(user.uid))
-        : String(user.uid);
-
+      const nameEl = document.getElementById(`remote-${user.uid}`)?.querySelector('.user-name');
+      const name   = nameEl?.textContent || String(user.uid);
       ParticipantManager.remove(user.uid);
       SpeakerDetection.clearSpeaker();
       showToast(`${name} left the channel`, 'leave');
-      addLog(`VOICE LINK :: ${user.uid} disconnected`);
+      addLog(`VOICE LINK :: ${name} disconnected`);
     });
 
-    // ── AGORA EVENT: network quality ─────────────────────
+    // ── Network quality ───────────────────────────────────
     agoraClient.on('network-quality', ({ uplinkNetworkQuality, downlinkNetworkQuality }) => {
       QualityIndicator.update(uplinkNetworkQuality, downlinkNetworkQuality);
     });
 
-    // ── AGORA EVENT: connection state change ─────────────
-    agoraClient.on('connection-state-change', (curState, prevState, reason) => {
-      addLog(`NETWORK :: ${prevState} → ${curState}${reason ? ' (' + reason + ')' : ''}`);
-
-      if (curState === 'DISCONNECTED' && activeStream) {
-        addLog('NETWORK :: Attempting to reconnect…');
-        // Agora auto-reconnects; no manual action needed for transient drops
-      }
+    // ── Connection state ──────────────────────────────────
+    agoraClient.on('connection-state-change', (cur, prev, reason) => {
+      addLog(`NETWORK :: ${prev} → ${cur}${reason ? ` (${reason})` : ''}`);
     });
 
-  } catch (error) {
-    console.error('[CADRE] Join error:', error);
-    addLog(`ERROR :: ${error.message}`);
-    showToast('Failed to connect. Check permissions.', 'info');
-    // Clean up partial state
-    activeStream = false;
-    document.getElementById('joinBtn').style.display  = 'block';
-    document.getElementById('leaveBtn').style.display = 'none';
-    document.getElementById('muteBtn').style.display  = 'none';
-    document.getElementById('speakerBtn').style.display = 'none';
+  } catch (err) {
+    console.error('[CADRE] Join error:', err);
+    addLog(`ERROR :: ${err.message}`);
+    showToast('Failed to connect — check microphone permissions', 'info');
+
+    // Rollback state on failure
+    activeStream         = false;
+    window.CADRE_IN_CALL = false;
+    callRole             = null;
+    callId               = null;
+    _resetToIdleState();
   }
 }
 
 
 /* ══════════════════════════════════════════════════════════════
    14. LEAVE — terminateComms()
-   Full teardown: close mic, leave Agora, delete Supabase row,
-   stop monitoring, clean up UI.
+   broadcastCancelled:
+     true  (default) = this device is ending the call for everyone
+     false           = we're responding to a host_ended signal
    ══════════════════════════════════════════════════════════════ */
 
-async function terminateComms() {
-  if (!activeStream) return;
-  activeStream = false;
+async function terminateComms(broadcastEnd = true) {
+  if (!activeStream && callRole === null) return;
 
-  // Reset UI
-  document.getElementById('connection-status').textContent = 'CHANNEL OFFLINE';
-  document.getElementById('joinBtn').style.display   = 'block';
-  document.getElementById('leaveBtn').style.display  = 'none';
-  document.getElementById('muteBtn').style.display   = 'none';
-  document.getElementById('speakerBtn').style.display = 'none';
+  // Broadcast appropriate signal BEFORE tearing down the channel
+  if (broadcastEnd && realtimeChannel) {
+    const event   = callRole === 'initiator' ? 'call_host_ended' : 'call_cancelled';
+    const payload = {
+      callerPhone: currentUser.phone,
+      callerName:  currentUser.name,
+      callId,
+    };
+    realtimeChannel.send({ type: 'broadcast', event, payload }).catch(() => {});
+  }
 
-  // Reset mute state for next session
-  isMuted = false;
-  document.getElementById('muteBtn').innerHTML =
-    '🎤<div class="control-label">MIC</div>';
-  document.getElementById('local-mic-icon').textContent = '🎤 LIVE';
+  activeStream         = false;
+  window.CADRE_IN_CALL = false;
+  callRole             = null;
+  callId               = null;
 
   // Stop all monitoring
   SpeakerDetection.stop();
@@ -753,48 +750,87 @@ async function terminateComms() {
   QualityIndicator.reset();
   WakeLockManager.release();
 
-  // Close mic track — this MUST happen before client.leave()
+  // Close mic track BEFORE leaving the Agora channel
   if (localAudioTrack) {
     localAudioTrack.close();
     localAudioTrack = null;
   }
 
-  // Remove all Agora event listeners before leaving
+  // Remove listeners before .leave() to prevent ghost callbacks
   agoraClient.removeAllListeners('user-published');
   agoraClient.removeAllListeners('user-left');
   agoraClient.removeAllListeners('network-quality');
   agoraClient.removeAllListeners('connection-state-change');
+  agoraClient.removeAllListeners('volume-indicator');
 
-  try {
-    await agoraClient.leave();
-  } catch (_) {}
+  try { await agoraClient.leave(); } catch (_) {}
 
   // Remove from Supabase presence table
   if (currentUser?.phone) {
-    try {
-      await sbClient
-        .from('group_call_members')
-        .delete()
-        .eq('phone', currentUser.phone);
-    } catch (_) {}
+    sbClient.from('group_call_members').delete().eq('phone', currentUser.phone).catch(() => {});
   }
 
-  // Clear participant UI
   ParticipantManager.clear();
   ParticipantManager.refreshFromDB();
-
+  _resetToIdleState();
   addLog('SYSTEM :: Tactical stream terminated');
 }
 
 
 /* ══════════════════════════════════════════════════════════════
-   15. CALL CONTROLS
+   15. UI STATE TRANSITIONS
+   Keeps UI consistent for idle / calling / live states.
    ══════════════════════════════════════════════════════════════ */
 
-// ── MUTE / UNMUTE ────────────────────────────────────────────
+// User has clicked START CALL — waiting for others to join
+function _enterCallingState() {
+  document.getElementById('connection-status').textContent = 'CALLING… WAITING FOR OPERATORS';
+  document.getElementById('joinBtn').style.display         = 'none';
+  document.getElementById('leaveBtn').style.display        = 'none';
+  document.getElementById('cancelCallBtn').style.display   = 'block'; // new cancel btn
+  document.getElementById('muteBtn').style.display         = 'block';
+  document.getElementById('speakerBtn').style.display      = 'block';
+}
+
+// At least one other user has joined — call is live
+function _enterLiveState() {
+  document.getElementById('connection-status').textContent = 'LIVE SECURE CHANNEL ACTIVE';
+  document.getElementById('cancelCallBtn').style.display   = 'none';
+  document.getElementById('leaveBtn').style.display        = 'block';
+  document.getElementById('muteBtn').style.display         = 'block';
+  document.getElementById('speakerBtn').style.display      = 'block';
+  document.getElementById('joinBtn').style.display         = 'none';
+}
+
+// Call ended — back to idle
+function _resetToIdleState() {
+  document.getElementById('connection-status').textContent = 'CHANNEL OFFLINE';
+  document.getElementById('joinBtn').style.display         = 'block';
+  document.getElementById('leaveBtn').style.display        = 'none';
+  document.getElementById('cancelCallBtn').style.display   = 'none';
+  document.getElementById('muteBtn').style.display         = 'none';
+  document.getElementById('speakerBtn').style.display      = 'none';
+
+  // Reset mute icon for next session
+  isMuted = false;
+  document.getElementById('muteBtn').innerHTML =
+    '🎤<div class="control-label">MIC</div>';
+  document.getElementById('local-mic-icon').textContent = '🎤 LIVE';
+}
+
+// CANCEL CALL — only available to the initiator before anyone joins
+async function cancelCall() {
+  if (callRole !== 'initiator') return;
+  await terminateComms(true);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   16. CALL CONTROLS
+   ══════════════════════════════════════════════════════════════ */
+
 async function toggleMute() {
   if (!localAudioTrack) return;
-
   isMuted = !isMuted;
   await localAudioTrack.setEnabled(!isMuted);
 
@@ -805,96 +841,74 @@ async function toggleMute() {
   document.getElementById('local-mic-icon').textContent =
     isMuted ? '🔇 MUTED' : '🎤 LIVE';
 
-  addLog(isMuted ? 'VOICE CHANNEL :: Microphone muted' : 'VOICE CHANNEL :: Microphone unmuted');
+  addLog(isMuted ? 'VOICE :: Microphone muted' : 'VOICE :: Microphone unmuted');
 }
 
-// ── SPEAKER TOGGLE ───────────────────────────────────────────
-// Attempts to switch between loudspeaker and earpiece on mobile.
-// Uses the AudioContext destination or device enumeration where available.
 async function toggleSpeaker() {
   speakerEnabled = !speakerEnabled;
-
   const btn = document.getElementById('speakerBtn');
   btn.innerHTML = speakerEnabled
     ? '🔊<div class="control-label">SPEAKER</div>'
     : '🔈<div class="control-label">EARPIECE</div>';
-
   btn.classList.toggle('active', !speakerEnabled);
 
-  // Best-effort: enumerate audio output devices and route accordingly
+  // Best-effort output device routing (Chrome/Android; not available on iOS)
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-
-    if (audioOutputs.length > 1) {
-      // Find earpiece (usually labeled "default" or has "earpiece" in label)
+    const outputs = devices.filter(d => d.kind === 'audiooutput');
+    if (outputs.length > 1) {
       const target = speakerEnabled
-        ? audioOutputs.find(d => d.label.toLowerCase().includes('speaker'))
-            || audioOutputs[0]
-        : audioOutputs.find(d =>
-            d.label.toLowerCase().includes('earpiece') ||
-            d.label.toLowerCase().includes('default'))
-            || audioOutputs[0];
-
-      // setSinkId on all <audio> elements in the page
+        ? (outputs.find(d => d.label.toLowerCase().includes('speaker')) || outputs[0])
+        : (outputs.find(d => d.label.toLowerCase().includes('earpiece') ||
+                             d.label.toLowerCase().includes('default'))   || outputs[0]);
       document.querySelectorAll('audio').forEach(el => {
         if (el.setSinkId) el.setSinkId(target.deviceId).catch(() => {});
       });
     }
-  } catch (_) {
-    // Not supported on this browser/device — silently ignore
-  }
+  } catch (_) {}
 
   addLog(`AUDIO :: Routed to ${speakerEnabled ? 'loudspeaker' : 'earpiece'}`);
 }
 
-// ── RAISE HAND ───────────────────────────────────────────────
 function toggleRaiseHand() {
   handRaised = !handRaised;
-  document.getElementById('local-hand-icon').style.display =
-    handRaised ? 'block' : 'none';
+  document.getElementById('local-hand-icon').style.display = handRaised ? 'block' : 'none';
   addLog(handRaised ? 'SIGNAL :: Hand raised' : 'SIGNAL :: Hand lowered');
 }
 
-// ── PIN PARTICIPANT ──────────────────────────────────────────
 function pinParticipant(id) {
   document.querySelectorAll('.user-card').forEach(c => (c.style.order = 0));
-  const target = document.getElementById(id);
-  if (target) target.style.order = -1;
+  const t = document.getElementById(id);
+  if (t) t.style.order = -1;
 }
 
-// ── REMOTE MUTE (signal only — actual mute requires server) ──
 function remoteMute(uid) {
-  addLog(`ADMIN ACTION :: Mute request sent to ${uid}`);
+  addLog(`ADMIN :: Mute request sent to ${uid}`);
 }
 
-// ── RECORDING ────────────────────────────────────────────────
 function toggleRecord() {
   isRecording = !isRecording;
-  const btn = document.querySelector('.control-btn[onclick="toggleRecord()"]');
-  if (btn) btn.classList.toggle('active', isRecording);
+  document.querySelector('.control-btn[onclick="toggleRecord()"]')
+    ?.classList.toggle('active', isRecording);
   addLog(isRecording ? 'REC :: Recording started' : 'REC :: Recording stopped');
 }
 
-// ── SCREEN SHARE (Web Share API) ────────────────────────────
 function shareScreen() {
   if (navigator.share) {
     navigator.share({ title: 'CADRE CALL', url: window.location.href }).catch(() => {});
   } else {
-    addLog('SHARE :: Not supported on this device');
+    addLog('SHARE :: Web Share API not supported on this device');
   }
 }
 
 
 /* ══════════════════════════════════════════════════════════════
-   16. UI TOGGLES
+   17. UI PANEL TOGGLES
    ══════════════════════════════════════════════════════════════ */
 
 function toggleChat() {
   const panel = document.getElementById('chatPanel');
   panel.classList.toggle('open');
-
-  // Participants panel and chat are mutually exclusive on mobile
   if (panel.classList.contains('open')) {
     document.getElementById('participantsPanel').classList.remove('open');
     if (window.innerWidth > 900) {
@@ -906,8 +920,6 @@ function toggleChat() {
 function toggleParticipantsPanel() {
   const panel = document.getElementById('participantsPanel');
   panel.classList.toggle('open');
-
-  // Mutually exclusive with chat panel
   if (panel.classList.contains('open')) {
     document.getElementById('chatPanel').classList.remove('open');
   }
@@ -919,7 +931,7 @@ function toggleReactionPicker() {
 
 
 /* ══════════════════════════════════════════════════════════════
-   17. CHAT — GLOBAL VIA SUPABASE BROADCAST
+   18. CHAT
    ══════════════════════════════════════════════════════════════ */
 
 function sendChatMessage() {
@@ -930,89 +942,51 @@ function sendChatMessage() {
   const name = currentUser.name || 'UNKNOWN';
   const time = new Date().toLocaleTimeString();
 
-  // Render locally (self = false means broadcast won't echo back)
   renderChatMessage(name, text, time, true);
-
-  // Broadcast to all connected peers
   realtimeChannel.send({
-    type:    'broadcast',
-    event:   'chat_message',
-    payload: { name, text, time },
-  });
+    type: 'broadcast', event: 'chat_message', payload: { name, text, time },
+  }).catch(() => {});
 
   input.value = '';
   input.focus();
 }
 
-/**
- * Render a chat message in the panel.
- * @param {string}  name   - Sender display name
- * @param {string}  text   - Message body
- * @param {string}  time   - Formatted time string
- * @param {boolean} isSelf - True if sent by the local user
- */
 function renderChatMessage(name, text, time, isSelf) {
   const container = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = 'chat-message';
-
-  if (isSelf) {
-    div.style.borderColor = '#2563eb55';
-    div.style.background  = '#0f1e3a';
-  }
-
+  const div       = document.createElement('div');
+  div.className   = 'chat-message';
+  if (isSelf) { div.style.borderColor = '#2563eb55'; div.style.background = '#0f1e3a'; }
   div.innerHTML = `
     <div class="chat-user">
       ${escapeHtml(name)}
       ${isSelf ? '<span style="font-size:10px;color:#2563eb;">(YOU)</span>' : ''}
     </div>
     <div class="chat-text">${escapeHtml(text)}</div>
-    <div class="chat-time">${time}</div>
-  `;
-
+    <div class="chat-time">${time}</div>`;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
 
-// System message (join / leave / info)
-function addSystemMessage(text) {
-  const container = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = 'chat-message system-msg';
-  div.innerHTML = `
-    <div class="chat-user">SYSTEM</div>
-    <div class="chat-text">${escapeHtml(text)}</div>
-    <div class="chat-time">${new Date().toLocaleTimeString()}</div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
+document.getElementById('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+});
 
 
 /* ══════════════════════════════════════════════════════════════
-   18. REACTIONS — GLOBAL VIA SUPABASE BROADCAST
+   19. REACTIONS
    ══════════════════════════════════════════════════════════════ */
 
 function sendReaction(emoji) {
   showFloatingReaction(emoji);
-
   realtimeChannel.send({
-    type:    'broadcast',
-    event:   'reaction',
-    payload: { emoji },
-  });
-
-  // Close picker after sending
+    type: 'broadcast', event: 'reaction', payload: { emoji },
+  }).catch(() => {});
   document.getElementById('reactionPicker').classList.remove('active');
 }
 
-/**
- * Render a floating emoji animation on screen.
- * Called for both local and remote reactions.
- */
 function showFloatingReaction(emoji) {
-  const el = document.createElement('div');
-  el.className  = 'floating-reaction';
+  const el       = document.createElement('div');
+  el.className   = 'floating-reaction';
   el.textContent = emoji;
   el.style.left  = (Math.random() * 80 + 10) + '%';
   document.body.appendChild(el);
@@ -1021,14 +995,14 @@ function showFloatingReaction(emoji) {
 
 
 /* ══════════════════════════════════════════════════════════════
-   19. TOAST NOTIFICATIONS
-   Transient join/leave alerts that auto-dismiss after 4 seconds.
+   20. TOAST NOTIFICATIONS
    ══════════════════════════════════════════════════════════════ */
 
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
+  if (!container) return;
+  const toast       = document.createElement('div');
+  toast.className   = `toast ${type}`;
   toast.textContent = message;
   container.appendChild(toast);
   setTimeout(() => toast.remove(), 4200);
@@ -1036,136 +1010,67 @@ function showToast(message, type = 'info') {
 
 
 /* ══════════════════════════════════════════════════════════════
-   20. COMMS LOG
-   Lightweight on-screen debug log (hidden on mobile).
+   21. COMMS LOG
    ══════════════════════════════════════════════════════════════ */
 
 function addLog(message) {
-  const logContainer = document.getElementById('comms-log');
-  if (!logContainer) return;
-  const entry = document.createElement('div');
-  entry.className = 'log-entry';
-  entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
-  logContainer.prepend(entry);
-
-  // Keep log from growing unbounded
-  const entries = logContainer.querySelectorAll('.log-entry');
-  if (entries.length > 50) entries[entries.length - 1].remove();
+  const log = document.getElementById('comms-log');
+  if (!log) return;
+  const entry       = document.createElement('div');
+  entry.className   = 'log-entry';
+  entry.innerHTML   = `[${new Date().toLocaleTimeString()}] ${message}`;
+  log.prepend(entry);
+  // Cap at 50 entries to avoid unbounded growth
+  const all = log.querySelectorAll('.log-entry');
+  if (all.length > 50) all[all.length - 1].remove();
 }
 
 
 /* ══════════════════════════════════════════════════════════════
-   21. PAGE VISIBILITY — PERSISTENT CALL SESSION
-   The WebRTC connection (Agora) naturally survives tab switches.
-   This handler simply logs the visibility state and re-acquires
-   the wake lock when the page becomes visible again.
-
-   KEY PRINCIPLE: We do NOT disconnect on visibility change.
-   The call only ends via terminateComms() or network loss.
+   22. PAGE VISIBILITY — PERSISTENT SESSION
+   The Agora WebRTC connection naturally survives tab switches.
+   We NEVER disconnect on visibility change — only on hangup
+   or network failure. We simply re-acquire wake lock on return.
    ══════════════════════════════════════════════════════════════ */
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    // Page is in background — call remains alive, do nothing
-    addLog('SYSTEM :: Page backgrounded — call staying active');
-  } else {
-    // Page returned to foreground
-    addLog('SYSTEM :: Page foregrounded');
-    if (activeStream) {
-      WakeLockManager.request(); // Re-acquire if it was released
-    }
+  if (document.visibilityState === 'visible' && activeStream) {
+    WakeLockManager.request();
   }
 });
 
 
 /* ══════════════════════════════════════════════════════════════
-   22. MOBILE: KEEP INPUT ABOVE KEYBOARD
-   When the virtual keyboard opens on iOS/Android, the visual
-   viewport shrinks. We shift the chat panel so the input is
-   never buried under the keyboard.
+   23. MOBILE: KEEP CHAT INPUT ABOVE KEYBOARD
    ══════════════════════════════════════════════════════════════ */
 
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', () => {
-    const chatPanel = document.getElementById('chatPanel');
-    if (!chatPanel.classList.contains('open')) return;
-
-    const viewportHeight = window.visualViewport.height;
-    const windowHeight   = window.innerHeight;
-
-    chatPanel.style.height = viewportHeight + 'px';
-    chatPanel.style.top    = window.visualViewport.offsetTop + 'px';
+    const panel = document.getElementById('chatPanel');
+    if (!panel.classList.contains('open')) return;
+    panel.style.height = window.visualViewport.height + 'px';
+    panel.style.top    = window.visualViewport.offsetTop + 'px';
   });
 }
 
 
 /* ══════════════════════════════════════════════════════════════
-   23. KEYBOARD SHORTCUT — SEND CHAT ON ENTER
-   ══════════════════════════════════════════════════════════════ */
-
-document.getElementById('chat-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendChatMessage();
-  }
-});
-
-
-/* ══════════════════════════════════════════════════════════════
    24. BEFOREUNLOAD — GRACEFUL CLEANUP
-   Attempts to remove the user from the presence table when the
-   tab/window closes. Note: async work in beforeunload is
-   best-effort only — browsers may not wait for it.
+   sendBeacon is used because fetch/await are unreliable here.
    ══════════════════════════════════════════════════════════════ */
 
 window.addEventListener('beforeunload', () => {
-  if (!currentUser?.phone) return;
+  if (localAudioTrack) localAudioTrack.close();
 
-  // Use sendBeacon for reliable fire-and-forget cleanup
-  // (fetch/await is unreliable in beforeunload)
-  const url = `${SUPABASE_URL}/rest/v1/group_call_members?phone=eq.${encodeURIComponent(currentUser.phone)}`;
-  try {
-    navigator.sendBeacon(
-      url,
-      JSON.stringify({ _method: 'DELETE' })
-    );
-  } catch (_) {}
-
-  // Also close the local audio track synchronously
-  if (localAudioTrack) {
-    localAudioTrack.close();
+  if (currentUser?.phone) {
+    const url = `${SUPABASE_URL}/rest/v1/group_call_members?phone=eq.${encodeURIComponent(currentUser.phone)}`;
+    try { navigator.sendBeacon(url, JSON.stringify({ _method: 'DELETE' })); } catch (_) {}
   }
 });
 
 
 /* ══════════════════════════════════════════════════════════════
-   25. INCOMING CALL DETECTION ON PAGE LOAD
-   If there are already members in the channel when the page
-   loads, show the incoming call overlay so the user knows
-   a call is in progress.
-   ══════════════════════════════════════════════════════════════ */
-
-(async function detectActiveCall() {
-  try {
-    const { data } = await sbClient
-      .from('group_call_members')
-      .select('name, phone')
-      .limit(5);
-
-    if (data && data.length > 0) {
-      // There are already operators in the channel — show incoming overlay
-      const callerName = data[0]?.name || 'Unknown operator';
-      showIncomingCallOverlay({ callerName });
-    }
-  } catch (_) {
-    // Supabase unavailable — silent fail, user can join manually
-  }
-})();
-
-
-/* ══════════════════════════════════════════════════════════════
-   26. SECURITY HELPER
-   Prevents XSS when inserting user-provided content into the DOM.
+   25. SECURITY HELPER — XSS PREVENTION
    ══════════════════════════════════════════════════════════════ */
 
 function escapeHtml(str) {

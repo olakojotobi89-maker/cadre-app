@@ -173,13 +173,11 @@ body{
   border-color:#00f0ff;
 }
 
-/* Active speaker ring */
 .user-card.speaking{
   border-color:#00f0ff;
   box-shadow:0 0 25px rgba(0,240,255,0.4);
 }
 
-/* Speaking pulse ring around avatar */
 .avatar-wrapper{
   position:relative;
   margin-bottom:14px;
@@ -192,7 +190,6 @@ body{
   border:3px solid #00f0ff;
   opacity:0;
   transition:opacity 0.2s;
-  animation:none;
 }
 
 .user-card.speaking .speaking-ring{
@@ -476,6 +473,9 @@ body{
 }
 
 /* ── INCOMING CALL OVERLAY ── */
+/* Shown only when another user broadcasts call_invite
+   while this user is already on groupcall.html but hasn't joined.
+   NEVER shown on page load. */
 .incoming-call-overlay{
   position:fixed;
   inset:0;
@@ -806,13 +806,18 @@ body{
 
 <body>
 
-<!-- ── RINGTONE AUDIO ── -->
+<!-- ── RINGTONE AUDIO ──
+     Only plays when another user sends a call_invite and this
+     user is viewing groupcall.html but hasn't joined yet.
+     NEVER auto-plays on page load. -->
 <audio id="ringtone" src="Hip-hop_Alarm.mp3" loop preload="auto"></audio>
 
 <!-- ── TOAST CONTAINER ── -->
 <div class="toast-container" id="toast-container"></div>
 
-<!-- ── INCOMING CALL OVERLAY ── -->
+<!-- ── INCOMING CALL OVERLAY ──
+     Shown only by groupcall.js when a call_invite event is
+     received. Never shown automatically on page load. -->
 <div class="incoming-call-overlay" id="incoming-call-overlay">
   <div class="incoming-call-label">INCOMING GROUP CALL</div>
   <img
@@ -822,14 +827,14 @@ body{
     alt="Caller"
   >
   <div class="incoming-call-name" id="incoming-call-name">GROUP_CALL_ALPHA</div>
-  <div class="incoming-call-sub" id="incoming-call-sub">Tap to join the secure channel</div>
+  <div class="incoming-call-sub" id="incoming-call-sub">has started a secure channel</div>
   <div class="incoming-call-actions">
     <div>
-      <button class="incoming-answer-btn" id="incoming-answer-btn" onclick="answerIncomingCall()">📞</button>
+      <button class="incoming-answer-btn" onclick="answerIncomingCall()">📞</button>
       <div class="incoming-call-btn-label">ANSWER</div>
     </div>
     <div>
-      <button class="incoming-decline-btn" id="incoming-decline-btn" onclick="declineIncomingCall()">📵</button>
+      <button class="incoming-decline-btn" onclick="declineIncomingCall()">📵</button>
       <div class="incoming-call-btn-label">DECLINE</div>
     </div>
   </div>
@@ -838,7 +843,7 @@ body{
 <!-- ── MAIN WRAPPER ── -->
 <div class="main-wrapper">
 
-  <!-- ── LEFT: VIDEO / AUDIO AREA ── -->
+  <!-- LEFT: AUDIO / PARTICIPANT AREA -->
   <div class="video-area">
 
     <!-- TOP BAR -->
@@ -855,7 +860,7 @@ body{
         <!-- Call duration — hidden until call starts -->
         <div class="call-timer" id="call-timer">00:00</div>
 
-        <!-- Network quality bars -->
+        <!-- 4-bar network quality indicator -->
         <div class="quality-indicator" id="quality-indicator" title="Connection quality">
           <div class="quality-bar"></div>
           <div class="quality-bar"></div>
@@ -902,7 +907,7 @@ body{
     </div>
   </div>
 
-  <!-- ── CHAT PANEL ── -->
+  <!-- CHAT PANEL -->
   <div class="chat-panel" id="chatPanel">
     <div class="chat-header">
       TACTICAL CHAT
@@ -925,7 +930,7 @@ body{
 
 </div>
 
-<!-- ── PARTICIPANTS PANEL ── -->
+<!-- PARTICIPANTS PANEL -->
 <div class="participants-panel" id="participantsPanel">
   <div class="participants-header">
     <div>
@@ -937,13 +942,13 @@ body{
   <div class="participants-list" id="participants-list"></div>
 </div>
 
-<!-- ── COMMS LOG ── -->
+<!-- COMMS LOG (desktop only) -->
 <div class="comms-log" id="comms-log">
   <div class="log-entry">SYSTEM :: Tactical communication interface initialized</div>
   <div class="log-entry">SYSTEM :: Encryption layer active</div>
 </div>
 
-<!-- ── REACTION PICKER ── -->
+<!-- REACTION PICKER -->
 <div class="reaction-picker" id="reactionPicker">
   <div class="reaction-btn" onclick="sendReaction('👍')">👍</div>
   <div class="reaction-btn" onclick="sendReaction('👏')">👏</div>
@@ -953,17 +958,25 @@ body{
   <div class="reaction-btn" onclick="sendReaction('😮')">😮</div>
 </div>
 
-<!-- ── BOTTOM CONTROLS ── -->
+<!-- BOTTOM CONTROLS -->
 <div class="bottom-controls">
 
+  <!-- START CALL: visible when idle -->
   <button class="control-btn" id="joinBtn" onclick="initializeComms()">
-    📡<div class="control-label">JOIN</div>
+    📡<div class="control-label">START CALL</div>
   </button>
 
+  <!-- CANCEL: visible only when initiator is in "calling…" state -->
+  <button class="control-btn leave-btn" id="cancelCallBtn" onclick="cancelCall()" style="display:none;">
+    ✖<div class="control-label">CANCEL</div>
+  </button>
+
+  <!-- MIC: visible when in call -->
   <button class="control-btn" id="muteBtn" onclick="toggleMute()" style="display:none;">
     🎤<div class="control-label">MIC</div>
   </button>
 
+  <!-- SPEAKER: visible when in call -->
   <button class="control-btn" id="speakerBtn" onclick="toggleSpeaker()" style="display:none;">
     🔊<div class="control-label">SPEAKER</div>
   </button>
@@ -992,13 +1005,18 @@ body{
     ⏺️<div class="control-label">REC</div>
   </button>
 
+  <!-- LEAVE: visible when call is live -->
   <button class="control-btn leave-btn" id="leaveBtn" onclick="terminateComms()" style="display:none;">
     📞<div class="control-label">LEAVE</div>
   </button>
 
 </div>
 
-<!-- ── SCRIPTS ── -->
+<!-- SCRIPTS
+     incoming-call-manager.js self-skips on this page (detects
+     #participant-grid) but is loaded here to warm the cache.
+-->
+<script src="incoming-call-manager.js"></script>
 <script src="groupcall.js"></script>
 <script src="ai-voice.js"></script>
 <script src="ai-integration.js"></script>
