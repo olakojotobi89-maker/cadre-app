@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
 <title>CADRE - Group Comms</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -11,492 +10,795 @@
 
 <style>
 
+/* ── RESET ── */
 *{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:Arial,sans-serif;
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family:Arial,sans-serif;
 }
 
 body{
-background:#0b1120;
-color:white;
-overflow:hidden;
-height:100vh;
-height:100dvh;
+  background:#0b1120;
+  color:white;
+  overflow:hidden;
+  height:100vh;
+  height:100dvh;
 }
 
-/* ===== MAIN ===== */
-
+/* ── LAYOUT ── */
 .main-wrapper{
-display:flex;
-height:100vh;
-height:100dvh;
-width:100%;
-position:relative;
+  display:flex;
+  height:100vh;
+  height:100dvh;
+  width:100%;
+  position:relative;
 }
-
-/* ===== LEFT SIDE ===== */
 
 .video-area{
-flex:1;
-display:flex;
-flex-direction:column;
-background:#0b1120;
-overflow:hidden;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  background:#0b1120;
+  overflow:hidden;
 }
 
-/* ===== TOP BAR ===== */
-
+/* ── TOP BAR ── */
 .top-bar{
-height:70px;
-background:#101826;
-border-bottom:1px solid #1f2937;
-display:flex;
-align-items:center;
-justify-content:space-between;
-padding:0 20px;
-z-index:10;
-flex-shrink:0;
+  height:70px;
+  background:#101826;
+  border-bottom:1px solid #1f2937;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 20px;
+  z-index:10;
+  flex-shrink:0;
 }
 
 .top-left{
-display:flex;
-align-items:center;
-gap:12px;
+  display:flex;
+  align-items:center;
+  gap:12px;
 }
 
 .live-dot{
-width:12px;
-height:12px;
-border-radius:50%;
-background:#10b981;
-box-shadow:0 0 10px #10b981;
-animation:pulse 1.5s infinite;
-flex-shrink:0;
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background:#10b981;
+  box-shadow:0 0 10px #10b981;
+  animation:pulse 1.5s infinite;
+  flex-shrink:0;
 }
 
 @keyframes pulse{
-0%,100%{transform:scale(1);opacity:0.6;}
-50%{transform:scale(1.3);opacity:1;}
+  0%,100%{transform:scale(1);opacity:0.6;}
+  50%{transform:scale(1.3);opacity:1;}
 }
 
 .call-title{
-font-size:18px;
-font-weight:bold;
+  font-size:18px;
+  font-weight:bold;
 }
 
 .call-status{
-font-size:12px;
-color:#94a3b8;
-margin-top:3px;
+  font-size:12px;
+  color:#94a3b8;
+  margin-top:3px;
+}
+
+.top-right-info{
+  display:flex;
+  align-items:center;
+  gap:16px;
 }
 
 .member-count{
-font-size:13px;
-color:#00f0ff;
-font-weight:bold;
+  font-size:13px;
+  color:#00f0ff;
+  font-weight:bold;
 }
 
-/* ===== PARTICIPANTS GRID ===== */
+/* ── CALL DURATION TIMER ── */
+.call-timer{
+  font-size:13px;
+  color:#10b981;
+  font-weight:bold;
+  font-variant-numeric:tabular-nums;
+  display:none;
+}
 
+/* ── CONNECTION QUALITY INDICATOR ── */
+.quality-indicator{
+  display:flex;
+  align-items:flex-end;
+  gap:2px;
+  height:20px;
+  cursor:default;
+}
+
+.quality-bar{
+  width:5px;
+  border-radius:2px;
+  background:#1f2937;
+  transition:background 0.4s;
+}
+
+.quality-bar:nth-child(1){ height:6px; }
+.quality-bar:nth-child(2){ height:11px; }
+.quality-bar:nth-child(3){ height:16px; }
+.quality-bar:nth-child(4){ height:20px; }
+
+.quality-indicator.good   .quality-bar{ background:#10b981; }
+.quality-indicator.medium .quality-bar:nth-child(-n+3){ background:#f59e0b; }
+.quality-indicator.medium .quality-bar:nth-child(4){ background:#1f2937; }
+.quality-indicator.poor   .quality-bar:nth-child(-n+2){ background:#ef4444; }
+.quality-indicator.poor   .quality-bar:nth-child(3),
+.quality-indicator.poor   .quality-bar:nth-child(4){ background:#1f2937; }
+.quality-indicator.bad    .quality-bar:nth-child(1){ background:#ef4444; }
+.quality-indicator.bad    .quality-bar:nth-child(2),
+.quality-indicator.bad    .quality-bar:nth-child(3),
+.quality-indicator.bad    .quality-bar:nth-child(4){ background:#1f2937; }
+
+/* ── PARTICIPANT GRID ── */
 .participant-grid{
-flex:1;
-padding:16px;
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-gap:16px;
-overflow:auto;
-padding-bottom:120px;
+  flex:1;
+  padding:16px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:16px;
+  overflow:auto;
+  padding-bottom:120px;
 }
 
-/* ===== USER CARD ===== */
-
+/* ── USER CARD ── */
 .user-card{
-background:#101826;
-border:1px solid #1f2937;
-border-radius:18px;
-position:relative;
-overflow:hidden;
-min-height:230px;
-display:flex;
-flex-direction:column;
-justify-content:center;
-align-items:center;
-transition:0.3s;
-animation:fadeIn 0.4s ease;
+  background:#101826;
+  border:1px solid #1f2937;
+  border-radius:18px;
+  position:relative;
+  overflow:hidden;
+  min-height:230px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  transition:border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+  animation:fadeIn 0.4s ease;
 }
 
 .user-card:hover{
-transform:translateY(-3px);
-border-color:#00f0ff;
+  transform:translateY(-3px);
+  border-color:#00f0ff;
 }
 
 .user-card.speaking{
-border-color:#00f0ff;
-box-shadow:0 0 25px rgba(0,240,255,0.4);
+  border-color:#00f0ff;
+  box-shadow:0 0 25px rgba(0,240,255,0.4);
+}
+
+.avatar-wrapper{
+  position:relative;
+  margin-bottom:14px;
+}
+
+.speaking-ring{
+  position:absolute;
+  inset:-6px;
+  border-radius:50%;
+  border:3px solid #00f0ff;
+  opacity:0;
+  transition:opacity 0.2s;
+}
+
+.user-card.speaking .speaking-ring{
+  opacity:1;
+  animation:speakRing 1s ease-in-out infinite;
+}
+
+@keyframes speakRing{
+  0%,100%{ transform:scale(1); opacity:0.7; }
+  50%{ transform:scale(1.12); opacity:1; }
 }
 
 .user-avatar{
-width:90px;
-height:90px;
-border-radius:50%;
-object-fit:cover;
-border:3px solid #1f2937;
-margin-bottom:14px;
+  width:90px;
+  height:90px;
+  border-radius:50%;
+  object-fit:cover;
+  border:3px solid #1f2937;
+  display:block;
 }
 
 .user-name{
-font-size:16px;
-font-weight:bold;
+  font-size:16px;
+  font-weight:bold;
 }
 
 .user-rank{
-font-size:12px;
-color:#94a3b8;
-margin-top:5px;
+  font-size:12px;
+  color:#94a3b8;
+  margin-top:5px;
 }
 
 .user-top-icons{
-position:absolute;
-top:12px;
-right:12px;
-display:flex;
-gap:8px;
+  position:absolute;
+  top:12px;
+  right:12px;
+  display:flex;
+  gap:8px;
 }
 
 .user-badge{
-background:#0f172a;
-border:1px solid #334155;
-padding:6px 10px;
-border-radius:999px;
-font-size:12px;
+  background:#0f172a;
+  border:1px solid #334155;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
 }
 
 .user-footer{
-position:absolute;
-bottom:12px;
-left:12px;
-right:12px;
-display:flex;
-justify-content:space-between;
-align-items:center;
+  position:absolute;
+  bottom:12px;
+  left:12px;
+  right:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
 }
 
 .connection-status{
-font-size:11px;
-color:#10b981;
+  font-size:11px;
+  color:#10b981;
 }
 
 .card-controls{
-display:flex;
-gap:8px;
+  display:flex;
+  gap:8px;
 }
 
 .small-btn{
-border:none;
-background:#1e293b;
-color:white;
-padding:7px 10px;
-border-radius:10px;
-cursor:pointer;
-font-size:12px;
-transition:0.2s;
+  border:none;
+  background:#1e293b;
+  color:white;
+  padding:7px 10px;
+  border-radius:10px;
+  cursor:pointer;
+  font-size:12px;
+  transition:background 0.2s;
 }
 
 .small-btn:hover{
-background:#334155;
+  background:#334155;
 }
 
-/* ===== CHAT ===== */
-
+/* ── CHAT PANEL ── */
 .chat-panel{
-width:340px;
-background:#101826;
-border-left:1px solid #1f2937;
-display:flex;
-flex-direction:column;
-z-index:50;
-/* FIX: explicit height so flex children work correctly on desktop */
-height:100%;
+  width:340px;
+  background:#101826;
+  border-left:1px solid #1f2937;
+  display:flex;
+  flex-direction:column;
+  z-index:50;
+  height:100%;
 }
 
 .chat-header{
-height:70px;
-border-bottom:1px solid #1f2937;
-display:flex;
-align-items:center;
-justify-content:space-between;
-padding:0 16px;
-font-weight:bold;
-flex-shrink:0;
+  height:70px;
+  border-bottom:1px solid #1f2937;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 16px;
+  font-weight:bold;
+  flex-shrink:0;
 }
 
 .chat-messages{
-flex:1;
-overflow-y:auto;
-overflow-x:hidden;
-padding:16px;
-display:flex;
-flex-direction:column;
-gap:12px;
-/* FIX: min-height:0 so flex children scroll correctly */
-min-height:0;
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  min-height:0;
 }
 
 .chat-message{
-background:#0f172a;
-padding:12px;
-border-radius:12px;
-border:1px solid #1f2937;
-flex-shrink:0;
+  background:#0f172a;
+  padding:12px;
+  border-radius:12px;
+  border:1px solid #1f2937;
+  flex-shrink:0;
+}
+
+.chat-message.system-msg{
+  background:#0a1628;
+  border-color:#1e3a5f;
+}
+
+.chat-message.system-msg .chat-user{
+  color:#94a3b8;
+  font-size:11px;
+}
+
+.chat-message.system-msg .chat-text{
+  font-size:12px;
+  color:#64748b;
 }
 
 .chat-user{
-font-size:13px;
-font-weight:bold;
-color:#00f0ff;
+  font-size:13px;
+  font-weight:bold;
+  color:#00f0ff;
 }
 
 .chat-text{
-margin-top:6px;
-font-size:14px;
-line-height:1.4;
-word-break:break-word;
+  margin-top:6px;
+  font-size:14px;
+  line-height:1.4;
+  word-break:break-word;
 }
 
 .chat-time{
-margin-top:6px;
-font-size:11px;
-color:#94a3b8;
+  margin-top:6px;
+  font-size:11px;
+  color:#94a3b8;
 }
 
-/* FIX: Chat input area — always visible, safe area aware */
 .chat-input-area{
-padding:14px;
-padding-bottom:calc(14px + env(safe-area-inset-bottom, 0px));
-border-top:1px solid #1f2937;
-display:flex;
-gap:10px;
-flex-shrink:0;
-background:#101826;
+  padding:14px;
+  padding-bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top:1px solid #1f2937;
+  display:flex;
+  gap:10px;
+  flex-shrink:0;
+  background:#101826;
 }
 
 .chat-input{
-flex:1;
-background:#0f172a;
-border:1px solid #1f2937;
-border-radius:12px;
-padding:12px;
-color:white;
-outline:none;
-font-size:16px; /* FIX: prevent iOS auto-zoom on focus */
+  flex:1;
+  background:#0f172a;
+  border:1px solid #1f2937;
+  border-radius:12px;
+  padding:12px;
+  color:white;
+  outline:none;
+  font-size:16px;
 }
 
 .send-btn{
-background:#2563eb;
-border:none;
-color:white;
-padding:12px 16px;
-border-radius:12px;
-cursor:pointer;
-font-weight:bold;
-white-space:nowrap;
-flex-shrink:0;
+  background:#2563eb;
+  border:none;
+  color:white;
+  padding:12px 16px;
+  border-radius:12px;
+  cursor:pointer;
+  font-weight:bold;
+  white-space:nowrap;
+  flex-shrink:0;
 }
 
-/* ===== CONTROLS ===== */
+/* ── PARTICIPANTS PANEL ── */
+.participants-panel{
+  position:fixed;
+  right:0;
+  top:0;
+  height:100vh;
+  height:100dvh;
+  width:320px;
+  background:#101826;
+  border-left:1px solid #1f2937;
+  display:flex;
+  flex-direction:column;
+  z-index:99998;
+  transform:translateX(100%);
+  transition:transform 0.3s ease;
+}
 
+.participants-panel.open{
+  transform:translateX(0);
+}
+
+.participants-header{
+  height:70px;
+  border-bottom:1px solid #1f2937;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 16px;
+  font-weight:bold;
+  flex-shrink:0;
+}
+
+.participants-list{
+  flex:1;
+  overflow-y:auto;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-height:0;
+}
+
+.participant-item{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  background:#0f172a;
+  padding:12px;
+  border-radius:12px;
+  border:1px solid #1f2937;
+  transition:border-color 0.3s;
+}
+
+.participant-item.speaking{
+  border-color:#00f0ff;
+}
+
+.participant-item-avatar{
+  width:40px;
+  height:40px;
+  border-radius:50%;
+  object-fit:cover;
+  border:2px solid #1f2937;
+  flex-shrink:0;
+}
+
+.participant-item-info{
+  flex:1;
+  min-width:0;
+}
+
+.participant-item-name{
+  font-size:14px;
+  font-weight:bold;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.participant-item-rank{
+  font-size:11px;
+  color:#94a3b8;
+  margin-top:2px;
+}
+
+.participant-item-status{
+  font-size:10px;
+  color:#10b981;
+  flex-shrink:0;
+}
+
+/* ── INCOMING CALL OVERLAY ── */
+/* Shown only when another user broadcasts call_invite
+   while this user is already on groupcall.html but hasn't joined.
+   NEVER shown on page load. */
+.incoming-call-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(11,17,32,0.96);
+  backdrop-filter:blur(12px);
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:28px;
+  z-index:999999;
+}
+
+.incoming-call-overlay.active{
+  display:flex;
+}
+
+.incoming-call-avatar{
+  width:110px;
+  height:110px;
+  border-radius:50%;
+  object-fit:cover;
+  border:4px solid #00f0ff;
+  box-shadow:0 0 40px rgba(0,240,255,0.5);
+  animation:incomingPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes incomingPulse{
+  0%,100%{ box-shadow:0 0 30px rgba(0,240,255,0.4); }
+  50%{ box-shadow:0 0 60px rgba(0,240,255,0.9); }
+}
+
+.incoming-call-label{
+  font-size:13px;
+  color:#94a3b8;
+  letter-spacing:2px;
+  text-transform:uppercase;
+}
+
+.incoming-call-name{
+  font-size:24px;
+  font-weight:bold;
+  color:#fff;
+}
+
+.incoming-call-sub{
+  font-size:14px;
+  color:#94a3b8;
+}
+
+.incoming-call-actions{
+  display:flex;
+  gap:40px;
+  margin-top:10px;
+}
+
+.incoming-answer-btn{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  border:none;
+  background:#10b981;
+  color:white;
+  font-size:26px;
+  cursor:pointer;
+  box-shadow:0 0 20px rgba(16,185,129,0.5);
+  transition:transform 0.2s, box-shadow 0.2s;
+}
+
+.incoming-answer-btn:hover{
+  transform:scale(1.1);
+  box-shadow:0 0 30px rgba(16,185,129,0.8);
+}
+
+.incoming-decline-btn{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  border:none;
+  background:#dc2626;
+  color:white;
+  font-size:26px;
+  cursor:pointer;
+  box-shadow:0 0 20px rgba(220,38,38,0.5);
+  transition:transform 0.2s, box-shadow 0.2s;
+}
+
+.incoming-decline-btn:hover{
+  transform:scale(1.1);
+  box-shadow:0 0 30px rgba(220,38,38,0.8);
+}
+
+.incoming-call-btn-label{
+  text-align:center;
+  margin-top:8px;
+  font-size:12px;
+  color:#94a3b8;
+}
+
+/* ── BOTTOM CONTROLS ── */
 .bottom-controls{
-position:fixed;
-bottom:18px;
-bottom:calc(18px + env(safe-area-inset-bottom, 0px));
-left:50%;
-transform:translateX(-50%);
-background:rgba(15,23,42,0.96);
-border:1px solid #1f2937;
-backdrop-filter:blur(10px);
-border-radius:24px;
-padding:12px;
-display:flex;
-gap:10px;
-z-index:9999;
-max-width:95%;
-overflow-x:auto;
+  position:fixed;
+  bottom:18px;
+  bottom:calc(18px + env(safe-area-inset-bottom, 0px));
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(15,23,42,0.96);
+  border:1px solid #1f2937;
+  backdrop-filter:blur(10px);
+  border-radius:24px;
+  padding:12px;
+  display:flex;
+  gap:10px;
+  z-index:9999;
+  max-width:95%;
+  overflow-x:auto;
 }
 
 .control-btn{
-width:58px;
-height:58px;
-border-radius:50%;
-border:none;
-background:#1e293b;
-color:white;
-font-size:20px;
-cursor:pointer;
-transition:0.25s;
-position:relative;
-flex-shrink:0;
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  border:none;
+  background:#1e293b;
+  color:white;
+  font-size:20px;
+  cursor:pointer;
+  transition:transform 0.25s, background 0.25s;
+  position:relative;
+  flex-shrink:0;
 }
 
 .control-btn:hover{
-transform:translateY(-3px);
-background:#334155;
+  transform:translateY(-3px);
+  background:#334155;
+}
+
+.control-btn.active{
+  background:#1d4ed8;
+  box-shadow:0 0 12px rgba(29,78,216,0.6);
 }
 
 .leave-btn{
-background:#dc2626;
+  background:#dc2626;
 }
 
 .leave-btn:hover{
-background:#ef4444;
+  background:#ef4444;
 }
 
 .control-label{
-position:absolute;
-bottom:-20px;
-left:50%;
-transform:translateX(-50%);
-font-size:10px;
-color:#94a3b8;
-white-space:nowrap;
+  position:absolute;
+  bottom:-20px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:10px;
+  color:#94a3b8;
+  white-space:nowrap;
 }
 
-/* ===== REACTION PICKER ===== */
-
+/* ── REACTION PICKER ── */
 .reaction-picker{
-position:fixed;
-bottom:95px;
-bottom:calc(95px + env(safe-area-inset-bottom, 0px));
-left:50%;
-transform:translateX(-50%);
-background:#101826;
-border:1px solid #1f2937;
-border-radius:18px;
-padding:12px;
-display:none;
-gap:10px;
-z-index:9999;
+  position:fixed;
+  bottom:95px;
+  bottom:calc(95px + env(safe-area-inset-bottom, 0px));
+  left:50%;
+  transform:translateX(-50%);
+  background:#101826;
+  border:1px solid #1f2937;
+  border-radius:18px;
+  padding:12px;
+  display:none;
+  gap:10px;
+  z-index:9999;
 }
 
 .reaction-picker.active{
-display:flex;
+  display:flex;
 }
 
 .reaction-btn{
-font-size:24px;
-cursor:pointer;
-transition:0.2s;
+  font-size:24px;
+  cursor:pointer;
+  transition:transform 0.2s;
 }
 
 .reaction-btn:hover{
-transform:scale(1.2);
+  transform:scale(1.2);
 }
 
+/* ── FLOATING REACTIONS ── */
 .floating-reaction{
-position:fixed;
-bottom:120px;
-font-size:40px;
-animation:floatUp 3s linear forwards;
-pointer-events:none;
-z-index:99999;
+  position:fixed;
+  bottom:120px;
+  font-size:40px;
+  animation:floatUp 3s linear forwards;
+  pointer-events:none;
+  z-index:99999;
 }
 
 @keyframes floatUp{
-0%{opacity:1;transform:translateY(0) scale(1);}
-100%{opacity:0;transform:translateY(-240px) scale(1.6);}
+  0%{ opacity:1;transform:translateY(0) scale(1); }
+  100%{ opacity:0;transform:translateY(-240px) scale(1.6); }
 }
 
-/* ===== LOG ===== */
-
+/* ── COMMS LOG ── */
 .comms-log{
-position:fixed;
-top:85px;
-left:15px;
-width:300px;
-max-height:220px;
-overflow:auto;
-background:#101826;
-border:1px solid #1f2937;
-border-radius:16px;
-padding:12px;
-z-index:999;
+  position:fixed;
+  top:85px;
+  left:15px;
+  width:300px;
+  max-height:220px;
+  overflow:auto;
+  background:#101826;
+  border:1px solid #1f2937;
+  border-radius:16px;
+  padding:12px;
+  z-index:999;
+  font-size:12px;
+  color:#94a3b8;
 }
 
-/* ===== ANIMATION ===== */
+/* ── TOAST NOTIFICATIONS ── */
+.toast-container{
+  position:fixed;
+  top:80px;
+  right:20px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  z-index:999998;
+  pointer-events:none;
+}
 
+.toast{
+  background:#101826;
+  border:1px solid #1f2937;
+  border-radius:12px;
+  padding:12px 18px;
+  font-size:13px;
+  color:#fff;
+  min-width:200px;
+  max-width:320px;
+  animation:toastIn 0.3s ease, toastOut 0.3s ease 3.7s forwards;
+  pointer-events:none;
+}
+
+.toast.join{ border-left:4px solid #10b981; }
+.toast.leave{ border-left:4px solid #ef4444; }
+.toast.info{ border-left:4px solid #2563eb; }
+
+@keyframes toastIn{
+  from{ opacity:0;transform:translateX(30px); }
+  to{ opacity:1;transform:translateX(0); }
+}
+
+@keyframes toastOut{
+  from{ opacity:1;transform:translateX(0); }
+  to{ opacity:0;transform:translateX(30px); }
+}
+
+/* ── ANIMATIONS ── */
 @keyframes fadeIn{
-from{opacity:0;transform:scale(0.92);}
-to{opacity:1;transform:scale(1);}
+  from{ opacity:0;transform:scale(0.92); }
+  to{ opacity:1;transform:scale(1); }
 }
 
-/* ===== MOBILE ===== */
-
+/* ── MOBILE ── */
 @media(max-width:900px){
+  .chat-panel{
+    position:fixed;
+    right:0;
+    top:0;
+    height:100vh;
+    height:100dvh;
+    width:100%;
+    transform:translateX(100%);
+    transition:transform 0.3s ease;
+    z-index:99999;
+    display:flex;
+    flex-direction:column;
+  }
 
-/* FIX: Chat panel slides in from right, occupies full screen safely */
-.chat-panel{
-position:fixed;
-right:0;
-top:0;
-/* Use dvh so it accounts for browser chrome on mobile */
-height:100vh;
-height:100dvh;
-width:100%;
-transform:translateX(100%);
-transition:transform 0.3s ease;
-z-index:99999;
-/* FIX: flex column so input stays at bottom */
-display:flex;
-flex-direction:column;
-}
+  .chat-panel.open{
+    transform:translateX(0);
+  }
 
-.chat-panel.open{
-transform:translateX(0);
-}
+  .chat-panel.open .chat-messages{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+  }
 
-/* FIX: When keyboard is open on mobile, panel shrinks to visible viewport.
-   This relies on the browser resizing the viewport when the keyboard appears.
-   We use dvh and min-height:0 on flex children so content scrolls correctly. */
-.chat-panel.open .chat-messages{
-flex:1;
-min-height:0;
-overflow-y:auto;
-}
+  .chat-panel .chat-input-area{
+    flex-shrink:0;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+  }
 
-/* FIX: Input area always pinned to bottom with safe area inset for notches */
-.chat-panel .chat-input-area{
-flex-shrink:0;
-padding-bottom:calc(14px + env(safe-area-inset-bottom, 0px));
-}
+  .participants-panel{
+    width:100%;
+  }
 
-.participant-grid{
-grid-template-columns:1fr;
-}
+  .participant-grid{
+    grid-template-columns:1fr;
+  }
 
-.bottom-controls{
-flex-wrap:nowrap;
-justify-content:flex-start;
-}
+  .bottom-controls{
+    flex-wrap:nowrap;
+    justify-content:flex-start;
+  }
 
-.comms-log{
-display:none;
-}
+  .comms-log{
+    display:none;
+  }
 
-}
+  .toast-container{
+    right:10px;
+    left:10px;
+  }
 
-/* ===== SYSTEM MESSAGE ===== */
-.chat-message.system-msg{
-background:#0a1628;
-border-color:#1e3a5f;
-}
-.chat-message.system-msg .chat-user{
-color:#94a3b8;
-font-size:11px;
-}
-.chat-message.system-msg .chat-text{
-font-size:12px;
-color:#64748b;
+  .toast{
+    max-width:100%;
+  }
 }
 
 </style>
@@ -504,534 +806,220 @@ color:#64748b;
 
 <body>
 
+<!-- ── RINGTONE AUDIO ──
+     Only plays when another user sends a call_invite and this
+     user is viewing groupcall.html but hasn't joined yet.
+     NEVER auto-plays on page load. -->
+<audio id="ringtone" src="Hip-hop_Alarm.mp3" loop preload="auto"></audio>
+
+<!-- ── TOAST CONTAINER ── -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ── INCOMING CALL OVERLAY ──
+     Shown only by groupcall.js when a call_invite event is
+     received. Never shown automatically on page load. -->
+<div class="incoming-call-overlay" id="incoming-call-overlay">
+  <div class="incoming-call-label">INCOMING GROUP CALL</div>
+  <img
+    src="https://ui-avatars.com/api/?name=GROUP+CALL&background=0f172a&color=00f0ff"
+    class="incoming-call-avatar"
+    id="incoming-call-avatar"
+    alt="Caller"
+  >
+  <div class="incoming-call-name" id="incoming-call-name">GROUP_CALL_ALPHA</div>
+  <div class="incoming-call-sub" id="incoming-call-sub">has started a secure channel</div>
+  <div class="incoming-call-actions">
+    <div>
+      <button class="incoming-answer-btn" onclick="answerIncomingCall()">📞</button>
+      <div class="incoming-call-btn-label">ANSWER</div>
+    </div>
+    <div>
+      <button class="incoming-decline-btn" onclick="declineIncomingCall()">📵</button>
+      <div class="incoming-call-btn-label">DECLINE</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN WRAPPER ── -->
 <div class="main-wrapper">
 
-<!-- ===== LEFT ===== -->
-
-<div class="video-area">
-
-<div class="top-bar">
-
-<div class="top-left">
-<div class="live-dot"></div>
-<div>
-<div class="call-title">GROUP_CALL_ALPHA</div>
-<div class="call-status" id="connection-status">SECURE CHANNEL READY</div>
-</div>
-</div>
-
-<div class="member-count" id="member-count">0 OPERATORS CONNECTED</div>
-
-</div>
-
-<div class="participant-grid" id="participant-grid">
-
-<!-- LOCAL USER -->
-<div class="user-card" id="local-user-card">
-
-<div class="user-top-icons">
-<div class="user-badge" id="local-mic-icon">🎤 LIVE</div>
-<div class="user-badge" id="local-hand-icon" style="display:none;color:#facc15;">✋ HAND</div>
-</div>
-
-<img
-src="https://ui-avatars.com/api/?name=Operator&background=0f172a&color=00f0ff"
-class="user-avatar"
-id="local-avatar"
->
-
-<div class="user-name" id="local-name">LOCAL OPERATOR</div>
-<div class="user-rank" id="local-rank">CONNECTED</div>
-
-<div class="user-footer">
-<div class="connection-status">ONLINE</div>
-<div class="card-controls">
-<button class="small-btn" onclick="pinParticipant('local-user-card')">📌</button>
-<button class="small-btn" onclick="toggleRaiseHand()">✋</button>
-</div>
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-<!-- ===== CHAT ===== -->
-
-<div class="chat-panel" id="chatPanel">
-
-<div class="chat-header">
-TACTICAL CHAT
-<button class="small-btn" onclick="toggleChat()">✖</button>
-</div>
-
-<div class="chat-messages" id="chat-messages"></div>
-
-<div class="chat-input-area">
-<input
-type="text"
-id="chat-input"
-class="chat-input"
-placeholder="Send tactical message..."
-autocomplete="off"
-autocorrect="off"
-spellcheck="false"
->
-<button class="send-btn" onclick="sendChatMessage()">SEND</button>
-</div>
-
-</div>
-
-</div>
-
-<!-- ===== LOG ===== -->
-
-<div class="comms-log" id="comms-log">
-<div class="log-entry">SYSTEM :: Tactical communication interface initialized</div>
-<div class="log-entry">SYSTEM :: Encryption layer active</div>
-</div>
-
-<!-- ===== REACTIONS ===== -->
-
-<div class="reaction-picker" id="reactionPicker">
-<div class="reaction-btn" onclick="sendReaction('👍')">👍</div>
-<div class="reaction-btn" onclick="sendReaction('👏')">👏</div>
-<div class="reaction-btn" onclick="sendReaction('❤️')">❤️</div>
-<div class="reaction-btn" onclick="sendReaction('😂')">😂</div>
-<div class="reaction-btn" onclick="sendReaction('🔥')">🔥</div>
-<div class="reaction-btn" onclick="sendReaction('😮')">😮</div>
-</div>
-
-<!-- ===== CONTROLS ===== -->
-
-<div class="bottom-controls">
-
-<button class="control-btn" id="joinBtn" onclick="initializeComms()">📡<div class="control-label">JOIN</div></button>
-
-<button class="control-btn" id="muteBtn" onclick="toggleMute()" style="display:none;">🎤<div class="control-label">MIC</div></button>
-
-<button class="control-btn" onclick="toggleRaiseHand()">✋<div class="control-label">HAND</div></button>
-
-<button class="control-btn" onclick="toggleReactionPicker()">😊<div class="control-label">REACT</div></button>
-
-<button class="control-btn" onclick="toggleChat()">💬<div class="control-label">CHAT</div></button>
-
-<button class="control-btn" onclick="alert('Users panel coming soon')">👥<div class="control-label">USERS</div></button>
-
-<button class="control-btn" onclick="shareScreen()">🖥️<div class="control-label">SHARE</div></button>
-
-<button class="control-btn" onclick="toggleRecord()">⏺️<div class="control-label">REC</div></button>
-
-<button class="control-btn leave-btn" id="leaveBtn" onclick="terminateComms()" style="display:none;">📞<div class="control-label">LEAVE</div></button>
-
-</div>
-
-<script>
-
-/* ===== SUPABASE ===== */
-
-const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
-const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
-
-/* ===== SESSION ===== */
-
-let currentSessionOfficer = JSON.parse(localStorage.getItem("session_user")) || {
-  name: "OPERATOR_" + Math.floor(Math.random() * 9000 + 1000),
-  rank: "UNIT",
-  phone: "anon_" + Math.random().toString(36).slice(2, 9)
-};
-
-/* ===== AGORA ===== */
-
-const APP_ID  = "8f88034e0a9545868b55af604b268e1e";
-const CHANNEL = "GROUP_CALL_ALPHA";
-const TOKEN   = null;
-
-const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-
-let localAudioTrack;
-let activeStream  = false;
-let isMuted       = false;
-let handRaised    = false;
-let isRecording   = false;
-
-/* ===== SUPABASE REALTIME CHANNEL (broadcast) =====
-   One channel for both chat messages and reactions.
-   Broadcast events don't require a DB table — they are
-   peer-to-peer through Supabase's realtime infrastructure.
-   ====================================================*/
-
-const realtimeChannel = sbClient.channel('cadre_comms', {
-  config: { broadcast: { self: false } }   // don't echo back to sender
-});
-
-// Listen for incoming chat messages from other users
-realtimeChannel.on('broadcast', { event: 'chat_message' }, ({ payload }) => {
-  renderChatMessage(payload.name, payload.text, payload.time, false);
-});
-
-// Listen for incoming reactions from other users
-realtimeChannel.on('broadcast', { event: 'reaction' }, ({ payload }) => {
-  showFloatingReaction(payload.emoji);
-});
-
-// Subscribe once, up-front — doesn't need an active voice session
-realtimeChannel.subscribe((status) => {
-  if (status === 'SUBSCRIBED') {
-    addLog('COMMS :: Realtime broadcast channel active');
-  }
-});
-
-/* ===== UI TOGGLES ===== */
-
-function toggleChat(){
-  const panel = document.getElementById("chatPanel");
-  panel.classList.toggle("open");
-
-  // FIX: On mobile, focus input after panel opens so keyboard appears
-  if (panel.classList.contains("open")) {
-    setTimeout(() => {
-      const input = document.getElementById("chat-input");
-      // Only auto-focus on non-touch devices to avoid jarring keyboard pop
-      if (window.innerWidth > 900) input.focus();
-    }, 320);
-  }
-}
-
-function toggleRecord(){
-  isRecording = !isRecording;
-  addLog(isRecording ? "REC :: Recording started" : "REC :: Recording stopped");
-}
-
-function shareScreen(){
-  if(navigator.share){
-    navigator.share({ title: "CADRE CALL" });
-  } else {
-    addLog("SHARE :: Not supported on this device");
-  }
-}
-
-/* ===== LOCAL INFO ===== */
-
-document.getElementById("local-name").textContent =
-  currentSessionOfficer?.name || "UNKNOWN";
-
-document.getElementById("local-rank").textContent =
-  currentSessionOfficer?.rank || "UNIT";
-
-/* ===== LOG ===== */
-
-function addLog(message){
-  const logContainer = document.getElementById("comms-log");
-  const log = document.createElement("div");
-  log.className = "log-entry";
-  log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
-  logContainer.prepend(log);
-}
-
-/* ===== JOIN ===== */
-
-async function initializeComms(){
-  if(activeStream) return;
-
-  try{
-    activeStream = true;
-
-    document.getElementById("connection-status").textContent = "LIVE SECURE CHANNEL ACTIVE";
-    document.getElementById("joinBtn").style.display  = "none";
-    document.getElementById("leaveBtn").style.display = "block";
-    document.getElementById("muteBtn").style.display  = "block";
-
-    addLog("SYSTEM :: Initializing secure audio bridge");
-
-    await client.join(APP_ID, CHANNEL, TOKEN, currentSessionOfficer.phone || null);
-
-    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-      AEC: true,
-      ANS: true,
-      AGC: true
-    });
-
-    await client.publish([localAudioTrack]);
-
-    addLog("VOICE LINK :: Connected to tactical channel");
-
-    await sbClient.from('group_call_members').upsert({
-      phone:     currentSessionOfficer.phone,
-      name:      currentSessionOfficer.name,
-      rank:      currentSessionOfficer.rank,
-      status:    "ONLINE",
-      joined_at: Date.now()
-    });
-
-    loadMembers();
-    listenForMembers();
-
-    client.on("user-published", async (user, mediaType) => {
-      await client.subscribe(user, mediaType);
-      if(mediaType === "audio"){
-        user.audioTrack.play();
-        createRemoteCard(user.uid);
-        addLog(`VOICE LINK :: ${user.uid} connected`);
-      }
-    });
-
-    client.on("user-left", (user) => {
-      removeRemoteCard(user.uid);
-      addLog(`VOICE LINK :: ${user.uid} disconnected`);
-    });
-
-  } catch(error){
-    console.error(error);
-    alert("Failed to connect");
-    terminateComms();
-  }
-}
-
-/* ===== MEMBERS ===== */
-
-async function loadMembers(){
-  const { data } = await sbClient.from('group_call_members').select('*');
-  if(!data) return;
-  document.getElementById("member-count").textContent =
-    `${data.length} OPERATORS CONNECTED`;
-}
-
-function listenForMembers(){
-  sbClient.channel('group_call_members_changes')
-    .on('postgres_changes', { event:'*', schema:'public', table:'group_call_members' }, () => {
-      loadMembers();
-    })
-    .subscribe();
-}
-
-/* ===== REMOTE CARDS ===== */
-
-function createRemoteCard(uid){
-  if(document.getElementById(`remote-${uid}`)) return;
-
-  const grid = document.getElementById("participant-grid");
-  const card = document.createElement("div");
-  card.className = "user-card speaking";
-  card.id = `remote-${uid}`;
-
-  card.innerHTML = `
-    <div class="user-top-icons">
-      <div class="user-badge">🎤 LIVE</div>
-    </div>
-    <img src="https://ui-avatars.com/api/?name=${uid}&background=0f172a&color=00f0ff" class="user-avatar">
-    <div class="user-name">${uid}</div>
-    <div class="user-rank">REMOTE OPERATOR</div>
-    <div class="user-footer">
-      <div class="connection-status">CONNECTED</div>
-      <div class="card-controls">
-        <button class="small-btn" onclick="pinParticipant('remote-${uid}')">📌</button>
-        <button class="small-btn" onclick="remoteMute('${uid}')">🔇</button>
+  <!-- LEFT: AUDIO / PARTICIPANT AREA -->
+  <div class="video-area">
+
+    <!-- TOP BAR -->
+    <div class="top-bar">
+      <div class="top-left">
+        <div class="live-dot"></div>
+        <div>
+          <div class="call-title">GROUP_CALL_ALPHA</div>
+          <div class="call-status" id="connection-status">SECURE CHANNEL READY</div>
+        </div>
+      </div>
+
+      <div class="top-right-info">
+        <!-- Call duration — hidden until call starts -->
+        <div class="call-timer" id="call-timer">00:00</div>
+
+        <!-- 4-bar network quality indicator -->
+        <div class="quality-indicator" id="quality-indicator" title="Connection quality">
+          <div class="quality-bar"></div>
+          <div class="quality-bar"></div>
+          <div class="quality-bar"></div>
+          <div class="quality-bar"></div>
+        </div>
+
+        <div class="member-count" id="member-count">0 OPERATORS CONNECTED</div>
       </div>
     </div>
-  `;
 
-  grid.appendChild(card);
-}
+    <!-- PARTICIPANT GRID -->
+    <div class="participant-grid" id="participant-grid">
 
-function removeRemoteCard(uid){
-  const el = document.getElementById(`remote-${uid}`);
-  if(el) el.remove();
-}
+      <!-- LOCAL USER CARD -->
+      <div class="user-card" id="local-user-card">
+        <div class="user-top-icons">
+          <div class="user-badge" id="local-mic-icon">🎤 LIVE</div>
+          <div class="user-badge" id="local-hand-icon" style="display:none;color:#facc15;">✋ HAND</div>
+        </div>
 
-function pinParticipant(id){
-  document.querySelectorAll(".user-card").forEach(c => c.style.order = 0);
-  const target = document.getElementById(id);
-  if(target) target.style.order = -1;
-}
+        <div class="avatar-wrapper">
+          <img
+            src="https://ui-avatars.com/api/?name=Operator&background=0f172a&color=00f0ff"
+            class="user-avatar"
+            id="local-avatar"
+            alt="You"
+          >
+          <div class="speaking-ring"></div>
+        </div>
 
-function remoteMute(uid){
-  addLog(`ADMIN ACTION :: Mute request sent to ${uid}`);
-}
+        <div class="user-name" id="local-name">LOCAL OPERATOR</div>
+        <div class="user-rank" id="local-rank">CONNECTED</div>
 
-/* ===== CONTROLS ===== */
+        <div class="user-footer">
+          <div class="connection-status">ONLINE</div>
+          <div class="card-controls">
+            <button class="small-btn" onclick="pinParticipant('local-user-card')">📌</button>
+            <button class="small-btn" onclick="toggleRaiseHand()">✋</button>
+          </div>
+        </div>
+      </div>
 
-async function toggleMute(){
-  if(!localAudioTrack) return;
+    </div>
+  </div>
 
-  isMuted = !isMuted;
-  await localAudioTrack.setEnabled(!isMuted);
+  <!-- CHAT PANEL -->
+  <div class="chat-panel" id="chatPanel">
+    <div class="chat-header">
+      TACTICAL CHAT
+      <button class="small-btn" onclick="toggleChat()">✖</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-area">
+      <input
+        type="text"
+        id="chat-input"
+        class="chat-input"
+        placeholder="Send tactical message..."
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      >
+      <button class="send-btn" onclick="sendChatMessage()">SEND</button>
+    </div>
+  </div>
 
-  document.getElementById("muteBtn").innerHTML =
-    isMuted ? '🔇<div class="control-label">MUTED</div>' : '🎤<div class="control-label">MIC</div>';
+</div>
 
-  document.getElementById("local-mic-icon").textContent =
-    isMuted ? "🔇 MUTED" : "🎤 LIVE";
+<!-- PARTICIPANTS PANEL -->
+<div class="participants-panel" id="participantsPanel">
+  <div class="participants-header">
+    <div>
+      OPERATORS
+      <span id="participants-panel-count" style="color:#00f0ff;font-size:13px;margin-left:8px;">0</span>
+    </div>
+    <button class="small-btn" onclick="toggleParticipantsPanel()">✖</button>
+  </div>
+  <div class="participants-list" id="participants-list"></div>
+</div>
 
-  addLog(isMuted ? "VOICE CHANNEL :: Microphone muted" : "VOICE CHANNEL :: Microphone unmuted");
-}
+<!-- COMMS LOG (desktop only) -->
+<div class="comms-log" id="comms-log">
+  <div class="log-entry">SYSTEM :: Tactical communication interface initialized</div>
+  <div class="log-entry">SYSTEM :: Encryption layer active</div>
+</div>
 
-function toggleRaiseHand(){
-  handRaised = !handRaised;
-  document.getElementById("local-hand-icon").style.display =
-    handRaised ? "block" : "none";
-}
+<!-- REACTION PICKER -->
+<div class="reaction-picker" id="reactionPicker">
+  <div class="reaction-btn" onclick="sendReaction('👍')">👍</div>
+  <div class="reaction-btn" onclick="sendReaction('👏')">👏</div>
+  <div class="reaction-btn" onclick="sendReaction('❤️')">❤️</div>
+  <div class="reaction-btn" onclick="sendReaction('😂')">😂</div>
+  <div class="reaction-btn" onclick="sendReaction('🔥')">🔥</div>
+  <div class="reaction-btn" onclick="sendReaction('😮')">😮</div>
+</div>
 
-/* ===== CHAT — GLOBAL VIA SUPABASE BROADCAST ===== */
+<!-- BOTTOM CONTROLS -->
+<div class="bottom-controls">
 
-function sendChatMessage(){
-  const input = document.getElementById("chat-input");
-  const text  = input.value.trim();
-  if(!text) return;
+  <!-- START CALL: visible when idle -->
+  <button class="control-btn" id="joinBtn" onclick="initializeComms()">
+    📡<div class="control-label">START CALL</div>
+  </button>
 
-  const name = currentSessionOfficer?.name || "UNKNOWN";
-  const time = new Date().toLocaleTimeString();
+  <!-- CANCEL: visible only when initiator is in "calling…" state -->
+  <button class="control-btn leave-btn" id="cancelCallBtn" onclick="cancelCall()" style="display:none;">
+    ✖<div class="control-label">CANCEL</div>
+  </button>
 
-  // 1. Render locally (self = false means broadcast won't echo back)
-  renderChatMessage(name, text, time, true);
+  <!-- MIC: visible when in call -->
+  <button class="control-btn" id="muteBtn" onclick="toggleMute()" style="display:none;">
+    🎤<div class="control-label">MIC</div>
+  </button>
 
-  // 2. Broadcast to all other connected users
-  realtimeChannel.send({
-    type:    'broadcast',
-    event:   'chat_message',
-    payload: { name, text, time }
-  });
+  <!-- SPEAKER: visible when in call -->
+  <button class="control-btn" id="speakerBtn" onclick="toggleSpeaker()" style="display:none;">
+    🔊<div class="control-label">SPEAKER</div>
+  </button>
 
-  input.value = "";
-  input.focus();
-}
+  <button class="control-btn" onclick="toggleRaiseHand()">
+    ✋<div class="control-label">HAND</div>
+  </button>
 
-/**
- * Render a chat message in the panel.
- * @param {string}  name      - Sender display name
- * @param {string}  text      - Message body
- * @param {string}  time      - Formatted time string
- * @param {boolean} isSelf    - True if this user sent it (highlights differently)
- */
-function renderChatMessage(name, text, time, isSelf){
-  const container = document.getElementById("chat-messages");
+  <button class="control-btn" onclick="toggleReactionPicker()">
+    😊<div class="control-label">REACT</div>
+  </button>
 
-  const div = document.createElement("div");
-  div.className = "chat-message";
+  <button class="control-btn" onclick="toggleChat()">
+    💬<div class="control-label">CHAT</div>
+  </button>
 
-  // Slightly different style for own messages
-  if(isSelf){
-    div.style.borderColor = "#2563eb55";
-    div.style.background  = "#0f1e3a";
-  }
+  <button class="control-btn" onclick="toggleParticipantsPanel()">
+    👥<div class="control-label">USERS</div>
+  </button>
 
-  div.innerHTML = `
-    <div class="chat-user">${escapeHtml(name)}${isSelf ? ' <span style="font-size:10px;color:#2563eb;">(YOU)</span>' : ''}</div>
-    <div class="chat-text">${escapeHtml(text)}</div>
-    <div class="chat-time">${time}</div>
-  `;
+  <button class="control-btn" onclick="shareScreen()">
+    🖥️<div class="control-label">SHARE</div>
+  </button>
 
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
+  <button class="control-btn" onclick="toggleRecord()">
+    ⏺️<div class="control-label">REC</div>
+  </button>
 
-/* ===== REACTIONS — GLOBAL VIA SUPABASE BROADCAST ===== */
+  <!-- LEAVE: visible when call is live -->
+  <button class="control-btn leave-btn" id="leaveBtn" onclick="terminateComms()" style="display:none;">
+    📞<div class="control-label">LEAVE</div>
+  </button>
 
-function toggleReactionPicker(){
-  document.getElementById("reactionPicker").classList.toggle("active");
-}
+</div>
 
-function sendReaction(emoji){
-  // 1. Show locally
-  showFloatingReaction(emoji);
-
-  // 2. Broadcast to all other users
-  realtimeChannel.send({
-    type:    'broadcast',
-    event:   'reaction',
-    payload: { emoji }
-  });
-
-  toggleReactionPicker();
-}
-
-/**
- * Render a floating reaction animation on screen.
- * Called for both local sends and remote receives.
- */
-function showFloatingReaction(emoji){
-  const reaction = document.createElement("div");
-  reaction.className = "floating-reaction";
-  reaction.textContent = emoji;
-  reaction.style.left = (Math.random() * 80 + 10) + "%";
-  document.body.appendChild(reaction);
-  setTimeout(() => reaction.remove(), 3000);
-}
-
-/* ===== LEAVE ===== */
-
-async function terminateComms(){
-  activeStream = false;
-
-  document.getElementById("connection-status").textContent = "CHANNEL OFFLINE";
-  document.getElementById("joinBtn").style.display  = "block";
-  document.getElementById("leaveBtn").style.display = "none";
-  document.getElementById("muteBtn").style.display  = "none";
-
-  if(localAudioTrack) localAudioTrack.close();
-
-  await client.leave();
-
-  if(currentSessionOfficer?.phone){
-    await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
-  }
-
-  loadMembers();
-  addLog("SYSTEM :: Tactical stream terminated");
-}
-
-window.addEventListener("beforeunload", async () => {
-  if(currentSessionOfficer?.phone){
-    await sbClient.from('group_call_members').delete().eq('phone', currentSessionOfficer.phone);
-  }
-});
-
-/* ===== CHAT KEYBOARD SHORTCUT ===== */
-
-document.getElementById("chat-input").addEventListener("keydown", (e) => {
-  if(e.key === "Enter" && !e.shiftKey){
-    e.preventDefault();
-    sendChatMessage();
-  }
-});
-
-/* ===== MOBILE: Keep input above keyboard =====
-   When the virtual keyboard opens, browsers on iOS/Android shrink
-   the visual viewport. We listen for visualViewport resize events
-   and shift the chat panel's input area accordingly so it's never
-   buried under the keyboard.
-   ============================================*/
-
-if(window.visualViewport){
-  window.visualViewport.addEventListener('resize', () => {
-    const chatPanel = document.getElementById("chatPanel");
-    if(!chatPanel.classList.contains("open")) return;
-
-    const viewportHeight = window.visualViewport.height;
-    const windowHeight   = window.innerHeight;
-    const keyboardHeight = Math.max(0, windowHeight - viewportHeight);
-
-    // Lift the chat input area above the keyboard
-    chatPanel.style.height = viewportHeight + "px";
-    chatPanel.style.top    = window.visualViewport.offsetTop + "px";
-  });
-}
-
-/* ===== SECURITY HELPER ===== */
-
-function escapeHtml(str){
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-</script>
+<!-- SCRIPTS
+     incoming-call-manager.js self-skips on this page (detects
+     #participant-grid) but is loaded here to warm the cache.
+-->
+<script src="incoming-call-manager.js"></script>
+<script src="groupcall.js"></script>
 <script src="ai-voice.js"></script>
 <script src="ai-integration.js"></script>
+
 </body>
 </html>
