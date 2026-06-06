@@ -10,6 +10,7 @@ export const routes = new Map([
   ['/home', (await import('./views/home.js'))],
   ['/profile', (await import('./views/profile.js'))],
   ['/plotter', (await import('./views/plotter.js'))],
+  ['/surveillance', (await import('./views/surveillance.js'))],
   ['/map', (await import('./views/map.js'))],
   ['/compass', (await import('../compass.js'))],
   ['/channel', (await import('./views/channel.js'))],

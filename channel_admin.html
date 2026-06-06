@@ -530,7 +530,24 @@ body::before {
   <nav class="header-nav">
     <button class="nav-item active">Overview</button>
     <a class="nav-item" href="intelligence.html">Intelligence</a>
-    <button class="nav-item">Surveillance</button>
+    <button class="nav-item" id="navSurveillanceBtn" data-nav="/surveillance">Surveillance</button>
+<script>
+(function(){
+  var btn = document.getElementById('navSurveillanceBtn');
+  if(!btn) return;
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    if(window.router && typeof window.router.navigate === 'function'){
+      window.router.navigate('/surveillance');
+      return;
+    }
+    // legacy fallback
+    window.location.hash = '#/surveillance';
+  });
+})();
+</script>
+
+
     <button class="nav-item">Operations</button>
     <button class="nav-item">Data Link</button>
     <button class="nav-item">Systems</button>
