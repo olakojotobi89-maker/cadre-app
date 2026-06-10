@@ -3,118 +3,215 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CADRE - System Access Portal</title>
+    <title>CADRE - Initialize Profile</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-
 <body>
+
 <div class="app-container">
     <main class="gateway-wrapper">
         <div class="gateway-card">
             <div class="gateway-title-block">
                 <img src="Cadre logo png.jpg" alt="CADRE Emblem" class="gateway-emblem">
-                <h1 class="gateway-h1">CADRE Secure</h1>
-                <p class="gateway-p">Authentication Protocol Required</p>
+                <h1 class="gateway-h1">Profile Setup</h1>
+                <p class="gateway-p">Initialize Personnel Records</p>
             </div>
 
-            <form id="portal-login-form">
+            <div id="app" aria-live="polite"></div>
+
+            <form id="profile-registration-form">
                 <div class="form-group">
-                    <label>Email Address</label>
-                    <input type="email" id="login-email" class="form-field" placeholder="operator@cadre.com" required>
+                    <label>Full Name</label>
+                    <input type="text" id="reg-name" class="form-field" placeholder="e.g. Officer John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label>Assigned Rank</label>
+                    <input type="text" id="reg-rank" class="form-field" placeholder="e.g. Inspector" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="reg-email" class="form-field" placeholder="operator@cadre.com" required>
                 </div>
                 <div class="form-group">
                     <label>Security Access Code</label>
-                    <input type="password" id="login-password" class="form-field" placeholder="••••••••" required>
+                    <input type="password" id="reg-password" class="form-field" placeholder="••••••••" minlength="6" required>
                 </div>
-                <button type="submit" class="btn-auth-action">Verify Credentials</button>
+                <button type="submit" class="btn-auth-action">Generate System Preview</button>
             </form>
 
+            <div id="preview-gate-shield" style="display:none; margin-top:20px; padding:15px; border:1px solid #ccc;">
+                <h3>Preview: <span id="preview-target-name"></span></h3>
+                <p>Rank: <span id="preview-target-rank"></span></p>
+                <button id="confirm-deploy-btn" class="btn-auth-action" style="background:green;">Confirm & Initialize</button>
+            </div>
+
             <div class="gateway-footer-link">
-                <span style="color:var(--text-dim);">New Personnel?</span>
-                <a href="index.html">Initialize Profile</a>
+                <span style="color:var(--text-dim);">Already Registered?</span>
+                <a href="login.html">Access System</a>
             </div>
         </div>
     </main>
 </div>
 
 <script>
-const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
-const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const sbClient    = supabase.createClient(supabaseUrl, supabaseKey);
+    // ─────────────────────────────────────────────
+    // Simple SPA router (embedded)
+    // ─────────────────────────────────────────────
+    // Requirement: do not change existing UI/logic.
+    // We only mount routed content into #app.
 
-document.getElementById("portal-login-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
+    const appEl = document.getElementById('app');
 
-    const email    = document.getElementById("login-email").value.trim();
-    const password = document.getElementById("login-password").value;
-    const btn      = document.querySelector(".btn-auth-action");
+    const ROUTE_TO_FILE = {
+      '/home': 'home.html',
+      '/channel': 'channel.html',
+      '/admin': 'admin.html',
+      '/surveillance': 'Surveillance .html',
+      '/intelligence': 'intelligence.html',
+      '/plotter': 'plotter.html',
+      '/compass': 'compass.html',
+      '/ebook': 'ebook.html',
+      '/emergency': 'emergency.html',
+      '/group-call': 'group-call.html',
+      '/groupcall': 'group-call.html',
+      '/officer-broadcast': 'officer_broadcast.html'
+    };
 
-    btn.disabled  = true;
-    btn.innerText = "VERIFYING...";
+    function normalizeRoute(hash) {
+      const h = (hash || '').replace(/^#/, '').trim();
+      return h || '/home';
+    }
 
-    try {
-        /* Step 1: Sign in with Supabase Auth */
-        const { data: authData, error: authError } =
-            await sbClient.auth.signInWithPassword({ email, password });
+    async function renderRoute() {
+      const route = normalizeRoute(window.location.hash);
+      const file = ROUTE_TO_FILE[route];
+      if (!file) {
+        appEl.innerHTML = '';
+        return;
+      }
 
-        if (authError) {
-            alert("ACCESS DENIED: " + authError.message);
-            btn.disabled  = false;
-            btn.innerText = "Verify Credentials";
-            return;
-        }
+      try {
+        const res = await fetch(file, { cache: 'no-store' });
+        const html = await res.text();
 
-        const userId = authData.user.id;
+        // Extract body content for insertion.
+        const bodyMatch = html.match(/<body[\s\S]*?>([\s\S]*)<\/body>/i);
+        appEl.innerHTML = bodyMatch ? bodyMatch[1] : html;
 
-        /* Step 2: Fetch full profile from users table using auth ID */
-        const { data: profile, error: profileError } =
-            await sbClient.from('users').select('*').eq('id', userId).single();
+      } catch (e) {
+        appEl.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Failed to load route.</div>';
+        console.error(e);
+      }
+    }
 
-        if (profileError || !profile) {
-            /*
-             * Row missing — could happen for users registered before the
-             * index.html fix was deployed. Auto-create it now so they
-             * don't get stuck.
-             */
-            const fallbackName  = authData.user.user_metadata?.name  || 'UNKNOWN';
-            const fallbackRank  = authData.user.user_metadata?.rank  || 'UNIT';
+    window.addEventListener('hashchange', renderRoute);
+    renderRoute();
+</script>
 
-            const { error: insertErr } = await sbClient.from('users').insert({
-                id:    userId,
-                name:  fallbackName,
-                rank:  fallbackRank,
-                email: authData.user.email
+<script>
+    const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
+    const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+    const sbClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let stagedData = null;
+
+    document.getElementById("profile-registration-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        stagedData = {
+            name:     document.getElementById("reg-name").value.trim(),
+            rank:     document.getElementById("reg-rank").value.trim(),
+            email:    document.getElementById("reg-email").value.toLowerCase().trim(),
+            password: document.getElementById("reg-password").value
+        };
+        document.getElementById("preview-target-name").textContent = stagedData.name;
+        document.getElementById("preview-target-rank").textContent = stagedData.rank;
+        document.getElementById("preview-gate-shield").style.display = "block";
+    });
+
+    document.getElementById("confirm-deploy-btn").addEventListener("click", async () => {
+        const button = document.getElementById("confirm-deploy-btn");
+        button.disabled = true;
+        button.textContent = "Initializing...";
+
+        try {
+            /* Step 1: Create auth account */
+            const { data: authData, error: authError } = await sbClient.auth.signUp({
+                email: stagedData.email,
+                password: stagedData.password,
+                options: {
+                    data: { name: stagedData.name, rank: stagedData.rank }
+                }
             });
 
-            if (insertErr) {
-                console.error("Profile creation error:", insertErr);
-                alert("ERROR: Could not create user profile. " + insertErr.message);
-                btn.disabled  = false;
-                btn.innerText = "Verify Credentials";
+            if (authError) {
+                alert("DEPLOYMENT CRASH: " + authError.message);
+                button.disabled = false;
+                button.textContent = "Confirm & Initialize";
                 return;
             }
+
+            const userId = authData.user?.id;
+            if (!userId) {
+                alert("DEPLOYMENT CRASH: Could not retrieve user ID.");
+                button.disabled = false;
+                button.textContent = "Confirm & Initialize";
+                return;
+            }
+
+            /* Step 2: Insert into users table — this is what profile.html reads */
+            const { error: insertError } = await sbClient.from('users').insert({
+                id:    userId,
+                name:  stagedData.name,
+                rank:  stagedData.rank,
+                email: stagedData.email
+            });
+
+            if (insertError) {
+                console.error("Insert error:", insertError);
+                
+                /* If row already exists (duplicate signup attempt), try update instead */
+                if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
+                    const { error: updateErr } = await sbClient.from('users')
+                        .update({ name: stagedData.name, rank: stagedData.rank })
+                        .eq('id', userId);
+                    
+                    if (updateErr) {
+                        console.error("Update error:", updateErr);
+                        alert("PROFILE SAVE FAILED: " + updateErr.message);
+                        button.disabled = false;
+                        button.textContent = "Confirm & Initialize";
+                        return;
+                    }
+                } else {
+                    console.error("DB insert error:", insertError);
+                    alert("PROFILE SAVE FAILED: " + insertError.message);
+                    button.disabled = false;
+                    button.textContent = "Confirm & Initialize";
+                    return;
+                }
+            }
+
+            alert("SUCCESS: Profile initialized. Please log in.");
+            
+            /* Store user ID for immediate login redirect */
+            localStorage.setItem("cadre_uid", userId);
+            localStorage.setItem("cadre_email", stagedData.email);
+            
+            /* Redirect to login after a short delay */
+            setTimeout(() => {
+                window.location.href = "login.html";
+            }, 100);
+
+        } catch (err) {
+            console.error("Unexpected error during signup:", err);
+            alert("UNEXPECTED ERROR: " + err.message);
+            button.disabled = false;
+            button.textContent = "Confirm & Initialize";
         }
-
-        /*
-         * Store ONLY the Supabase auth user ID in localStorage.
-         * All profile data (name, rank, pfp) is always fetched live
-         * from the users table — nothing is cached locally.
-         */
-        localStorage.setItem("cadre_uid", userId);
-
-        /* Small delay to ensure localStorage persists before navigation */
-        setTimeout(() => {
-            window.location.href = "home.html";
-        }, 100);
-
-    } catch (err) {
-        console.error(err);
-        alert("SYSTEM ERROR DURING LOGIN");
-        btn.disabled  = false;
-        btn.innerText = "Verify Credentials";
-    }
-});
+    });
 </script>
+
 </body>
 </html>
+
