@@ -95,12 +95,12 @@ body {
 /* --- Persistent Communication Bottom Dock --- */
 .app-bottom-dock {
     position: fixed;
-    bottom: 0;
+    bottom: env(safe-area-inset-bottom);
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
     max-width: 480px;
-    height: 55px;
+    height: calc(55px + env(safe-area-inset-bottom));
     background: rgba(17, 32, 46, 0.95);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -108,6 +108,7 @@ body {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     z-index: 2000;
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .dock-node {

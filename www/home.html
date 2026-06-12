@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>CADRE - Communications Feed</title>
 
 <link rel="stylesheet" href="style.css">
@@ -14,6 +14,17 @@
 .app-bottom-dock{
     display:grid !important;
     grid-template-columns:repeat(5,1fr) !important;
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    z-index:1000;
+    padding-bottom:env(safe-area-inset-bottom);
+    background:#0b1220;
+    box-shadow:0 -4px 20px rgba(0,0,0,0.35);
+}
+.feed-content{
+    padding-bottom:calc(80px + env(safe-area-inset-bottom));
 }
 .dock-node-emergency{ color:#ff3333 !important; font-weight:700; }
 .dock-node-emergency .dock-node-glyph{ animation:beacon-pulse 1.5s infinite ease-in-out; }
@@ -39,7 +50,7 @@
     position:fixed;
     left:0;
     right:0;
-    bottom:0;
+    bottom:env(safe-area-inset-bottom);
     z-index:2101;
     background:rgba(5,10,16,0.98);
     border-top:1px solid rgba(255,255,255,0.08);
@@ -395,11 +406,14 @@ let realtimeDebounceTimer = null;
 const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='42' height='42' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-4 0-7 2-7 5v3h14v-3c0-3-3-5-7-5z'/></svg>";
 
 function tryParse(v) { try { return JSON.parse(v); } catch { return null; } }
+
 function escHtml(str) {
     return String(str)
-        .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;").replace(/"/g,"&quot;")
-        .replace(/'/g,"&#039;");
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 /* ─────────────────────────────────────────────
@@ -471,18 +485,27 @@ async function markLikedInDB(postId) {
 }
 
 /* ─────────────────────────────────────────────
-   BOOT
+   INIT
 ───────────────────────────────────────────── */
-window.addEventListener('DOMContentLoaded', async () => {
-
+document.addEventListener("DOMContentLoaded", async function() {
     const uid = await resolveSession();
-    if (!uid) { window.location.href = "login.html"; return; }
+    if (!uid) {
+        window.location.href = "login.html";
+        return;
+    }
 
-    const { data: profile, error: profileErr } = await sbClient
-        .from('users')
-        .select('*')
-        .eq('id', uid)
-        .single();
+    let profile = null, profileErr = null;
+    try {
+        const res = await sbClient
+            .from('users')
+            .select('*')
+            .eq('id', uid)
+            .maybeSingle();
+        profile = res.data;
+        profileErr = res.error;
+    } catch(e) {
+        profileErr = e;
+    }
 
     if (profileErr || !profile) {
         console.error("Profile fetch failed:", profileErr);
@@ -551,7 +574,134 @@ window.addEventListener('DOMContentLoaded', async () => {
             { event: '*', schema: 'public', table: 'ig_feed_posts' },
             scheduleRealtimeRefresh)
         .subscribe();
+
+    // Search wiring (bottom of app has search UI; keep IDs/classes and just enable functionality)
+    wireOfficerSearch();
 });
+
+/* ─────────────────────────────────────────────
+   SEARCH
+───────────────────────────────────────────── */
+function wireOfficerSearch() {
+    const input = document.getElementById('officer-search');
+    const dropdown = document.getElementById('search-dropdown');
+    if (!input || !dropdown) return;
+
+    let lastNormalizedQuery = '';
+    let pendingTimer = null;
+
+    function closeDropdown() {
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = '';
+        lastNormalizedQuery = '';
+    }
+
+    function openDropdown() {
+        dropdown.style.display = 'block';
+    }
+
+    function renderNoResults(text) {
+        dropdown.innerHTML = '<div class="search-no-results">' + (text || 'NO MATCHES') + '</div>';
+    }
+
+    async function runSearch(q) {
+        const query = String(q || '').trim();
+        if (!query) {
+            closeDropdown();
+            return;
+        }
+
+        const normalized = query.toLowerCase();
+        if (normalized === lastNormalizedQuery) return;
+        lastNormalizedQuery = normalized;
+
+        openDropdown();
+        dropdown.innerHTML = '<div class="search-no-results">SEARCHING...</div>';
+
+        // Existing intent: search active individuals by NAME.
+        // Keep behavior simple and robust: prefix match on users.name.
+        const { data, error } = await sbClient
+            .from('users')
+            .select('id, name, rank, pfp')
+            .ilike('name', query + '%')
+            .limit(8);
+
+        if (error) {
+            console.error('Search failed:', error);
+            renderNoResults('SEARCH FAILED');
+            return;
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        if (rows.length === 0) {
+            renderNoResults('NO MATCHES');
+            return;
+        }
+
+        dropdown.innerHTML = '';
+        const frag = document.createDocumentFragment();
+
+        rows.forEach((row) => {
+            const item = document.createElement('div');
+            item.className = 'search-result-item';
+
+            const avatar = document.createElement('img');
+            avatar.className = 'search-result-avatar';
+            avatar.alt = row.name || '';
+            avatar.src = row.pfp || DEFAULT_AVATAR;
+
+            const info = document.createElement('div');
+            info.className = 'search-result-info';
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'search-result-name';
+            nameEl.textContent = row.name || 'UNKNOWN';
+
+            const rankEl = document.createElement('div');
+            rankEl.className = 'search-result-rank';
+            rankEl.textContent = row.rank || 'UNIT';
+
+            info.appendChild(nameEl);
+            info.appendChild(rankEl);
+
+            item.appendChild(avatar);
+            item.appendChild(info);
+
+            item.addEventListener('click', () => {
+                closeDropdown();
+                openProfile(row.id);
+            });
+
+            frag.appendChild(item);
+        });
+
+        dropdown.appendChild(frag);
+    }
+
+    input.addEventListener('input', () => {
+        clearTimeout(pendingTimer);
+        pendingTimer = setTimeout(() => runSearch(input.value), 150);
+    });
+
+    input.addEventListener('focus', () => {
+        if (input.value.trim()) runSearch(input.value);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeDropdown();
+            input.blur();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!t) return;
+        if (t === input || input.contains(t) || dropdown.contains(t)) return;
+        closeDropdown();
+    });
+}
 
 /* ─────────────────────────────────────────────
    BACKFILL
@@ -1113,7 +1263,5 @@ function handleTypingSound() {
     if (window.SFX && typeof SFX.type === 'function') SFX.type();
 }
 </script>
-<script src="ai-voice.js"></script>
-<script src="ai-integration.js"></script>
 </body>
 </html>
