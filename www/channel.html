@@ -1041,10 +1041,66 @@ body::after {
     </div>
   </div><!-- /main-grid -->
 
+
 </div><!-- /app-shell -->
+
+<!-- ═══════════ CADRE HUB BOTTOM NAVIGATION (from home.html) ═══════════ -->
+<!-- (only bottom navigation; keep existing page functionality intact) -->
+<nav class="app-bottom-dock">
+
+    <a href="home.html" class="dock-node">
+        <span class="dock-node-glyph">🏠</span><span>Home</span>
+    </a>
+    <a href="group-call.html" class="dock-node">
+        <span class="dock-node-glyph">📞</span><span>Call</span>
+    </a>
+    <a href="profile.html" class="dock-node">
+        <span class="dock-node-glyph">👤</span><span>Profile</span>
+    </a>
+    <a href="emergency.html" class="dock-node dock-node-emergency">
+        <span class="dock-node-glyph">🚨</span><span>SOS</span>
+    </a>
+    <button type="button" id="more-dock-btn" class="dock-node dock-node-more" aria-label="Open more navigation">
+        <span class="dock-node-glyph">☰</span><span>More</span>
+    </button>
+</nav>
+
+<div id="more-menu-overlay" class="more-menu-overlay"></div>
+<div id="more-menu" class="more-menu" aria-hidden="true">
+    <div class="more-menu-header">
+        <div class="more-menu-title">More tools</div>
+        <button type="button" class="more-menu-close" id="more-menu-close" aria-label="Close more menu">✕</button>
+    </div>
+    <div class="more-menu-grid">
+        <a href="plotter.html" class="more-menu-item">
+            <span class="more-menu-icon">📍</span><span>Plotter</span>
+        </a>
+        <a href="compass.html" class="more-menu-item">
+            <span class="more-menu-icon">🧭</span><span>Compass</span>
+        </a>
+        <a href="ebook.html" class="more-menu-item">
+            <span class="more-menu-icon">📖</span><span>eBook</span>
+        </a>
+        <a href="channel.html" class="more-menu-item">
+            <span class="more-menu-icon">📡</span><span>Channels</span>
+        </a>
+        <a href="map.html" class="more-menu-item">
+            <span class="more-menu-icon">🗺️</span><span>Map</span>
+        </a>
+        <a href="admin.html" class="more-menu-item">
+            <span class="more-menu-icon">⚙️</span><span>Admin</span>
+        </a>
+        <a href="officer_broadcast.html" class="more-menu-item">
+            <span class="more-menu-icon">🎥</span><span>Officer Broadcast</span>
+        </a>
+
+    </div>
+    <div class="more-menu-note">Tap outside to close. Additional tools can be added here later without changing bottom navigation.</div>
+</div>
 
 <!-- ═══════════ PUSH-TO-TALK DOCK ═══════════ -->
 <div class="ptt-dock">
+
 
   <div class="ptt-context">
     <div style="text-transform:uppercase;letter-spacing:2px;">Active Channel</div>
