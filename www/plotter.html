@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CADRE Tactical Grid</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #0b0f14;
+    color: white;
+}
+
+#map {
+    height: 100vh;
+    width: 100%;
+}
+
+.topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    z-index: 999;
+}
+
+.badge {
+    background: #1f6feb;
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-left: 10px;
+    font-size: 12px;
+}
+
+.sos-alert {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: red;
+    padding: 10px 20px;
+    border-radius: 10px;
+    display: none;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0.3; }
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="topbar">
+    <strong>CADRE GRID</strong>
+    <div class="badge" id="userInfo">Loading...</div>
+</div>
+
+<div id="map"></div>
+
+<div class="sos-alert" id="sosAlert">🚨 SOS ACTIVE</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="plotter.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CADRE - Communications Feed</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-container">
+    
+    <header class="app-header">
+        <div class="brand-wrapper">
+            <img src="Cadre logo png.jpg" alt="CADRE" class="brand-logo">
+            <span class="brand-text">CADRE HUB</span>
+        </div>
+        <div id="officer-header-tag" class="header-badge">Loading...</div>
+    </header>
+
+    <section class="search-tray">
+        <input type="text" id="officer-search" class="search-input" placeholder="SEARCH ACTIVE INDIVIDUALS BY NAME..." onkeydown="typeof SFX !== 'undefined' && SFX.throttledKeyClick('search')" oninput="searchPersonnel(this.value)">
+    </section>
+
+    <div id="search-dropdown" class="search-results-box"></div>
+
+    <main class="feed-content">
+        <section class="composer-card">
+            <div class="composer-row">
+                <img id="composer-avatar" class="avatar-frame" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>">
+                <textarea id="post-input" class="composer-input" placeholder="Enter transmission notes..." onkeydown="handleTypingSound()"></textarea>
+            </div>
+            <div class="composer-footer">
+                <label for="image-upload" class="file-upload-label">📷 Attach Media</label>
+                <input type="file" id="image-upload" accept="image/*" style="display: none;" onchange="previewSelectedImage(this)">
+                <img id="post-img-preview" class="preview-thumbnail">
+                <button type="button" class="btn-post" onclick="submitInstagramPost()">Broadcast</button>
+            </div>
+        </section>
+
+        <section id="instagram-stream"></section>
+    </main>
+
+    <nav class="app-bottom-dock">
+        <a href="home.html" class="dock-node active-node"><span class="dock-node-glyph">🏠</span><span>Feed</span></a>
+        <a href="ebook.html" class="dock-node"><span class="dock-node-glyph">📖</span><span>eBook</span></a>
+        <a href="profile.html" class="dock-node"><span class="dock-node-glyph">👤</span><span>Profile</span></a>
+    </nav>
+</div>
+
+<script src="sfx.js"></script>
+<script>
+    let currentSessionOfficer = null;
+    let base64ImageString = "";
+
+    /* ─────────────────────────────
+       TYPING SOUND
+       Throttled click on keydown.
+       Guards against undefined SFX.
+    ───────────────────────────── */
+    function handleTypingSound() {
+        if (typeof SFX !== 'undefined' && SFX.throttledKeyClick) {
+            SFX.throttledKeyClick("post");
+        }
+    }
+
+    window.onload = function() {
+        const sessionData = localStorage.getItem("session_user");
+        if (!sessionData) {
+            window.location.href = "login.html";
+            return;
+        }
+        currentSessionOfficer = JSON.parse(sessionData);
+        document.getElementById("officer-header-tag").textContent = currentSessionOfficer.rank;
+
+        const dbUser = JSON.parse(localStorage.getItem(`user_${currentSessionOfficer.phone}`));
+        if (dbUser && dbUser.pfp) {
+            document.getElementById("composer-avatar").src = dbUser.pfp;
+        }
+
+        renderInstagramFeed();
+    };
+
+    function previewSelectedImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                base64ImageString = e.target.result;
+                const preview = document.getElementById("post-img-preview");
+                preview.src = base64ImageString;
+                preview.style.display = "block";
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function renderInstagramFeed() {
+        const container = document.getElementById("instagram-stream");
+        const posts = JSON.parse(localStorage.getItem("ig_feed_posts")) || [];
+        container.innerHTML = "";
+
+        if (posts.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.8rem;">NO ARCHIVED LOGS AVAILABLE.</div>`;
+            return;
+        }
+
+        posts.slice().reverse().forEach((post, index) => {
+            const pfpSrc = post.pfp ? post.pfp : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
+            const realIndex = posts.length - 1 - index;
+
+            let commentsMarkup = "";
+            if (post.comments && post.comments.length > 0) {
+                post.comments.forEach(c => {
+                    commentsMarkup += `
+                        <div class="comment-row">
+                            <span class="comment-author">${escapeHTML(c.name)}:</span>
+                            <span>${escapeHTML(c.text)}</span>
+                        </div>`;
+                });
+            }
+
+            const mediaSection = post.image ? `<div class="ig-post-media-frame"><img src="${post.image}" class="ig-post-img"></div>` : '';
+
+            const article = document.createElement("article");
+            article.className = "ig-post";
+            article.innerHTML = `
+                <div class="ig-post-header">
+                    <div class="ig-post-profile">
+                        <img src="${pfpSrc}" class="avatar-frame">
+                        <div class="meta-details">
+                            <span class="meta-name">${escapeHTML(post.name)}</span>
+                            <span class="meta-rank">${escapeHTML(post.rank)}</span>
+                        </div>
+                    </div>
+                </div>
+                ${mediaSection}
+                <div class="ig-post-actions">
+                    <button class="action-glyph" onclick="toggleLike(${realIndex})">${post.likes && post.likes.includes(currentSessionOfficer.phone) ? '❤️' : '🤍'}</button>
+                </div>
+                <div class="ig-post-data">
+                    <div class="likes-count">${post.likes ? post.likes.length : 0} CONFIRMATIONS</div>
+                    <div class="caption-block">
+                        <span class="caption-author">${escapeHTML(post.name)}</span>${escapeHTML(post.caption)}
+                    </div>
+                    <div class="comments-box">${commentsMarkup}</div>
+                    <form class="comment-input-form" onsubmit="submitComment(event, ${realIndex})">
+                         <input type="text" class="comment-field" placeholder="Append encryption note..." onkeydown="SFX.throttledKeyClick('comment')" required>
+                        <button type="submit" class="comment-submit-btn">Send</button>
+                    </form>
+                </div>
+            `;
+            container.appendChild(article);
+        });
+    }
+
+    function submitInstagramPost() {
+        const captionText = document.getElementById("post-input").value.trim();
+        if (!captionText && !base64ImageString) return;
+
+        const posts = JSON.parse(localStorage.getItem("ig_feed_posts")) || [];
+        const dbUser = JSON.parse(localStorage.getItem(`user_${currentSessionOfficer.phone}`));
+
+        const newPost = {
+            name: currentSessionOfficer.name,
+            rank: currentSessionOfficer.rank,
+            phone: currentSessionOfficer.phone,
+            pfp: dbUser && dbUser.pfp ? dbUser.pfp : "",
+            caption: captionText,
+            image: base64ImageString,
+            likes: [],
+            comments: []
+        };
+
+        posts.push(newPost);
+        localStorage.setItem("ig_feed_posts", JSON.stringify(posts));
+
+        document.getElementById("post-input").value = "";
+        document.getElementById("post-img-preview").style.display = "none";
+        base64ImageString = "";
+
+        // Play transmit sound on successful post
+        SFX.transmit();
+        
+        renderInstagramFeed();
+    }
+
+    function toggleLike(index) {
+        const posts = JSON.parse(localStorage.getItem("ig_feed_posts"));
+        if (!posts[index].likes) posts[index].likes = [];
+        const userIdx = posts[index].likes.indexOf(currentSessionOfficer.phone);
+        if (userIdx > -1) {
+            posts[index].likes.splice(userIdx, 1);
+        } else {
+            posts[index].likes.push(currentSessionOfficer.phone);
+        }
+        localStorage.setItem("ig_feed_posts", JSON.stringify(posts));
+        renderInstagramFeed();
+    }
+
+    function submitComment(e, index) {
+        e.preventDefault();
+        const inputField = e.target.querySelector(".comment-field");
+        const posts = JSON.parse(localStorage.getItem("ig_feed_posts"));
+        if (!posts[index].comments) posts[index].comments = [];
+        posts[index].comments.push({
+            name: currentSessionOfficer.name,
+            text: inputField.value.trim()
+        });
+        localStorage.setItem("ig_feed_posts", JSON.stringify(posts));
+        inputField.value = "";
+        renderInstagramFeed();
+    }
+
+    function searchPersonnel(query) {
+        const dropdown = document.getElementById("search-dropdown");
+        const cleanQuery = query.toLowerCase().trim();
+        dropdown.innerHTML = "";
+
+        if (!cleanQuery) {
+            dropdown.style.display = "none";
+            return;
+        }
+
+        let hitsFound = false;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith("user_")) {
+                const user = JSON.parse(localStorage.getItem(key));
+                if (user.name && user.name.toLowerCase().includes(cleanQuery)) {
+                    hitsFound = true;
+                    const pfpSrc = user.pfp ? user.pfp : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23648299'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-10 4-10 4v2h20v-2s-3.9-4-10-4z'/></svg>";
+                    const row = document.createElement("div");
+                    row.className = "search-user-row";
+                    row.innerHTML = `
+                        <img src="${pfpSrc}" class="avatar-frame">
+                        <div class="meta-details">
+                            <span class="meta-name">${escapeHTML(user.name)}</span>
+                            <span class="meta-rank">${escapeHTML(user.rank)}</span>
+                        </div>
+                    `;
+                    dropdown.appendChild(row);
+                }
+            }
+        }
+        dropdown.style.display = hitsFound ? "block" : "none";
+    }
+
+    function escapeHTML(str) {
+        return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+    }
+</script>
+</body>
+</html>

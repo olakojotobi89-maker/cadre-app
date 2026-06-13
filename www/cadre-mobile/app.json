@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "cadre-tactical",
+    "slug": "cadre-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/cadre.jpg",
+    "scheme": "cadremobile",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/cadre.jpg"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.smurf_5.cadremobile"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/cadre.jpg"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "android": {
+            "image": "./assets/images/cadre.jpg",
+            "imageWidth": 76
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3ca739db-90c1-4d76-a220-968883e39551"
+      }
+    }
+  }
+}

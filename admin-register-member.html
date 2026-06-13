@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>CADRE - Register Member</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+.preview-box{
+    display:none;
+    margin-top:20px;
+    padding:15px;
+    border:1px solid #555;
+    border-radius:10px;
+}
+
+.generated-password{
+    color:#00ff88;
+    font-weight:bold;
+    font-size:18px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app-container">
+<main class="gateway-wrapper">
+
+<div class="gateway-card">
+
+<img src="Cadre logo png.jpg"
+class="gateway-emblem">
+
+<h1 class="gateway-h1">
+Member Registration
+</h1>
+
+<p class="gateway-p">
+Administrative Personnel Enrollment
+</p>
+
+<form id="register-form">
+
+<div class="form-group">
+<label>Full Name</label>
+<input
+type="text"
+id="member-name"
+class="form-field"
+required>
+</div>
+
+<div class="form-group">
+<label>Rank</label>
+<input
+type="text"
+id="member-rank"
+class="form-field"
+required>
+</div>
+
+<div class="form-group">
+<label>Email</label>
+<input
+type="email"
+id="member-email"
+class="form-field"
+required>
+</div>
+
+<button
+type="submit"
+class="btn-auth-action">
+Generate Preview
+</button>
+
+</form>
+
+<div
+id="preview-box"
+class="preview-box">
+
+<h3>Member Preview</h3>
+
+<p>
+<strong>Name:</strong>
+<span id="preview-name"></span>
+</p>
+
+<p>
+<strong>Rank:</strong>
+<span id="preview-rank"></span>
+</p>
+
+<p>
+<strong>Email:</strong>
+<span id="preview-email"></span>
+</p>
+
+<p>
+<strong>Generated Password:</strong>
+<br>
+<span
+id="generated-password"
+class="generated-password"></span>
+</p>
+
+<br>
+
+<button
+id="confirm-btn"
+class="btn-auth-action"
+style="background:green;">
+Register Member
+</button>
+
+</div>
+
+</div>
+</main>
+</div>
+
+<script>
+
+const supabaseUrl =
+'https://ihroattnnnsckvvbosfz.supabase.co';
+
+const supabaseKey =
+'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
+
+const sbClient =
+supabase.createClient(
+supabaseUrl,
+supabaseKey
+);
+
+/* -----------------------
+   ADMIN CHECK
+------------------------ */
+
+const isAdmin =
+localStorage.getItem("cadre_role") === "admin";
+
+if(!isAdmin){
+    alert("Unauthorized Access");
+    window.location.href="login.html";
+}
+
+/* -----------------------
+   PASSWORD GENERATOR
+------------------------ */
+
+function generatePassword(length=10){
+
+    const chars =
+    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+    let pass = "";
+
+    for(let i=0;i<length;i++){
+        pass += chars.charAt(
+            Math.floor(Math.random()*chars.length)
+        );
+    }
+
+    return pass;
+}
+
+let stagedData = null;
+
+/* -----------------------
+   PREVIEW
+------------------------ */
+
+document
+.getElementById("register-form")
+.addEventListener("submit",(e)=>{
+
+e.preventDefault();
+
+const generatedPassword =
+generatePassword();
+
+stagedData = {
+
+name:
+document
+.getElementById("member-name")
+.value.trim(),
+
+rank:
+document
+.getElementById("member-rank")
+.value.trim(),
+
+email:
+document
+.getElementById("member-email")
+.value
+.toLowerCase()
+.trim(),
+
+password:
+generatedPassword
+
+};
+
+document.getElementById(
+"preview-name"
+).textContent = stagedData.name;
+
+document.getElementById(
+"preview-rank"
+).textContent = stagedData.rank;
+
+document.getElementById(
+"preview-email"
+).textContent = stagedData.email;
+
+document.getElementById(
+"generated-password"
+).textContent =
+generatedPassword;
+
+document.getElementById(
+"preview-box"
+).style.display = "block";
+
+});
+
+/* -----------------------
+   REGISTER MEMBER
+------------------------ */
+
+document
+.getElementById("confirm-btn")
+.addEventListener("click", async()=>{
+
+const btn =
+document.getElementById("confirm-btn");
+
+btn.disabled = true;
+btn.textContent = "Creating...";
+
+try{
+
+const {
+data: authData,
+error: authError
+
+} = await sbClient.auth.signUp({
+
+email: stagedData.email,
+
+password: stagedData.password,
+
+options:{
+data:{
+name: stagedData.name,
+rank: stagedData.rank
+}
+}
+
+});
+
+if(authError){
+
+alert(
+"Registration Failed:\n"+
+authError.message
+);
+
+btn.disabled=false;
+btn.textContent="Register Member";
+
+return;
+}
+
+const userId =
+authData.user?.id;
+
+if(!userId){
+
+alert("User ID not returned");
+
+btn.disabled=false;
+btn.textContent="Register Member";
+
+return;
+}
+
+/* Insert into users table */
+
+const { error: insertError } =
+await sbClient
+.from("users")
+.insert({
+
+id:userId,
+
+name:stagedData.name,
+
+rank:stagedData.rank,
+
+email:stagedData.email
+
+});
+
+if(insertError){
+
+alert(
+"Database Error:\n"+
+insertError.message
+);
+
+btn.disabled=false;
+btn.textContent="Register Member";
+
+return;
+}
+
+alert(
+"Member Registered Successfully\n\n"+
+"Email: "+stagedData.email+
+"\nPassword: "+
+stagedData.password+
+"\n\nGive these credentials to the member."
+);
+
+document
+.getElementById("register-form")
+.reset();
+
+document
+.getElementById("preview-box")
+.style.display="none";
+
+btn.disabled=false;
+btn.textContent="Register Member";
+
+}catch(err){
+
+console.error(err);
+
+alert(err.message);
+
+btn.disabled=false;
+btn.textContent="Register Member";
+
+}
+
+});
+
+</script>
+
+</body>
+</html>
