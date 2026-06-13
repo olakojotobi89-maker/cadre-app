@@ -1,15 +1,13 @@
-import { View, Text } from "react-native";
+import { WebView } from 'react-native-webview';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function Home() {
+export default function HomeScreen() {
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Cadre App</Text>
-    </View>
+    <SafeAreaView style={{ flex: 1 }}>
+      <WebView
+        source={{ uri: 'https://cadre-app.onrender.com' }}
+        style={{ flex: 1 }}
+      />
+    </SafeAreaView>
   );
 }
