@@ -41,3 +41,5 @@ example
 # generated native folders
 /ios
 /android
+../cadre-mobile-clean/
+../cadre-mobile-broken/
