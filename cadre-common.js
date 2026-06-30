@@ -1,8 +1,36 @@
+/* ─────────────────────────────────────────────
+   SUPABASE
+   The publishable key is safe for the browser. We keep session
+   persistence ON so auth.uid() is available to RLS policies,
+   otherwise all RLS-protected tables will return HTTP 400.
+───────────────────────────────────────────── */
 const CADRE_SUPABASE_URL = 'https://ihroattnnnsckvvbosfz.supabase.co';
 const CADRE_SUPABASE_KEY = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const CADRE_SB = supabase.createClient(CADRE_SUPABASE_URL, CADRE_SUPABASE_KEY, {
-  auth: { persistSession: false }
-});
+const CADRE_SB = (() => {
+  try {
+    if (typeof supabase === 'undefined' || !supabase.createClient) {
+      console.error('[CADRE] Supabase SDK failed to load from CDN.');
+      return null;
+    }
+    const client = supabase.createClient(CADRE_SUPABASE_URL, CADRE_SUPABASE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      },
+      global: {
+        headers: { 'x-application-name': 'cadre-web' }
+      }
+    });
+    if (!client) {
+      console.error('[CADRE] Supabase client could not be created.');
+    }
+    return client;
+  } catch (err) {
+    console.error('[CADRE] Supabase init threw:', err);
+    return null;
+  }
+})();
 const CADRE_AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
 const CADRE_ROLE_PERMISSIONS = {
   super_admin: {
@@ -93,7 +121,6 @@ function cadreShowToast(message, type = 'success') {
 function cadreGetSessionObject() {
   const uid = localStorage.getItem('cadre_uid');
   if (uid) return { id: uid };
-
   const keys = ['session_user', 'user', 'officer', 'currentUser'];
   for (const key of keys) {
     const raw = localStorage.getItem(key);
@@ -107,15 +134,15 @@ function cadreGetSessionObject() {
       continue;
     }
   }
-
   const stored = localStorage.getItem('supabase_session');
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      if (parsed?.user) return parsed.user;
-    } catch {};
+      if (parsed && parsed.user) return parsed.user;
+    } catch (err) {
+      console.warn('[CADRE] supabase_session JSON parse failed:', err);
+    }
   }
-
   return null;
 }
 
@@ -148,12 +175,28 @@ function cadrePermissionsForRole(role) {
 }
 
 function cadreSubscribeTable(table, callback) {
+  if (!CADRE_SB) {
+    console.error(`[CADRE] cadreSubscribeTable: Supabase client unavailable for ${table}`);
+    return null;
+  }
   try {
     return CADRE_SB.channel(`public:${table}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table }, callback)
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
+        try {
+          callback(payload);
+        } catch (innerErr) {
+          console.error(`[CADRE] ${table} realtime callback threw:`, innerErr);
+        }
+      })
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn(`[CADRE] Realtime ${table} status=${status}`, err || '');
+        } else {
+          console.log(`[CADRE] Realtime ${table} status=${status}`);
+        }
+      });
   } catch (error) {
-    console.error('Realtime subscribe failed for', table, error);
+    console.error('[CADRE] Realtime subscribe failed for', table, error);
     return null;
   }
 }
@@ -169,4 +212,43 @@ function cadreNormalizeChannelKey(name) {
 
 function cadreFormatChannelCallsign(count) {
   return `CH-${String(count || 0).padStart(2, '0')}`;
+}
+
+/* ─────────────────────────────────────────────
+   ROBUST ERROR LOGGING
+   Captures HTTP status, response body, stack trace and
+   the Supabase error object so failures are easy to
+   diagnose from the browser console.
+───────────────────────────────────────────── */
+function cadreLogError(context, err) {
+  try {
+    const errObj = (err && typeof err === 'object') ? err : { message: String(err) };
+    const status = errObj.status ?? errObj.statusCode ?? null;
+    const body   = errObj.body   ?? errObj.response ?? null;
+    const stack  = errObj.stack  || (new Error(context).stack);
+    const detail = {
+      context,
+      message: errObj.message || errObj.msg || String(err),
+      status,
+      body: typeof body === 'string' ? body.slice(0, 800) : body,
+      code: errObj.code ?? null,
+      details: errObj.details ?? null,
+      hint: errObj.hint ?? null,
+      stack
+    };
+    console.error(`[CADRE][${context}]`, detail);
+    if (errObj.message || errObj.msg) {
+      console.error(`[CADRE][${context}] message:`, errObj.message || errObj.msg);
+    }
+    if (status !== null) {
+      console.error(`[CADRE][${context}] http status:`, status);
+    }
+    if (body !== null && body !== undefined) {
+      console.error(`[CADRE][${context}] response body:`, body);
+    }
+    return detail;
+  } catch (logErr) {
+    console.error('[CADRE] cadreLogError itself failed:', logErr, 'original:', context, err);
+    return null;
+  }
 }

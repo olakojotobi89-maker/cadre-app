@@ -543,13 +543,13 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     let profile = null, profileErr = null;
     try {
-        const res = await sbClient
+        const res = await cadreSafeSupabaseQuery('home.loadProfile', sbClient
             .from('users')
             .select('*')
             .eq('id', uid)
-            .maybeSingle();
-        profile = res.data;
-        profileErr = res.error;
+            .maybeSingle(), { data: null, error: null });
+        profile = res?.data || null;
+        profileErr = res?.error || null;
     } catch(e) {
         profileErr = e;
     }

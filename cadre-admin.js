@@ -97,13 +97,23 @@ function bindAdminControls() {
 }
 
 async function loadChannels() {
-  const [channelsRes, assignmentsRes] = await Promise.all([
-    CADRE_SB.from('channels').select('*').order('created_at', { ascending: true }),
-    CADRE_SB.from('officer_assignments').select('user_id,channel_id,status,patrol_group_id')
-  ]);
+  try {
+    const [channelsRes, assignmentsRes] = await Promise.all([
+      cadreSafeSupabaseQuery('admin.loadChannels.channels', CADRE_SB.from('channels').select('*').order('created_at', { ascending: true }), { data: [], error: null }),
+      cadreSafeSupabaseQuery('admin.loadChannels.assignments', CADRE_SB.from('officer_assignments').select('user_id,channel_id,status,patrol_group_id'), { data: [], error: null })
+    ]);
 
-  CADRE_ADMIN_STATE.channels = channelsRes.data || [];
-  const assignments = assignmentsRes.data || [];
+    if (channelsRes?.error) {
+      cadreLogError('admin.loadChannels.channels', channelsRes.error);
+      channelsRes.data = [];
+    }
+    if (assignmentsRes?.error) {
+      cadreLogError('admin.loadChannels.assignments', assignmentsRes.error);
+      assignmentsRes.data = [];
+    }
+
+    CADRE_ADMIN_STATE.channels = channelsRes.data || [];
+    const assignments = assignmentsRes.data || [];
 
   const channelMetrics = {};
   assignments.forEach(assign => {
@@ -126,15 +136,19 @@ async function loadChannels() {
     };
   });
 
-  if (!CADRE_ADMIN_STATE.channels || CADRE_ADMIN_STATE.channels.length === 0) {
+    if (!CADRE_ADMIN_STATE.channels || CADRE_ADMIN_STATE.channels.length === 0) {
+      CADRE_ADMIN_STATE.channels = CADRE_FALLBACK_CHANNELS;
+    }
+  } catch (err) {
+    cadreLogError('admin.loadChannels.catch', err);
     CADRE_ADMIN_STATE.channels = CADRE_FALLBACK_CHANNELS;
   }
 }
 
 async function loadOfficers() {
   const [usersRes, assignmentsRes] = await Promise.all([
-    CADRE_SB.from('users').select('id,name,rank,role,phone,last_seen,status').order('name', { ascending: true }),
-    CADRE_SB.from('officer_assignments').select('user_id,channel_id,patrol_group_id,status')
+    cadreSafeSupabaseQuery('admin.loadOfficers.users', CADRE_SB.from('users').select('id,name,rank,role,phone,last_seen,status').order('name', { ascending: true }), { data: [], error: null }),
+    cadreSafeSupabaseQuery('admin.loadOfficers.assignments', CADRE_SB.from('officer_assignments').select('user_id,channel_id,patrol_group_id,status'), { data: [], error: null })
   ]);
 
   const users = usersRes.data || [];
@@ -157,23 +171,23 @@ async function loadOfficers() {
 }
 
 async function loadPatrolGroups() {
-  const { data } = await CADRE_SB.from('patrol_groups').select('*').order('created_at', { ascending: true });
-  CADRE_ADMIN_STATE.groups = data || [];
+  const result = await cadreSafeSupabaseQuery('admin.loadPatrolGroups', CADRE_SB.from('patrol_groups').select('*').order('created_at', { ascending: true }), { data: [], error: null });
+  CADRE_ADMIN_STATE.groups = result?.data || [];
 }
 
 async function loadFeed() {
-  const { data } = await CADRE_SB.from('incident_feed').select('id,category,message,created_at,channel_id,officer_id').order('created_at', { ascending: false }).limit(50);
-  CADRE_ADMIN_STATE.feed = data || [];
+  const result = await cadreSafeSupabaseQuery('admin.loadFeed', CADRE_SB.from('incident_feed').select('id,category,message,created_at,channel_id,officer_id').order('created_at', { ascending: false }).limit(50), { data: [], error: null });
+  CADRE_ADMIN_STATE.feed = result?.data || [];
 }
 
 async function loadDistressAlerts() {
-  const { data } = await CADRE_SB.from('distress_alerts').select('id,officer_id,channel_id,latitude,longitude,status,severity,description,acknowledged_by,escalated_by,resolved_by,created_at,updated_at').order('created_at', { ascending: false });
-  CADRE_ADMIN_STATE.distress = data || [];
+  const result = await cadreSafeSupabaseQuery('admin.loadDistressAlerts', CADRE_SB.from('distress_alerts').select('id,officer_id,channel_id,latitude,longitude,status,severity,description,acknowledged_by,escalated_by,resolved_by,created_at,updated_at').order('created_at', { ascending: false }), { data: [], error: null });
+  CADRE_ADMIN_STATE.distress = result?.data || [];
 }
 
 async function loadAudioPreferences() {
   if (!CADRE_ADMIN_STATE.currentUser?.id) return;
-  const { data } = await CADRE_SB.from('voice_preferences').select('*').eq('user_id', CADRE_ADMIN_STATE.currentUser.id);
+  const result = await cadreSafeSupabaseQuery('admin.loadAudioPreferences', CADRE_SB.from('voice_preferences').select('*').eq('user_id', CADRE_ADMIN_STATE.currentUser.id), { data: [], error: null });
   CADRE_ADMIN_STATE.preferences = (data || []).reduce((map, row) => {
     const normalizedKey = cadreNormalizeChannelKey(row.channel_key);
     map[normalizedKey] = { listen: row.listen_enabled, mute: row.muted };
