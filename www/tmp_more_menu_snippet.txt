@@ -1,1 +1,0 @@
-This temporary file is not used; just a placeholder to satisfy tooling.
