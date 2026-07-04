@@ -176,6 +176,23 @@ function logToConsole(message, statusClass) {
         } catch(e) {}
     }
     if (!uid) {
+        logToConsole('NO SESSION — attempting Supabase session restore...', 'status-error');
+        // Give Supabase auth time to restore session from storage.
+        try {
+            const start = Date.now();
+            while (!uid && Date.now() - start < 2000) {
+                const { data: { session } } = await sbClient.auth.getSession();
+                uid = session?.user?.id || uid;
+                if (uid) {
+                    localStorage.setItem("cadre_uid", uid);
+                    break;
+                }
+                await new Promise(r => setTimeout(r, 150));
+            }
+        } catch (e) {}
+    }
+
+    if (!uid) {
         logToConsole('NO SESSION — redirecting to login', 'status-error');
         setTimeout(function() { window.location.href = "login.html"; }, 1500);
         return;

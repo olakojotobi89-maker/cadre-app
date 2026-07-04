@@ -19,8 +19,20 @@ self.addEventListener('fetch', async e => {
   const req = e.request;
   const url = new URL(req.url);
 
+  // Auth-sensitive HTML must NOT be served from cache-first.
+  // Otherwise Supabase session hydration may not have completed yet,
+  // and protected pages can incorrectly redirect to index.html.
+  const authSensitivePaths = new Set([
+    '/index.html',
+    '/home.html'
+  ]);
+
   if (url.origin === location.origin) {
-    e.respondWith(cacheFirst(req));
+    if (authSensitivePaths.has(url.pathname)) {
+      e.respondWith(networkAndCache(req));
+    } else {
+      e.respondWith(cacheFirst(req));
+    }
   } else {
     e.respondWith(networkAndCache(req));
   }

@@ -1193,7 +1193,24 @@ async function resolveChannelSession() {
   }
 
   if (!uid && !sessionUser) {
-    console.warn("channel.html: no session found. localStorage keys:", Object.keys(localStorage));
+    console.warn("channel.html: no session found initially. Retrying Supabase session restore...");
+    // Give Supabase auth a moment to restore from storage.
+    try {
+      const start = Date.now();
+      while (!uid && Date.now() - start < 2000) {
+        const { data: { session } } = await sbClient.auth.getSession();
+        uid = session?.user?.id || uid;
+        if (uid) {
+          localStorage.setItem("cadre_uid", uid);
+          break;
+        }
+        await new Promise(r => setTimeout(r, 150));
+      }
+    } catch (err) {}
+  }
+
+  if (!uid && !sessionUser) {
+    console.warn("channel.html: still no session after retry. localStorage keys:", Object.keys(localStorage));
     window.location.href = "index.html";
     return false;
   }

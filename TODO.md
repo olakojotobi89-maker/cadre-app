@@ -1,14 +1,17 @@
-# Routing fix TODO (routing-only; no business/auth/JS/UI logic changes)
+# CADRE App Auth/Session Root-Cause Fix TODO
 
-- [x] Inspect routing-related configs (found `webDir: "www"`)
-- [x] Inspect `www/` contents (found missing HTML pages and possibly missing `manifest.json` / `sw.js`)
-- [ ] Copy/mirror all root static web assets into `www/` (HTML, CSS, JS, images/audio, `manifest.json`, `sw.js`), preserving filenames
-- [ ] If duplicates exist, overwrite to match root versions only for routing completeness (no logic changes)
-- [ ] Verify that direct requests work for:
-  - [ ] `/admin-register-member.html`
-  - [ ] `/home.html`
-  - [ ] `/profile.html`
-  - [ ] `/surveillance.html`
-- [ ] Verify existing navigation links still work
-- [ ] (Capacitor) Run `npx cap sync` and `npx cap build android` to confirm build includes `www/` assets
+## Step 1 — Identify root cause (SW caching)
+- [x] Reviewed `sw.js` caching strategy.
+- [x] Confirmed `cacheFirst()` is used for all same-origin requests including `home.html` / `index.html`.
+- [ ] Modify `sw.js` so auth-sensitive pages are not served cache-first.
+
+## Step 2 — Apply Service Worker fix
+- [x] Update `cadre-app/sw.js` fetch handler to bypass cache-first for auth-sensitive HTML pages (start with `index.html` and `home.html`).
+
+## Step 3 — Validate
+- [ ] Login: remains on `home.html`.
+- [ ] Refresh `home.html`: remains logged in.
+- [ ] Navigate between protected pages: session preserved.
+- [ ] Unstable/slow internet: no unexpected logout.
+- [ ] Redirect to `index.html` only when no valid session exists.
 

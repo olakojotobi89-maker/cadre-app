@@ -436,6 +436,102 @@ const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
 const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
 const sbClient    = supabase.createClient(supabaseUrl, supabaseKey);
 
+// ─────────────────────────────────────────────
+// AUTH DEBUG (temporary instrumentation)
+// ─────────────────────────────────────────────
+function authDebug(...args) {
+    try { console.log('[AUTH DEBUG]', ...args); } catch (_) {}
+}
+
+function safeAccessTokenExpiry(session) {
+    try {
+        const exp = session?.access_token_expires_at;
+        if (!exp) return null;
+        return exp;
+    } catch (_) {
+        return null;
+    }
+}
+
+function safeHasTokens(session) {
+    try {
+        const accessToken = !!session?.access_token;
+        const refreshToken = !!session?.refresh_token;
+        return { accessToken, refreshToken };
+    } catch (_) {
+        return { accessToken: null, refreshToken: null };
+    }
+}
+
+function logSessionSnapshot(label, session) {
+    try {
+        const tok = safeHasTokens(session);
+        authDebug(label, {
+            hasSession: !!session,
+            userId: session?.user?.id || null,
+            accessTokenExists: tok.accessToken,
+            accessTokenExpiry: safeAccessTokenExpiry(session) || null,
+            refreshTokenExists: tok.refreshToken,
+        });
+    } catch (_) {
+        authDebug(label, 'failed to log session snapshot');
+    }
+}
+
+// Log auth state changes
+try {
+    sbClient.auth.onAuthStateChange((event, session) => {
+        logSessionSnapshot('onAuthStateChange:' + event, session);
+        authDebug('onAuthStateChange event', event);
+    });
+} catch (e) {
+    authDebug('onAuthStateChange setup failed', e);
+}
+
+// Wrap signOut and logout calls (do not change behavior)
+try {
+    const origSignOut = sbClient.auth.signOut?.bind(sbClient.auth);
+    if (origSignOut) {
+        sbClient.auth.signOut = async function() {
+            console.trace('[AUTH DEBUG] sbClient.auth.signOut called');
+            authDebug('sbClient.auth.signOut invoked');
+            return origSignOut.apply(this, arguments);
+        };
+    }
+} catch (e) {
+    authDebug('signOut wrapper setup failed', e);
+}
+
+try {
+    const origSignOut2 = sbClient.auth.signOut?.bind(sbClient.auth);
+    if (origSignOut2) {
+        // no-op; wrapper already added above
+    }
+} catch (e) {}
+
+// Log redirects globally
+(function interceptRedirects() {
+    try {
+        const _assign = window.location.assign?.bind(window.location);
+        Object.defineProperty(window.location, 'href', {
+            get() { return window.location.toString(); },
+            set(v) {
+                authDebug('redirect attempt (location.href set)', v);
+                console.trace('[AUTH DEBUG] location.href set stack');
+                return window.location.replace(String(v));
+            }
+        });
+        if (_assign) window.location.assign = function(u) {
+            authDebug('redirect attempt (location.assign)', u);
+            console.trace('[AUTH DEBUG] location.assign stack');
+            return _assign(u);
+        };
+    } catch (_) {
+        // fallback: we will log redirects at explicit redirect points below
+    }
+})();
+
+
 /* ─────────────────────────────────────────────
    STATE
 ───────────────────────────────────────────── */
@@ -535,11 +631,42 @@ async function markLikedInDB(postId) {
    INIT
 ───────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", async function() {
-    const uid = await resolveSession();
+    // Resolve session reliably before deciding user is logged out.
+    // Some devices take a moment to restore Supabase session from storage.
+    let uid = await resolveSession();
+
+    // Wait asynchronously for Supabase auth state to restore for up to 2s.
+    // This prevents an immediate "logged out" redirect during initial session hydration.
     if (!uid) {
+        const timeoutAt = Date.now() + 2000;
+        while (!uid && Date.now() < timeoutAt) {
+            try {
+                const { data: { session } } = await sbClient.auth.getSession();
+                uid = session?.user?.id || null;
+                if (uid) break;
+            } catch (e) {
+                // ignore and retry until timeout
+            }
+            await new Promise(r => setTimeout(r, 150));
+        }
+
+        if (uid) localStorage.setItem("cadre_uid", uid);
+    }
+
+    if (!uid) {
+        // Only now treat as logged out.
+        authDebug('Redirecting to index.html because uid is missing after session resolution', {
+            uid
+        });
+        try {
+            sbClient.auth.getSession().then(s => logSessionSnapshot('beforeRedirect:index.html', s));
+        } catch (_) {}
         window.location.href = "index.html";
         return;
     }
+
+
+
 
     let profile = null, profileErr = null;
     try {
