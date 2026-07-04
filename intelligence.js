@@ -14,9 +14,9 @@ const CADRE_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 
 const sbClient = window.supabase.createClient(CADRE_SUPABASE_URL, CADRE_SUPABASE_KEY, {
     auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
     },
     global: {
         headers: {

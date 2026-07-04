@@ -133,9 +133,7 @@
 /* ════════════════════════════════════════════════
    CADRE EMERGENCY — CORE LOGIC
 ════════════════════════════════════════════════ */
-const supabaseUrl = 'https://ihroattnnnsckvvbosfz.supabase.co';
-const supabaseKey = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const sbClient    = supabase.createClient(supabaseUrl, supabaseKey);
+const sbClient = (typeof window !== 'undefined' && window.CADRE_SB) ? window.CADRE_SB : (typeof supabase !== 'undefined' && supabase.createClient ? supabase.createClient('https://ihroattnnnsckvvbosfz.supabase.co', 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX', { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null);
 
 let currentUser   = null;
 let isAlertActive = false;

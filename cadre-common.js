@@ -6,18 +6,23 @@
 ───────────────────────────────────────────── */
 const CADRE_SUPABASE_URL = 'https://ihroattnnnsckvvbosfz.supabase.co';
 const CADRE_SUPABASE_KEY = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-const CADRE_SB = (() => {
+
+function cadreBuildSupabaseAuthConfig() {
+  return {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  };
+}
+
+function createCadreSupabaseClient() {
   try {
     if (typeof supabase === 'undefined' || !supabase.createClient) {
       console.error('[CADRE] Supabase SDK failed to load from CDN.');
       return null;
     }
     const client = supabase.createClient(CADRE_SUPABASE_URL, CADRE_SUPABASE_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      },
+      auth: cadreBuildSupabaseAuthConfig(),
       global: {
         headers: { 'x-application-name': 'cadre-web' }
       }
@@ -30,7 +35,74 @@ const CADRE_SB = (() => {
     console.error('[CADRE] Supabase init threw:', err);
     return null;
   }
-})();
+}
+
+const CADRE_SB = createCadreSupabaseClient();
+window.CADRE_SB = CADRE_SB;
+window.createCadreSupabaseClient = createCadreSupabaseClient;
+window.cadreSafeSupabaseQuery = cadreSafeSupabaseQuery;
+window.cadreResolveCurrentUser = cadreResolveCurrentUser;
+
+async function cadreSafeSupabaseQuery(context, request, fallback = { data: null, error: null }, options = {}) {
+  if (!request || typeof request.then !== 'function') {
+    return { data: fallback?.data ?? null, error: fallback?.error ?? null };
+  }
+
+  const retries = Math.max(0, Number(options.retries ?? 2));
+  const retryDelayMs = Math.max(100, Number(options.retryDelayMs ?? 250));
+  const redirectPath = options.redirectPath || 'index.html';
+
+  let attempt = 0;
+  while (attempt <= retries) {
+    try {
+      const response = await request;
+      if (response?.error) {
+        const error = response.error;
+        const isAuthFailure = error?.status === 401 || error?.status === 403 || error?.code === 'PGRST301' || error?.code === '42501';
+        const isRetryable = !isAuthFailure && (error?.status >= 500 || error?.status === 0 || /network|timeout|fetch/i.test(String(error?.message || '')));
+
+        if (isRetryable && attempt < retries) {
+          attempt += 1;
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+          continue;
+        }
+
+        if (error && typeof cadreLogError === 'function') {
+          cadreLogError(context, error);
+        }
+
+        return {
+          data: response?.data ?? fallback?.data ?? null,
+          error
+        };
+      }
+
+      return {
+        data: response?.data ?? fallback?.data ?? null,
+        error: null
+      };
+    } catch (err) {
+      const isRetryable = /network|timeout|fetch|Failed to fetch/i.test(String(err?.message || err));
+      if (isRetryable && attempt < retries) {
+        attempt += 1;
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        continue;
+      }
+
+      if (typeof cadreLogError === 'function') {
+        cadreLogError(context, err);
+      }
+
+      return {
+        data: fallback?.data ?? null,
+        error: err
+      };
+    }
+  }
+
+  return { data: fallback?.data ?? null, error: fallback?.error ?? null };
+}
+
 const CADRE_AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
 const CADRE_ROLE_PERMISSIONS = {
   super_admin: {
@@ -148,9 +220,10 @@ function cadreGetSessionObject() {
 
 async function cadreResolveCurrentUser() {
   const session = cadreGetSessionObject();
-  if (!session) {
+  if (!session && CADRE_SB?.auth?.getSession) {
     try {
-      const { data: { session: authSession } } = await CADRE_SB.auth.getSession();
+      const result = await cadreSafeSupabaseQuery('cadreResolveCurrentUser.getSession', CADRE_SB.auth.getSession(), { data: null, error: null });
+      const authSession = result?.data?.session || result?.data?.data?.session || null;
       if (authSession?.user) {
         localStorage.setItem('cadre_uid', authSession.user.id);
         return authSession.user;
@@ -161,8 +234,8 @@ async function cadreResolveCurrentUser() {
     return null;
   }
 
-  if (session.id) {
-    const { data, error } = await CADRE_SB.from('users').select('*').eq('id', session.id).maybeSingle();
+  if (session?.id && CADRE_SB?.from) {
+    const { data, error } = await cadreSafeSupabaseQuery('cadreResolveCurrentUser.profile', CADRE_SB.from('users').select('*').eq('id', session.id).maybeSingle(), { data: null, error: null });
     if (!error && data) return data;
   }
 
