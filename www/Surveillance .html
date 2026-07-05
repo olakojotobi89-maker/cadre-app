@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CADRE // SURVEILLANCE COMMAND</title>
+  <link rel="stylesheet" href="surveillance.css" />
+  <!-- Agora RTC SDK (external) -->
+  <!-- <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script> -->
+</head>
+<body>
+
+  <!-- SCANLINE OVERLAY -->
+  <div class="scanline-overlay"></div>
+
+  <!-- VIGNETTE -->
+  <div class="vignette"></div>
+
+  <!-- CORNER BRACKETS -->
+  <div class="corner-bracket top-left"></div>
+  <div class="corner-bracket top-right"></div>
+  <div class="corner-bracket bottom-left"></div>
+  <div class="corner-bracket bottom-right"></div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- HEADER BAR -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <header class="sys-header">
+    <div class="header-left">
+      <div class="sys-logo">
+        <span class="logo-bracket">[</span>
+        <span class="logo-text">CADRE</span>
+        <span class="logo-bracket">]</span>
+      </div>
+      <div class="sys-divider"></div>
+      <div class="sys-module">
+        <span class="module-label">MODULE</span>
+        <span class="module-name">SURVEILLANCE COMMAND</span>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="sys-clock" id="sysClock">--:--:--</div>
+      <div class="sys-date" id="sysDate">----/--/--</div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill status-live" id="systemStatusPill">
+        <span class="pulse-dot"></span>
+        <span class="status-text" id="systemStatusText">SYSTEM ACTIVE</span>
+      </div>
+      <div class="header-stats">
+        <div class="hstat">
+          <span class="hstat-label">FEEDS</span>
+          <span class="hstat-val" id="activeFeedCount">0</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">REC</span>
+          <span class="hstat-val" id="recStatus">OFF</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">UPLINK</span>
+          <span class="hstat-val uplink-ok">OK</span>
+        </div>
+      </div>
+      <button class="header-btn" id="btnEmergency" onclick="triggerEmergencyLockdown()">
+        <svg viewBox="0 0 20 20"><polygon points="10,2 18,18 2,18"/></svg>
+        LOCKDOWN
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MAIN LAYOUT -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <main class="main-layout">
+
+    <!-- ─── LEFT SIDEBAR: OFFICER ROSTER ─── -->
+    <aside class="sidebar-left">
+      <div class="sidebar-section-header">
+        <span class="section-title">FIELD OPERATIVES</span>
+        <span class="section-badge" id="onlineCount">0 ONLINE</span>
+      </div>
+
+      <div class="officer-roster" id="officerRoster">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div class="sidebar-section-header mt-12">
+        <span class="section-title">CHANNEL MAP</span>
+      </div>
+      <div class="channel-map" id="channelMap">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div class="sidebar-section-header mt-12">
+        <span class="section-title">THREAT MATRIX</span>
+      </div>
+      <div class="threat-matrix">
+        <div class="threat-row">
+          <span class="threat-label">ALERT LEVEL</span>
+          <div class="threat-bar-wrap">
+            <div class="threat-bar" id="threatBar" style="width:35%"></div>
+          </div>
+          <span class="threat-val" id="threatVal">MODERATE</span>
+        </div>
+        <div class="threat-row">
+          <span class="threat-label">SIGNAL INT</span>
+          <div class="threat-bar-wrap">
+            <div class="threat-bar green" style="width:82%"></div>
+          </div>
+          <span class="threat-val green-text">HIGH</span>
+        </div>
+        <div class="threat-row">
+          <span class="threat-label">JAMMING</span>
+          <div class="threat-bar-wrap">
+            <div class="threat-bar red" style="width:8%"></div>
+          </div>
+          <span class="threat-val red-text">NONE</span>
+        </div>
+        <div class="threat-row">
+          <span class="threat-label">ENCRYPTION</span>
+          <div class="threat-bar-wrap">
+            <div class="threat-bar gold" style="width:100%"></div>
+          </div>
+          <span class="threat-val gold-text">AES-256</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ─── CENTER: SURVEILLANCE GRID / WORLD MAP ─── -->
+    <section class="surveillance-center">
+
+      <!-- GRID TOOLBAR -->
+      <div class="grid-toolbar">
+        <div class="toolbar-left">
+          <div class="view-toggle">
+            <button class="vtoggle active" id="btnGridView" onclick="setView('grid')">
+              <svg viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6"/><rect x="9" y="1" width="6" height="6"/><rect x="1" y="9" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/></svg>
+              GRID
+            </button>
+            <button class="vtoggle" id="btnMapView" onclick="setView('map')">
+              <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 8 Q8 2 14 8 Q8 14 2 8" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" stroke-width="1"/></svg>
+              TACTICAL MAP
+            </button>
+          </div>
+          <div class="toolbar-sep"></div>
+          <div class="grid-layout-btns">
+            <button class="layout-btn active" id="layout-auto" onclick="setLayout('auto')" title="Auto">AUTO</button>
+            <button class="layout-btn" id="layout-2x2" onclick="setLayout('2x2')" title="2x2">2×2</button>
+            <button class="layout-btn" id="layout-3x3" onclick="setLayout('3x3')" title="3x3">3×3</button>
+            <button class="layout-btn" id="layout-solo" onclick="setLayout('solo')" title="Solo">1×1</button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <div class="bandwidth-indicator">
+            <span class="bw-label">UPLINK</span>
+            <div class="bw-bars">
+              <span class="bw-bar active"></span>
+              <span class="bw-bar active"></span>
+              <span class="bw-bar active"></span>
+              <span class="bw-bar active"></span>
+              <span class="bw-bar"></span>
+            </div>
+            <span class="bw-val">4.2 MB/s</span>
+          </div>
+          <div class="toolbar-sep"></div>
+          <span class="toolbar-info" id="toolbarInfo">NO ACTIVE FEEDS — TACTICAL MAP MODE</span>
+        </div>
+      </div>
+
+      <!-- SURVEILLANCE VIEW CONTAINER -->
+      <div class="surveillance-view" id="surveillanceView">
+
+        <!-- WORLD MAP (default when no feeds) -->
+        <div class="tactical-map-container" id="tacticalMap">
+          <canvas id="radarCanvas"></canvas>
+          <div class="map-grid-overlay"></div>
+          <div class="map-scanline"></div>
+
+          <!-- SVG World Map Silhouette -->
+          <svg class="world-svg" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+            <!-- Simplified continent outlines -->
+            <!-- North America -->
+            <path class="continent" d="M 120,80 L 200,60 L 280,70 L 320,100 L 340,140 L 310,180 L 280,200 L 260,240 L 240,280 L 200,300 L 170,280 L 140,260 L 110,240 L 90,200 L 80,160 L 100,120 Z"/>
+            <!-- South America -->
+            <path class="continent" d="M 220,320 L 260,310 L 290,330 L 310,370 L 300,420 L 280,460 L 250,490 L 220,480 L 200,450 L 190,410 L 200,370 Z"/>
+            <!-- Europe -->
+            <path class="continent" d="M 520,80 L 580,70 L 620,80 L 640,100 L 630,130 L 600,150 L 570,160 L 540,150 L 510,130 L 500,100 Z"/>
+            <!-- Africa -->
+            <path class="continent" d="M 530,180 L 590,170 L 640,185 L 660,220 L 660,280 L 640,340 L 610,390 L 580,420 L 550,410 L 520,380 L 500,330 L 495,270 L 505,220 Z"/>
+            <!-- Asia -->
+            <path class="continent" d="M 640,60 L 780,50 L 920,80 L 980,120 L 960,160 L 900,180 L 840,190 L 780,200 L 720,190 L 670,180 L 640,160 L 620,120 Z"/>
+            <!-- Australia -->
+            <path class="continent" d="M 880,340 L 950,320 L 1010,340 L 1030,390 L 1010,430 L 960,450 L 900,440 L 870,410 L 860,370 Z"/>
+            <!-- Scandinavia/UK -->
+            <path class="continent" d="M 510,60 L 540,55 L 560,65 L 550,80 L 530,85 L 510,75 Z"/>
+          </svg>
+
+          <!-- Location nodes -->
+          <div class="loc-node" id="node1" style="left:22%;top:35%">
+            <div class="node-ring"></div>
+            <div class="node-core"></div>
+            <span class="node-label">ALPHA-7</span>
+          </div>
+          <div class="loc-node active-node" id="node2" style="left:48%;top:28%">
+            <div class="node-ring"></div>
+            <div class="node-core"></div>
+            <span class="node-label">BRAVO-2</span>
+          </div>
+          <div class="loc-node" id="node3" style="left:72%;top:22%">
+            <div class="node-ring"></div>
+            <div class="node-core"></div>
+            <span class="node-label">CHARLIE-9</span>
+          </div>
+          <div class="loc-node warning-node" id="node4" style="left:55%;top:55%">
+            <div class="node-ring"></div>
+            <div class="node-core"></div>
+            <span class="node-label">DELTA-4</span>
+          </div>
+          <div class="loc-node" id="node5" style="left:82%;top:65%">
+            <div class="node-ring"></div>
+            <div class="node-core"></div>
+            <span class="node-label">ECHO-1</span>
+          </div>
+
+          <!-- Connection lines between nodes (SVG) -->
+          <svg class="connection-lines" viewBox="0 0 1000 600" preserveAspectRatio="none">
+            <line class="conn-line" x1="220" y1="210" x2="480" y2="168" />
+            <line class="conn-line" x1="480" y1="168" x2="720" y2="132" />
+            <line class="conn-line" x1="480" y1="168" x2="550" y2="330" />
+            <line class="conn-line warn-line" x1="550" y1="330" x2="820" y2="390" />
+          </svg>
+
+          <!-- Radar sweep -->
+          <div class="radar-sweep-container" id="radarSweep">
+            <div class="radar-sweep"></div>
+          </div>
+
+          <!-- Map HUD overlays -->
+          <div class="map-hud-tl">
+            <div class="map-coord">LAT: 48°52'N</div>
+            <div class="map-coord">LON: 002°21'E</div>
+            <div class="map-coord">ALT: 342M</div>
+          </div>
+          <div class="map-hud-tr">
+            <div class="map-coord">ZOOM: 1.0×</div>
+            <div class="map-coord">MODE: GLOBAL</div>
+            <div class="map-coord" id="mapSatCount">SAT: 12/14</div>
+          </div>
+          <div class="map-center-text">
+            <span class="map-primary-text">TACTICAL SURVEILLANCE GRID ACTIVE</span>
+            <span class="map-secondary-text">MONITORING ▸ GLOBAL NETWORK ▸ AWAITING FIELD FEEDS</span>
+          </div>
+          <div class="map-hud-bl">
+            <div class="scan-bar-wrap">
+              <span class="scan-label">SCANNING</span>
+              <div class="scan-bar"><div class="scan-fill" id="scanFill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIDEO GRID (shown when feeds active) -->
+        <div class="video-grid hidden" id="videoGrid">
+          <!-- Dynamically populated video tiles -->
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ─── RIGHT SIDEBAR: INTEL FEED ─── -->
+    <aside class="sidebar-right">
+      <div class="sidebar-section-header">
+        <span class="section-title">INTEL STREAM</span>
+        <span class="pulse-dot green"></span>
+      </div>
+      <div class="intel-feed" id="intelFeed">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div class="sidebar-section-header mt-12">
+        <span class="section-title">AUDIO LEVELS</span>
+      </div>
+      <div class="audio-levels" id="audioLevels">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div class="sidebar-section-header mt-12">
+        <span class="section-title">NETWORK TOPOLOGY</span>
+      </div>
+      <div class="network-topo">
+        <div class="topo-row">
+          <span class="topo-label">AGORA RTN</span>
+          <span class="topo-status ok">CONNECTED</span>
+        </div>
+        <div class="topo-row">
+          <span class="topo-label">RELAY NODE</span>
+          <span class="topo-status ok">SINGAPORE</span>
+        </div>
+        <div class="topo-row">
+          <span class="topo-label">LATENCY</span>
+          <span class="topo-status" id="latencyVal">42ms</span>
+        </div>
+        <div class="topo-row">
+          <span class="topo-label">PACKET LOSS</span>
+          <span class="topo-status ok">0.1%</span>
+        </div>
+        <div class="topo-row">
+          <span class="topo-label">CODEC</span>
+          <span class="topo-status">H.264/OPUS</span>
+        </div>
+        <div class="topo-row">
+          <span class="topo-label">RESOLUTION</span>
+          <span class="topo-status">1080P@30</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section-header mt-12">
+        <span class="section-title">SYSTEM LOG</span>
+      </div>
+      <div class="sys-log" id="sysLog">
+        <!-- Dynamically populated -->
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- FLOATING HUD CONTROL PANEL -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="hud-control-panel" id="hudPanel">
+    <div class="hud-drag-handle" id="hudHandle">
+      <span class="hud-title">⬛ COMMAND HUD</span>
+      <div class="hud-status-row">
+        <span class="hud-dot active"></span>
+        <span class="hud-status-txt" id="hudStatusTxt">STANDBY</span>
+      </div>
+    </div>
+
+    <div class="hud-body">
+
+      <!-- PRIMARY CONTROLS -->
+      <div class="hud-group">
+        <div class="hud-group-label">RECORDING</div>
+        <div class="hud-btn-row">
+          <button class="hud-btn gold" id="btnStartRec" onclick="startRecording()">
+            <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/></svg>
+            START REC
+          </button>
+          <button class="hud-btn red" id="btnStopRec" onclick="stopRecording()" disabled>
+            <svg viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10"/></svg>
+            STOP REC
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-divider"></div>
+
+      <!-- CAPTURE -->
+      <div class="hud-group">
+        <div class="hud-group-label">CAPTURE</div>
+        <div class="hud-btn-row">
+          <button class="hud-btn cyan" id="btnSnapshot" onclick="takeSnapshot()">
+            <svg viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="11" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 5 L8 3 L12 3 L13 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            SNAPSHOT
+          </button>
+          <button class="hud-btn" id="btnScreenShare" onclick="toggleScreenShare()">
+            <svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 17 L13 17 M10 14 L10 17" stroke="currentColor" stroke-width="1.5"/></svg>
+            SCREEN
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-divider"></div>
+
+      <!-- AUDIO -->
+      <div class="hud-group">
+        <div class="hud-group-label">AUDIO</div>
+        <div class="hud-btn-row">
+          <button class="hud-btn red" id="btnMuteAll" onclick="muteAllFeeds()">
+            <svg viewBox="0 0 20 20"><path d="M10 2 L10 12 M7 5 Q4 7 4 10 Q4 15 10 15 Q16 15 16 10 Q16 7 13 5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="1.5"/></svg>
+            MUTE ALL
+          </button>
+          <button class="hud-btn" id="btnUnmuteAll" onclick="unmuteAllFeeds()">
+            <svg viewBox="0 0 20 20"><path d="M10 2 L10 12 M7 5 Q4 7 4 10 Q4 15 10 15 Q16 15 16 10 Q16 7 13 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            UNMUTE
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-divider"></div>
+
+      <!-- VIEW -->
+      <div class="hud-group">
+        <div class="hud-group-label">VIEW MODE</div>
+        <div class="hud-btn-row">
+          <button class="hud-btn gold" id="btnSwitchView" onclick="cycleView()">
+            <svg viewBox="0 0 20 20"><path d="M4 4 L10 10 L16 4 M4 16 L10 10 L16 16" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            SWITCH VIEW
+          </button>
+          <button class="hud-btn" id="btnFullscreen" onclick="toggleFullscreen()">
+            <svg viewBox="0 0 20 20"><path d="M3 7 L3 3 L7 3 M13 3 L17 3 L17 7 M17 13 L17 17 L13 17 M7 17 L3 17 L3 13" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            FULLSCREEN
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-divider"></div>
+
+      <!-- EMERGENCY -->
+      <div class="hud-group">
+        <div class="hud-group-label danger-label">⚠ CRITICAL ACTIONS</div>
+        <button class="hud-btn emergency-btn full-width" id="btnLockdown" onclick="triggerEmergencyLockdown()">
+          <svg viewBox="0 0 20 20"><rect x="5" y="9" width="10" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 L7 6 Q7 3 10 3 Q13 3 13 6 L13 9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          EMERGENCY LOCKDOWN
+        </button>
+      </div>
+
+      <!-- HUD MINI STATS -->
+      <div class="hud-mini-stats">
+        <div class="hud-mstat">
+          <span class="hms-label">UPTIME</span>
+          <span class="hms-val" id="uptimeVal">00:00:00</span>
+        </div>
+        <div class="hud-mstat">
+          <span class="hms-label">CPU</span>
+          <span class="hms-val" id="cpuVal">--</span>
+        </div>
+        <div class="hud-mstat">
+          <span class="hms-label">STORAGE</span>
+          <span class="hms-val" id="storageVal">--</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- NOTIFICATION TOAST -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="notif-stack" id="notifStack"></div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- LOCKDOWN OVERLAY -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="lockdown-overlay hidden" id="lockdownOverlay">
+    <div class="lockdown-inner">
+      <div class="lockdown-icon">
+        <svg viewBox="0 0 100 100"><rect x="20" y="45" width="60" height="45" rx="5" fill="none" stroke="#cc1a1a" stroke-width="4"/><path d="M30 45 L30 30 Q30 10 50 10 Q70 10 70 30 L70 45" fill="none" stroke="#cc1a1a" stroke-width="4"/><circle cx="50" cy="65" r="6" fill="#cc1a1a"/></svg>
+      </div>
+      <div class="lockdown-text">EMERGENCY LOCKDOWN</div>
+      <div class="lockdown-sub">ALL CHANNELS ENCRYPTED ▸ UPLINK SECURED ▸ AUTHORITIES NOTIFIED</div>
+      <div class="lockdown-countdown" id="lockdownCountdown">CANCELLING IN: 10</div>
+      <button class="lockdown-cancel" id="btnCancelLockdown" onclick="cancelLockdown()">CANCEL LOCKDOWN</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- SNAPSHOT FLASH OVERLAY -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="snapshot-flash hidden" id="snapshotFlash"></div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- AGORA SDK HOOK PLACEHOLDERS -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <!--
+    AGORA INTEGRATION HOOKS:
+    - window.agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'h264' });
+    - Join channel: agoraClient.join(APP_ID, CHANNEL, TOKEN, UID)
+    - Subscribe to remote user video: agoraClient.on('user-published', handler)
+    - Play stream in tile: remoteUser.videoTrack.play(`video-tile-${uid}`)
+    - Active speaker: AgoraRTC.checkAudioTrackIsActive()
+    - On 'volume-indicator': highlight active speaker tile
+  -->
+
+  <script>
+  // Inject working Agora join identity (prevents missing APP_ID abort)
+  window.__AGORA_APP_ID = "8f88034e0a9545868b55af604b268e1e";
+  window.__AGORA_CHANNEL = window.__AGORA_CHANNEL || "cadre-surveillance";
+  window.__AGORA_TOKEN = (window.__AGORA_TOKEN === undefined) ? null : window.__AGORA_TOKEN;
+
+  // Agora RTC subscriber bootstrap
+  (function bootAgoraSubscriber(){
+    // Ensure SDK is loaded
+    if (!window.AgoraRTC && !window.AgoraRTC_N) {
+      const s = document.createElement('script');
+      s.src = 'https://download.agora.io/sdk/release/AgoraRTC_N.js';
+      s.async = true;
+      s.onload = () => initCadreAgora();
+      s.onerror = () => console.error('Failed to load AgoraRTC_N.js');
+      document.head.appendChild(s);
+      return;
+    }
+    initCadreAgora();
+
+    function initCadreAgora(){
+      if (window.__CADRE_AGORA_SUBSCRIBER_BOOTSTRAPPED) return;
+      window.__CADRE_AGORA_SUBSCRIBER_BOOTSTRAPPED = true;
+
+      const uidByOfficer = new Map();
+      const videoByUid = new Map();
+
+      const channel = (window.__AGORA_CHANNEL || 'cadre-surveillance');
+      const appId = (window.__AGORA_APP_ID || null);
+      const token = (window.__AGORA_TOKEN && window.__AGORA_TOKEN !== 'null') ? window.__AGORA_TOKEN : null;
+
+      // Allow APP_ID from multiple sources to avoid “connect but nothing renders” misconfig.
+      const appIdFromHtml = (document.querySelector('[data-agora-appid]')?.getAttribute('data-agora-appid')) || null;
+      const appIdResolved = appId || appIdFromHtml;
+
+      if (!appIdResolved) {
+        console.warn('Surveillance: missing Agora App ID. Set window.__AGORA_APP_ID before load.');
+        return;
+      }
+
+
+      const AgoraRTC = window.AgoraRTC_N || window.AgoraRTC;
+      const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'h264' });
+
+      const videoContainer = document.getElementById('videoGrid');
+      if (!videoContainer) {
+        console.warn('Surveillance: #videoGrid container not found.');
+        return;
+      }
+
+      function ensureTile(uid){
+        if (document.getElementById(`tile-${uid}`)) return;
+
+        const officer = {
+          uid,
+          id: uid,
+          name: `OFFICER-${String(uid).slice(-4)}`,
+          codename: `COD-${String(uid).slice(-3)}`,
+          muted: false,
+          feed: true,
+        };
+
+        const tile = document.createElement('div');
+        tile.className = 'video-tile';
+        tile.id = `tile-${uid}`;
+        tile.dataset.officerId = String(uid);
+
+        // minimal tile content (matches existing CSS expectations in surveillance.js)
+        tile.innerHTML = `
+          <div class="tile-video-area" id="agora-video-${uid}">
+            <div class="tile-placeholder">
+              <div class="tile-placeholder-icon">
+                <svg viewBox="0 0 60 60"><circle cx="30" cy="22" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 55 Q10 38 30 38 Q50 38 50 55" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+              <div class="tile-connecting">CONNECTING...</div>
+            </div>
+          </div>
+          <div class="tile-hud">
+            <div class="tile-hud-top">
+              <div class="tile-live-ind"><span class="tile-live-dot"></span><span class="tile-live-txt">LIVE</span></div>
+              <div class="tile-badge-row"><span class="tile-quality">HD</span></div>
+            </div>
+            <div class="tile-hud-bottom">
+              <div class="tile-officer-info">
+                <span class="tile-officer-name">${officer.name}</span>
+                <span class="tile-officer-code">${officer.codename}</span>
+              </div>
+            </div>
+          </div>
+        `;
+
+        videoContainer.appendChild(tile);
+      }
+
+      function removeTile(uid){
+        const tile = document.getElementById(`tile-${uid}`);
+        if (tile) tile.remove();
+      }
+
+      client.on('user-published', async (user, mediaType) => {
+        try {
+          await client.subscribe(user, mediaType);
+        } catch (e) {
+          console.warn('subscribe failed', e);
+        }
+
+        const uid = user.uid;
+        ensureTile(uid);
+
+        if (mediaType === 'video' && user.videoTrack) {
+          user.videoTrack.play(`agora-video-${uid}`);
+          videoByUid.set(uid, user.videoTrack);
+        }
+
+        if (mediaType === 'audio' && user.audioTrack) {
+          // Some SDK versions require play() for remote audio.
+          try {
+            if (typeof user.audioTrack.play === 'function') user.audioTrack.play();
+          } catch {}
+        }
+      });
+
+      client.on('user-unpublished', (user) => {
+        const uid = user.uid;
+        // stop video if needed
+        const t = videoByUid.get(uid);
+        if (t && typeof t.stop === 'function') { try { t.stop(); } catch {} }
+        videoByUid.delete(uid);
+      });
+
+      client.on('user-left', (user) => {
+        const uid = user.uid;
+        removeTile(uid);
+      });
+
+      // Join
+      (async () => {
+        // Audience join pattern: if token required by your Agora Console, provide it via window.__AGORA_TOKEN.
+        const joinToken = token;
+        const joinUid = null;
+        await client.join(appId, channel, joinToken, joinUid);
+      })().catch((e)=>console.error('Agora join failed', e));
+    }
+  })();
+
+  // ═══════════════════════════════════════════════════
+  // CADRE SURVEILLANCE COMMAND — CORE SYSTEM
+  // ═══════════════════════════════════════════════════
+
+
+  'use strict';
+
+  // ── CONFIG ──────────────────────────────────────────
+  const CONFIG = {
+    maxOfficers: 10,
+    scanInterval: 3000,
+    intelInterval: 4500,
+    clockInterval: 1000,
+    cpuUpdateInterval: 2000,
+  };
+
+  // ── STATE ────────────────────────────────────────────
+  const STATE = {
+    currentView: 'map',        // 'map' | 'grid'
+    currentLayout: 'auto',
+    isRecording: false,
+    recordingStartTime: null,
+    isMutedAll: false,
+    startTime: Date.now(),
+    lockdownTimer: null,
+    lockdownCountdown: 10,
+    activeSpeaker: null,
+    activeFeedCount: 0,
+    selectedOfficer: null,
+  };
+
+  // ── OFFICER DATA ─────────────────────────────────────
+  const OFFICERS = [
+    { id: 1, name: 'SGT. RIVERS',    codename: 'ALPHA-7',   channel: 'ch_alpha_7',   status: 'online',  muted: false, feed: false },
+    { id: 2, name: 'CPL. VASQUEZ',   codename: 'BRAVO-2',   channel: 'ch_bravo_2',   status: 'online',  muted: false, feed: false },
+    { id: 3, name: 'LT. CHEN',       codename: 'CHARLIE-9', channel: 'ch_charlie_9', status: 'away',    muted: true,  feed: false },
+    { id: 4, name: 'SGT. OKAFOR',    codename: 'DELTA-4',   channel: 'ch_delta_4',   status: 'online',  muted: false, feed: false },
+    { id: 5, name: 'CPL. IBRAHIM',   codename: 'ECHO-1',    channel: 'ch_echo_1',    status: 'offline', muted: true,  feed: false },
+    { id: 6, name: 'PVT. KOZLOV',    codename: 'FOXTROT-3', channel: 'ch_foxtrot_3', status: 'online',  muted: false, feed: false },
+    { id: 7, name: 'LT. MORALES',    codename: 'GOLF-5',    channel: 'ch_golf_5',    status: 'away',    muted: false, feed: false },
+    { id: 8, name: 'SGT. NAKAMURA',  codename: 'HOTEL-6',   channel: 'ch_hotel_6',   status: 'offline', muted: true,  feed: false },
+    { id: 9, name: 'CPL. ADEYEMI',   codename: 'INDIA-8',   channel: 'ch_india_8',   status: 'online',  muted: false, feed: false },
+    { id: 10, name: 'PVT. STERLING', codename: 'JULIET-10', channel: 'ch_juliet_10', status: 'online',  muted: false, feed: false },
+  ];
+
+  const INTEL_EVENTS = [
+    { type: 'warn',  text: 'Unidentified signal detected — sector 7G' },
+    { type: 'info',  text: 'BRAVO-2 feed stabilized — 1080P confirmed' },
+    { type: 'ok',    text: 'Encryption handshake completed — AES-256' },
+    { type: 'info',  text: 'ALPHA-7 moving to secondary position' },
+    { type: 'warn',  text: 'Packet loss spike detected — FOXTROT-3' },
+    { type: 'ok',    text: 'All channels authenticated' },
+    { type: 'info',  text: 'Relay node switched — Frankfurt → Singapore' },
+    { type: 'warn',  text: 'CHARLIE-9 battery low — 18% remaining' },
+    { type: 'ok',    text: 'Perimeter scan complete — no anomalies' },
+    { type: 'info',  text: 'DELTA-4 audio transmission active' },
+    { type: 'warn',  text: 'Weather interference — southern corridor' },
+    { type: 'ok',    text: 'Satellite uplink re-established' },
+    { type: 'info',  text: 'ECHO-1 entering restricted zone' },
+    { type: 'warn',  text: 'Suspicious movement — grid reference 4-N7' },
+    { type: 'ok',    text: 'Command channel encrypted and secured' },
+  ];
+
+  // ── INIT ──────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    initClock();
+    initOfficerRoster();
+    initChannelMap();
+    initAudioLevels();
+    initIntelFeed();
+    initSysLog();
+    initHUDDrag();
+    initRadarCanvas();
+    startSystemTimers();
+    showNotif('SYSTEM ONLINE — SURVEILLANCE COMMAND INITIALIZED', 'ok');
+  });
+
+  // ── CLOCK ─────────────────────────────────────────────
+  function initClock() {
+    function update() {
+      const now = new Date();
+      const hh = String(now.getUTCHours()).padStart(2,'0');
+      const mm = String(now.getUTCMinutes()).padStart(2,'0');
+      const ss = String(now.getUTCSeconds()).padStart(2,'0');
+      document.getElementById('sysClock').textContent = `${hh}:${mm}:${ss} UTC`;
+      const yr = now.getUTCFullYear();
+      const mo = String(now.getUTCMonth()+1).padStart(2,'0');
+      const dy = String(now.getUTCDate()).padStart(2,'0');
+      document.getElementById('sysDate').textContent = `${yr}/${mo}/${dy}`;
+    }
+    update();
+    setInterval(update, 1000);
+  }
+
+  // ── OFFICER ROSTER ────────────────────────────────────
+  function initOfficerRoster() {
+    const roster = document.getElementById('officerRoster');
+    roster.innerHTML = '';
+    let onlineCount = 0;
+
+    OFFICERS.forEach(o => {
+      if (o.status === 'online') onlineCount++;
+      const div = document.createElement('div');
+      div.className = `officer-card ${o.status} ${o.id === STATE.selectedOfficer ? 'selected' : ''}`;
+      div.id = `officer-card-${o.id}`;
+      div.onclick = () => selectOfficer(o.id);
+      div.innerHTML = `
+        <div class="officer-avatar">
+          <svg viewBox="0 0 40 40"><circle cx="20" cy="15" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 38 Q6 26 20 26 Q34 26 34 38" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <div class="officer-status-dot ${o.status}"></div>
+        </div>
+        <div class="officer-info">
+          <div class="officer-name">${o.name}</div>
+          <div class="officer-codename">${o.codename}</div>
+        </div>
+        <div class="officer-badges">
+          ${o.muted ? '<span class="badge muted-badge">MUTED</span>' : ''}
+          ${o.feed  ? '<span class="badge live-badge">LIVE</span>' : ''}
+          <span class="badge status-badge ${o.status}">${o.status.toUpperCase()}</span>
+        </div>
+      `;
+      roster.appendChild(div);
+    });
+
+    document.getElementById('onlineCount').textContent = `${onlineCount} ONLINE`;
+  }
+
+  function selectOfficer(id) {
+    STATE.selectedOfficer = (STATE.selectedOfficer === id) ? null : id;
+    initOfficerRoster();
+    const officer = OFFICERS.find(o => o.id === id);
+    if (officer) {
+      showNotif(`OFFICER SELECTED: ${officer.codename}`, 'info');
+    }
+    // Highlight corresponding video tile if in grid view
+    document.querySelectorAll('.video-tile').forEach(t => {
+      t.classList.toggle('selected-tile', t.dataset.officerId == id);
+    });
+  }
+
+  // ── CHANNEL MAP ───────────────────────────────────────
+  function initChannelMap() {
+    const map = document.getElementById('channelMap');
+    map.innerHTML = '';
+    OFFICERS.filter(o => o.status !== 'offline').forEach(o => {
+      const row = document.createElement('div');
+      row.className = 'ch-row';
+      row.innerHTML = `
+        <span class="ch-codename">${o.codename}</span>
+        <span class="ch-name">${o.channel}</span>
+        <span class="ch-dot ${o.status}"></span>
+      `;
+      map.appendChild(row);
+    });
+  }
+
+  // ── AUDIO LEVELS ──────────────────────────────────────
+  function initAudioLevels() {
+    const container = document.getElementById('audioLevels');
+    container.innerHTML = '';
+    OFFICERS.filter(o => o.status === 'online').forEach(o => {
+      const row = document.createElement('div');
+      row.className = 'audio-row';
+      row.id = `audio-row-${o.id}`;
+      row.innerHTML = `
+        <span class="audio-name">${o.codename.split('-')[0]}</span>
+        <div class="audio-bar-wrap">
+          <div class="audio-bar-fill ${o.muted ? 'muted' : ''}" id="audioBar-${o.id}" style="width:${o.muted ? 0 : Math.random()*60+10}%"></div>
+        </div>
+        <span class="audio-icon">${o.muted ? '🔇' : '🎙'}</span>
+      `;
+      container.appendChild(row);
+    });
+
+    // Animate audio bars
+    setInterval(() => {
+      OFFICERS.filter(o => o.status === 'online' && !o.muted).forEach(o => {
+        const bar = document.getElementById(`audioBar-${o.id}`);
+        if (bar) {
+          const level = Math.random() * 70 + 5;
+          bar.style.width = level + '%';
+          bar.style.background = level > 70
+            ? 'linear-gradient(90deg, var(--gold), var(--red))'
+            : level > 40
+            ? 'linear-gradient(90deg, var(--green), var(--gold))'
+            : 'linear-gradient(90deg, var(--green-dim), var(--green))';
+        }
+      });
+    }, 200);
+  }
+
+  // ── INTEL FEED ────────────────────────────────────────
+  function initIntelFeed() {
+    const feed = document.getElementById('intelFeed');
+    // Pre-populate with some entries
+    for (let i = 0; i < 5; i++) {
+      addIntelEntry(INTEL_EVENTS[i], feed);
+    }
+
+    // Auto-generate new intel
+    setInterval(() => {
+      const evt = INTEL_EVENTS[Math.floor(Math.random() * INTEL_EVENTS.length)];
+      addIntelEntry(evt, feed);
+    }, CONFIG.intelInterval);
+  }
+
+  function addIntelEntry(evt, container) {
+    if (!container) container = document.getElementById('intelFeed');
+    const ts = new Date();
+    const time = `${String(ts.getUTCHours()).padStart(2,'0')}:${String(ts.getUTCMinutes()).padStart(2,'0')}:${String(ts.getUTCSeconds()).padStart(2,'0')}`;
+    const div = document.createElement('div');
+    div.className = `intel-entry intel-${evt.type} intel-new`;
+    div.innerHTML = `<span class="intel-time">${time}</span><span class="intel-text">${evt.text}</span>`;
+    container.insertBefore(div, container.firstChild);
+    setTimeout(() => div.classList.remove('intel-new'), 50);
+    // Keep max 20 entries
+    while (container.children.length > 20) {
+      container.removeChild(container.lastChild);
+    }
+  }
+
+  // ── SYSTEM LOG ────────────────────────────────────────
+  function initSysLog() {
+    const LOG_ENTRIES = [
+      { level: 'INFO', text: 'Surveillance module initialized' },
+      { level: 'INFO', text: 'Agora RTC client created' },
+      { level: 'WARN', text: 'No active video feeds detected' },
+      { level: 'INFO', text: 'Tactical map mode activated' },
+      { level: 'OK',   text: 'Encryption layer active' },
+    ];
+    LOG_ENTRIES.forEach(e => addSysLog(e.level, e.text));
+  }
+
+  function addSysLog(level, text) {
+    const log = document.getElementById('sysLog');
+    if (!log) return;
+    const ts = new Date();
+    const time = `${String(ts.getUTCHours()).padStart(2,'0')}:${String(ts.getUTCMinutes()).padStart(2,'0')}:${String(ts.getUTCSeconds()).padStart(2,'0')}`;
+    const div = document.createElement('div');
+    div.className = `log-entry log-${level.toLowerCase()}`;
+    div.innerHTML = `<span class="log-time">${time}</span><span class="log-level">[${level}]</span><span class="log-text">${text}</span>`;
+    log.insertBefore(div, log.firstChild);
+    while (log.children.length > 30) log.removeChild(log.lastChild);
+  }
+
+  // ── HUD DRAG ──────────────────────────────────────────
+  function initHUDDrag() {
+    const panel = document.getElementById('hudPanel');
+    const handle = document.getElementById('hudHandle');
+    let isDragging = false;
+    let startX, startY, initLeft, initTop;
+
+    handle.addEventListener('mousedown', e => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = panel.getBoundingClientRect();
+      initLeft = rect.left;
+      initTop = rect.top;
+      panel.style.transition = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      panel.style.left = (initLeft + dx) + 'px';
+      panel.style.top  = (initTop  + dy) + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      panel.style.transition = '';
+    });
+  }
+
+  // ── VIEW MANAGEMENT ───────────────────────────────────
+  function setView(view) {
+    STATE.currentView = view;
+    const tacticalMap = document.getElementById('tacticalMap');
+    const videoGrid   = document.getElementById('videoGrid');
+    const btnGrid     = document.getElementById('btnGridView');
+    const btnMap      = document.getElementById('btnMapView');
+    const info        = document.getElementById('toolbarInfo');
+
+    if (view === 'grid') {
+      tacticalMap.classList.add('hidden');
+      videoGrid.classList.remove('hidden');
+      btnGrid.classList.add('active');
+      btnMap.classList.remove('active');
+      info.textContent = `GRID VIEW — ${STATE.activeFeedCount} ACTIVE FEEDS`;
+    } else {
+      tacticalMap.classList.remove('hidden');
+      videoGrid.classList.add('hidden');
+      btnGrid.classList.remove('active');
+      btnMap.classList.add('active');
+      info.textContent = 'NO ACTIVE FEEDS — TACTICAL MAP MODE';
+    }
+  }
+
+  function cycleView() {
+    setView(STATE.currentView === 'map' ? 'grid' : 'map');
+  }
+
+  function setLayout(layout) {
+    STATE.currentLayout = layout;
+    document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('layout-' + layout).classList.add('active');
+
+    const grid = document.getElementById('videoGrid');
+    grid.className = 'video-grid';
+    if (layout !== 'auto') grid.classList.add('layout-' + layout);
+
+    showNotif(`GRID LAYOUT: ${layout.toUpperCase()}`, 'info');
+  }
+
+  // ── RECORDING ─────────────────────────────────────────
+  function startRecording() {
+    if (STATE.isRecording) return;
+    STATE.isRecording = true;
+    STATE.recordingStartTime = Date.now();
+    document.getElementById('btnStartRec').disabled = true;
+    document.getElementById('btnStopRec').disabled  = false;
+    document.getElementById('recStatus').textContent = 'LIVE';
+    document.getElementById('recStatus').classList.add('rec-live');
+    document.getElementById('hudStatusTxt').textContent = 'RECORDING';
+    document.getElementById('hudPanel').querySelector('.hud-dot').classList.add('rec-pulse');
+    showNotif('RECORDING STARTED — ALL FEEDS CAPTURED', 'warn');
+    addSysLog('WARN', 'Recording session initiated');
+  }
+
+  function stopRecording() {
+    if (!STATE.isRecording) return;
+    STATE.isRecording = false;
+    const dur = Math.floor((Date.now() - STATE.recordingStartTime) / 1000);
+    document.getElementById('btnStartRec').disabled = false;
+    document.getElementById('btnStopRec').disabled  = true;
+    document.getElementById('recStatus').textContent = 'OFF';
+    document.getElementById('recStatus').classList.remove('rec-live');
+    document.getElementById('hudStatusTxt').textContent = 'STANDBY';
+    document.getElementById('hudPanel').querySelector('.hud-dot').classList.remove('rec-pulse');
+    showNotif(`RECORDING STOPPED — DURATION: ${dur}s`, 'ok');
+    addSysLog('INFO', `Recording stopped — duration ${dur}s`);
+  }
+
+  // ── SNAPSHOT ──────────────────────────────────────────
+  function takeSnapshot() {
+    const flash = document.getElementById('snapshotFlash');
+    flash.classList.remove('hidden');
+    setTimeout(() => flash.classList.add('hidden'), 400);
+    const ts = new Date();
+    const fname = `SNAP_${ts.getUTCFullYear()}${String(ts.getUTCMonth()+1).padStart(2,'0')}${String(ts.getUTCDate()).padStart(2,'0')}_${String(ts.getUTCHours()).padStart(2,'0')}${String(ts.getUTCMinutes()).padStart(2,'0')}${String(ts.getUTCSeconds()).padStart(2,'0')}.jpg`;
+    showNotif(`SNAPSHOT CAPTURED — ${fname}`, 'ok');
+    addSysLog('OK', `Snapshot saved: ${fname}`);
+  }
+
+  // ── MUTE ──────────────────────────────────────────────
+  function muteAllFeeds() {
+    STATE.isMutedAll = true;
+    OFFICERS.forEach(o => o.muted = true);
+    showNotif('ALL FEEDS MUTED', 'warn');
+    addSysLog('WARN', 'All audio feeds muted');
+    initAudioLevels();
+    // Hook: agoraClient.localAudioTrack?.setEnabled(false)
+  }
+
+  function unmuteAllFeeds() {
+    STATE.isMutedAll = false;
+    OFFICERS.forEach(o => { if (o.status !== 'offline') o.muted = false; });
+    showNotif('ALL FEEDS UNMUTED', 'ok');
+    addSysLog('INFO', 'All audio feeds restored');
+    initAudioLevels();
+    // Hook: agoraClient.localAudioTrack?.setEnabled(true)
+  }
+
+  // ── SCREEN SHARE ──────────────────────────────────────
+  function toggleScreenShare() {
+    showNotif('SCREEN SHARE — AGORA SDK REQUIRED', 'info');
+    // Hook: AgoraRTC.createScreenVideoTrack({...})
+  }
+
+  // ── FULLSCREEN ────────────────────────────────────────
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  // ── EMERGENCY LOCKDOWN ────────────────────────────────
+  function triggerEmergencyLockdown() {
+    const overlay = document.getElementById('lockdownOverlay');
+    overlay.classList.remove('hidden');
+    STATE.lockdownCountdown = 10;
+    updateLockdownCountdown();
+
+    STATE.lockdownTimer = setInterval(() => {
+      STATE.lockdownCountdown--;
+      updateLockdownCountdown();
+      if (STATE.lockdownCountdown <= 0) {
+        clearInterval(STATE.lockdownTimer);
+        executeLockdown();
+      }
+    }, 1000);
+
+    showNotif('⚠ EMERGENCY LOCKDOWN INITIATED — 10 SECONDS', 'emergency');
+    addSysLog('WARN', 'EMERGENCY LOCKDOWN TRIGGERED');
+  }
+
+  function updateLockdownCountdown() {
+    document.getElementById('lockdownCountdown').textContent =
+      `EXECUTING IN: ${STATE.lockdownCountdown}s`;
+  }
+
+  function cancelLockdown() {
+    clearInterval(STATE.lockdownTimer);
+    document.getElementById('lockdownOverlay').classList.add('hidden');
+    showNotif('LOCKDOWN CANCELLED', 'ok');
+    addSysLog('INFO', 'Lockdown sequence cancelled');
+  }
+
+  function executeLockdown() {
+    document.getElementById('lockdownOverlay').classList.add('hidden');
+    document.getElementById('systemStatusText').textContent = 'LOCKDOWN';
+    document.getElementById('systemStatusPill').className = 'status-pill status-lockdown';
+    showNotif('🔒 SYSTEM LOCKED DOWN — ALL FEEDS ENCRYPTED', 'emergency');
+    addSysLog('WARN', 'SYSTEM LOCKDOWN EXECUTED');
+  }
+
+  // ── VIDEO TILE MANAGEMENT (Agora hooks) ──────────────
+  /**
+   * createVideoTile — call this when an Agora remote user publishes a video track
+   * @param {object} officer - officer data object
+   * @param {string} videoTrackId - Agora video track player container ID
+   */
+  function createVideoTile(officer, videoTrackId) {
+    const grid = document.getElementById('videoGrid');
+    const tile = document.createElement('div');
+    tile.className = 'video-tile';
+    tile.id = `tile-${officer.id}`;
+    tile.dataset.officerId = officer.id;
+    tile.onclick = () => selectOfficer(officer.id);
+
+    tile.innerHTML = `
+      <div class="tile-video-area" id="${videoTrackId}">
+        <div class="tile-placeholder">
+          <div class="tile-placeholder-icon">
+            <svg viewBox="0 0 60 60"><circle cx="30" cy="22" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 55 Q10 38 30 38 Q50 38 50 55" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          </div>
+          <div class="tile-connecting">CONNECTING...</div>
+        </div>
+      </div>
+      <div class="tile-hud">
+        <div class="tile-hud-top">
+          <div class="tile-live-ind">
+            <span class="tile-live-dot"></span>
+            <span class="tile-live-txt">LIVE</span>
+          </div>
+          <div class="tile-badge-row">
+            ${officer.muted ? '<span class="tile-badge muted">MUTED</span>' : ''}
+            <span class="tile-quality" id="tileQuality-${officer.id}">HD</span>
+          </div>
+        </div>
+        <div class="tile-hud-bottom">
+          <div class="tile-officer-info">
+            <span class="tile-officer-name">${officer.name}</span>
+            <span class="tile-officer-code">${officer.codename}</span>
+          </div>
+          <div class="tile-controls">
+            <button class="tile-btn" onclick="event.stopPropagation(); toggleTileMute(${officer.id})" title="Toggle Mute">
+              <svg viewBox="0 0 16 16"><path d="M8 2 L8 10 M5 4 Q2 6 2 8 Q2 12 8 12 Q14 12 14 8 Q14 6 11 4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+            <button class="tile-btn" onclick="event.stopPropagation(); expandTile(${officer.id})" title="Expand">
+              <svg viewBox="0 0 16 16"><path d="M2 6 L2 2 L6 2 M10 2 L14 2 L14 6 M14 10 L14 14 L10 14 M6 14 L2 14 L2 10" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="tile-scanline"></div>
+      <div class="tile-active-ring"></div>
+      <div class="tile-conn-status" id="tileConn-${officer.id}">
+        <div class="conn-bar"><div class="conn-fill" style="width:85%"></div></div>
+        <span>85ms</span>
+      </div>
+    `;
+
+    grid.appendChild(tile);
+    officer.feed = true;
+    STATE.activeFeedCount++;
+    document.getElementById('activeFeedCount').textContent = STATE.activeFeedCount;
+    updateFeedInfo();
+    return tile;
+  }
+
+  function removeVideoTile(officerId) {
+    const tile = document.getElementById(`tile-${officerId}`);
+    if (tile) {
+      tile.classList.add('tile-removing');
+      setTimeout(() => tile.remove(), 500);
+      const officer = OFFICERS.find(o => o.id === officerId);
+      if (officer) officer.feed = false;
+      STATE.activeFeedCount = Math.max(0, STATE.activeFeedCount - 1);
+      document.getElementById('activeFeedCount').textContent = STATE.activeFeedCount;
+      updateFeedInfo();
+    }
+  }
+
+  function setActiveSpeaker(officerId) {
+    document.querySelectorAll('.video-tile').forEach(t => {
+      t.classList.toggle('active-speaker', t.dataset.officerId == officerId);
+    });
+    STATE.activeSpeaker = officerId;
+  }
+
+  function toggleTileMute(officerId) {
+    const officer = OFFICERS.find(o => o.id === officerId);
+    if (officer) {
+      officer.muted = !officer.muted;
+      const tile = document.getElementById(`tile-${officerId}`);
+      if (tile) {
+        const badge = tile.querySelector('.tile-badge.muted');
+        if (officer.muted && !badge) {
+          const row = tile.querySelector('.tile-badge-row');
+          const b = document.createElement('span');
+          b.className = 'tile-badge muted';
+          b.textContent = 'MUTED';
+          row.insertBefore(b, row.firstChild);
+        } else if (!officer.muted && badge) {
+          badge.remove();
+        }
+      }
+    }
+  }
+
+  function expandTile(officerId) {
+    document.querySelectorAll('.video-tile').forEach(t => {
+      t.classList.toggle('tile-expanded', t.dataset.officerId == officerId);
+    });
+  }
+
+  function updateFeedInfo() {
+    if (STATE.currentView === 'grid') {
+      document.getElementById('toolbarInfo').textContent =
+        `GRID VIEW — ${STATE.activeFeedCount} ACTIVE FEEDS`;
+    }
+  }
+
+  // ── RADAR CANVAS ──────────────────────────────────────
+  function initRadarCanvas() {
+    const canvas = document.getElementById('radarCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    let angle = 0;
+    function draw() {
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      // Draw subtle grid dots
+      ctx.fillStyle = 'rgba(204, 26, 26, 0.06)';
+      for (let x = 0; x < W; x += 40) {
+        for (let y = 0; y < H; y += 40) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      // Draw concentric circles (radar rings)
+      const cx = W * 0.72, cy = H * 0.42;
+      const maxR = Math.min(W, H) * 0.28;
+      for (let i = 1; i <= 4; i++) {
+        const r = (i / 4) * maxR;
+        ctx.strokeStyle = `rgba(204, 26, 26, ${0.04 + i * 0.02})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI*2);
+        ctx.stroke();
+      }
+
+      // Radar sweep gradient
+      const sweep = ctx.createConicalGradient
+        ? ctx.createConicalGradient(angle, cx, cy)
+        : null;
+
+      if (!sweep) {
+        // Fallback arc sweep
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, maxR);
+        grad.addColorStop(0, 'rgba(204, 26, 26, 0.3)');
+        grad.addColorStop(1, 'rgba(204, 26, 26, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, maxR, -0.4, 0.4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      angle += 0.015;
+      requestAnimationFrame(draw);
+    }
+    draw();
+  }
+
+  // ── SYSTEM TIMERS ─────────────────────────────────────
+  function startSystemTimers() {
+    // Uptime counter
+    setInterval(() => {
+      const elapsed = Math.floor((Date.now() - STATE.startTime) / 1000);
+      const h = String(Math.floor(elapsed/3600)).padStart(2,'0');
+      const m = String(Math.floor((elapsed%3600)/60)).padStart(2,'0');
+      const s = String(elapsed%60).padStart(2,'0');
+      document.getElementById('uptimeVal').textContent = `${h}:${m}:${s}`;
+    }, 1000);
+
+    // Fake CPU/storage metrics
+    setInterval(() => {
+      const cpu = Math.floor(Math.random() * 30 + 12);
+      document.getElementById('cpuVal').textContent = cpu + '%';
+      const storage = (Math.random() * 20 + 40).toFixed(1);
+      document.getElementById('storageVal').textContent = storage + 'GB';
+    }, CONFIG.cpuUpdateInterval);
+
+    // Latency flicker
+    setInterval(() => {
+      const lat = Math.floor(Math.random() * 60 + 20);
+      document.getElementById('latencyVal').textContent = lat + 'ms';
+    }, 3000);
+
+    // Satellite count change
+    setInterval(() => {
+      const active = Math.floor(Math.random() * 3 + 11);
+      document.getElementById('mapSatCount').textContent = `SAT: ${active}/14`;
+    }, 5000);
+  }
+
+  // ── NOTIFICATIONS ─────────────────────────────────────
+  function showNotif(message, type = 'info') {
+    const stack = document.getElementById('notifStack');
+    const div = document.createElement('div');
+    div.className = `notif notif-${type}`;
+    div.innerHTML = `
+      <span class="notif-icon">${
+        type === 'ok' ? '✓' :
+        type === 'warn' ? '⚠' :
+        type === 'emergency' ? '🔴' : '▸'
+      }</span>
+      <span class="notif-text">${message}</span>
+    `;
+    stack.appendChild(div);
+    setTimeout(() => div.classList.add('notif-show'), 10);
+    setTimeout(() => {
+      div.classList.remove('notif-show');
+      setTimeout(() => div.remove(), 400);
+    }, 4000);
+  }
+
+  // ── AGORA INTEGRATION HOOKS ───────────────────────────
+  // These functions are ready to be wired to Agora SDK events:
+  //
+  // window.onAgoraUserJoined = (user) => {
+  //   const officer = OFFICERS.find(o => o.id === user.uid);
+  //   if (!officer) return;
+  //   const tileId = `agora-video-${user.uid}`;
+  //   createVideoTile(officer, tileId);
+  //   setView('grid');
+  // };
+  //
+  // window.onAgoraUserLeft = (user) => {
+  //   removeVideoTile(user.uid);
+  //   if (STATE.activeFeedCount === 0) setView('map');
+  // };
+  //
+  // window.onAgoraUserPublished = async (user, mediaType) => {
+  //   await agoraClient.subscribe(user, mediaType);
+  //   if (mediaType === 'video') {
+  //     user.videoTrack.play(`agora-video-${user.uid}`);
+  //   }
+  // };
+  //
+  // window.onAgoraSpeakerDetected = (speakers) => {
+  //   const loudest = speakers.sort((a,b) => b.level - a.level)[0];
+  //   if (loudest) setActiveSpeaker(loudest.uid);
+  // };
+
+  // ── DEMO: Simulate feeds for testing ─────────────────
+  // Uncomment to preview grid view with mock tiles:
+  //
+  // setTimeout(() => {
+  //   const testOfficers = OFFICERS.slice(0,4);
+  //   testOfficers.forEach((o, i) => {
+  //     setTimeout(() => {
+  //       createVideoTile(o, `mock-video-${o.id}`);
+  //       if (i === testOfficers.length - 1) setView('grid');
+  //     }, i * 500);
+  //   });
+  // }, 2000);
+
+  </script>
+</body>
+</html>

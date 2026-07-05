@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CADRE — Intelligence</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --bg-deep: #050a10;
+      --bg-surface: rgba(17, 32, 46, 0.9);
+      --border-precision: #1d3347;
+      --hud-amber: #cca633;
+      --hud-green: #0d4232;
+      --text-bright: #e2e8f0;
+      --text-dim: #648299;
+      --red: #ff4d4f;
+      --amber: #f59e0b;
+      --green: #2dd4bf;
+      --radius-sharp: 4px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg-deep);
+      color: var(--text-bright);
+      min-height: 100vh;
+    }
+
+    .app-container {
+      max-width: 980px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding-bottom: 84px;
+      border-left: 1px solid var(--border-precision);
+      border-right: 1px solid var(--border-precision);
+      background: linear-gradient(180deg, rgba(5, 10, 16, 0.92), rgba(5, 10, 16, 0.97));
+    }
+
+    .page-shell {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-precision);
+      border-radius: var(--radius-sharp);
+      padding: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+
+    .panel-title {
+      font-size: 0.8rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--hud-amber);
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    .toolbar input,
+    .toolbar select,
+    .toolbar button {
+      border: 1px solid var(--border-precision);
+      background: rgba(11, 21, 30, 0.8);
+      color: var(--text-bright);
+      padding: 8px 10px;
+      border-radius: var(--radius-sharp);
+      font-size: 0.82rem;
+    }
+
+    .toolbar button {
+      cursor: pointer;
+      background: rgba(204, 166, 51, 0.17);
+      color: var(--hud-amber);
+    }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .nav-tab {
+      background: transparent;
+      border: 1px solid var(--border-precision);
+      color: var(--text-dim);
+      padding: 8px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .nav-tab.active { color: var(--text-bright); border-color: var(--hud-amber); background: rgba(204, 166, 51, 0.15); }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 14px;
+    }
+
+    .card {
+      background: rgba(8, 16, 24, 0.85);
+      border: 1px solid var(--border-precision);
+      border-radius: var(--radius-sharp);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .card.selected { border-color: var(--hud-amber); }
+    .card-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; }
+    .card-meta { color: var(--text-dim); font-size: 0.75rem; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.68rem;
+      font-weight: 700;
+      background: rgba(255,255,255,0.06);
+      color: var(--text-bright);
+    }
+    .badge-active { background: rgba(45,212,191,0.15); color: var(--green); }
+    .badge-open { background: rgba(245,158,11,0.15); color: var(--amber); }
+    .badge-closed { background: rgba(255,77,79,0.12); color: var(--red); }
+    .badge-medium { background: rgba(204,166,51,0.15); color: var(--hud-amber); }
+    .badge-low { background: rgba(100,130,153,0.16); color: var(--text-dim); }
+    .empty-state { padding: 18px; text-align: center; color: var(--text-dim); }
+    .empty-icon { font-size: 1.2rem; margin-bottom: 6px; }
+
+    .btn {
+      border: 1px solid var(--border-precision);
+      background: rgba(11, 21, 30, 0.9);
+      color: var(--text-bright);
+      padding: 8px 10px;
+      border-radius: var(--radius-sharp);
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+    .btn-sm { padding: 6px 8px; font-size: 0.72rem; }
+    .btn-danger { color: #ffb4b4; border-color: rgba(255,77,79,0.35); background: rgba(255,77,79,0.12); }
+    .btn-primary { background: rgba(204,166,51,0.18); color: var(--hud-amber); }
+
+    .divider { border: 0; border-top: 1px solid var(--border-precision); margin: 12px 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .data-table th, .data-table td { border-bottom: 1px solid var(--border-precision); padding: 8px 6px; text-align: left; }
+    .data-table th { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .modal {
+      position: fixed; inset: 0; background: rgba(2,6,10,0.75); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 3000;
+    }
+    .modal.open { display: flex; }
+    .modal-card {
+      width: min(640px, 100%); background: rgba(8, 16, 24, 0.98); border: 1px solid var(--border-precision); border-radius: 8px; padding: 16px;
+    }
+    .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .field { display:grid; gap:6px; margin-bottom:10px; }
+    .field label { font-size: 0.74rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+    .field input, .field select, .field textarea {
+      width:100%; border:1px solid var(--border-precision); background: rgba(11,21,30,0.85); color: var(--text-bright); padding:8px 10px; border-radius: var(--radius-sharp);
+    }
+    .field textarea { min-height: 90px; resize: vertical; }
+
+    .toast {
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 90px; background: rgba(11,21,30,0.96); color: var(--text-bright); padding: 10px 14px; border-radius: 999px; border: 1px solid var(--border-precision); opacity: 0; pointer-events: none; transition: 0.25s ease; z-index: 4000;
+    }
+    .toast.show { opacity: 1; }
+    .toast.success { color: #7ee7d2; }
+    .toast.error { color: #ffb4b4; }
+
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      .app-container { max-width: 100%; }
+      .page-shell { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <img class="brand-logo" src="assets/images/cadre-logo.png" alt="CADRE" onerror="this.style.display='none'" />
+        <div>
+          <div class="brand-text">CADRE</div>
+          <div class="header-badge">Intelligence</div>
+        </div>
+      </div>
+      <div id="clockDisplay" class="header-badge">—</div>
+    </header>
+
+    <main class="page-shell">
+      <section class="panel">
+        <div class="panel-title">Command Intelligence Suite</div>
+        <div class="toolbar">
+          <input id="searchBox" type="search" placeholder="Search cases" />
+          <select id="statusFilter">
+            <option value="all">Any Status</option>
+            <option value="active">Active</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+          <select id="priorityFilter">
+            <option value="all">Any Priority</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <button class="btn btn-primary" onclick="openModal('newCaseModal')">New Case</button>
+        </div>
+
+        <div class="tabs">
+          <button class="nav-tab active" onclick="switchTab('cases')">Cases</button>
+          <button class="nav-tab" onclick="switchTab('evidence')">Evidence</button>
+          <button class="nav-tab" onclick="switchTab('officers')">Officers</button>
+          <button class="nav-tab" onclick="switchTab('operations')">Operations</button>
+        </div>
+
+        <div id="tab-cases" class="view active">
+          <div class="grid">
+            <div>
+              <div id="caseList"></div>
+            </div>
+            <div>
+              <div id="caseDetail" class="card">Select a case to review operations.</div>
+              <div class="card">
+                <div class="panel-title" style="margin-bottom:8px">Evidence</div>
+                <div id="evidencePanel"></div>
+              </div>
+              <div class="card">
+                <div class="panel-title" style="margin-bottom:8px">Activity</div>
+                <div id="activityPanel"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-evidence" class="view">
+          <div class="grid">
+            <div>
+              <div id="evidenceListCol"></div>
+            </div>
+            <div>
+              <div id="evidenceDetailCol" class="card">Select evidence to inspect details.</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-officers" class="view">
+          <div class="toolbar">
+            <input id="officerSearch" type="search" placeholder="Search officers" />
+            <select id="officerStateFilter"><option value="all">Any State</option></select>
+            <select id="officerRankFilter"><option value="all">Any Rank</option></select>
+            <button class="btn btn-primary" onclick="openModal('newOfficerModal')">Add Officer</button>
+          </div>
+          <div id="officersTable"></div>
+        </div>
+
+        <div id="tab-operations" class="view">
+          <div class="toolbar">
+            <input id="opSearch" type="search" placeholder="Search operations" />
+            <select id="opStatusFilter">
+              <option value="all">Any Status</option>
+              <option value="successful">Successful</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <button class="btn btn-primary" onclick="openModal('newOpModal')">Log Operation</button>
+          </div>
+          <div id="operationsList"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="app-bottom-dock" aria-label="Primary navigation">
+      <a class="dock-node" href="home.html">
+        <span class="dock-node-glyph">🏠</span>
+        <span>Home</span>
+      </a>
+      <a class="dock-node" href="channel.html">
+        <span class="dock-node-glyph">📡</span>
+        <span>Channels</span>
+      </a>
+      <a class="dock-node active-node" href="intelligence.html">
+        <span class="dock-node-glyph">🧠</span>
+        <span>Intel</span>
+      </a>
+      <a class="dock-node" href="profile.html">
+        <span class="dock-node-glyph">👤</span>
+        <span>Profile</span>
+      </a>
+      <a class="dock-node dock-node-emergency" href="emergency.html">
+        <span class="dock-node-glyph">🚨</span>
+        <span>Alert</span>
+      </a>
+    </nav>
+  </div>
+
+  <div id="newCaseModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>New Intelligence Case</h3>
+        <button class="btn" onclick="closeModal('newCaseModal')">Close</button>
+      </div>
+      <div class="field">
+        <label>Title</label>
+        <input id="nc_title" />
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="nc_status">
+          <option value="open">Open</option>
+          <option value="active">Active</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select id="nc_priority">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="nc_desc"></textarea>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn" onclick="closeModal('newCaseModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitNewCase()">Create Case</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="uploadEvidenceModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Upload Evidence</h3>
+        <button class="btn" onclick="closeModal('uploadEvidenceModal')">Close</button>
+      </div>
+      <div id="uploadZone" class="card" style="cursor:pointer" onclick="document.getElementById('fileInput').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+        <input id="fileInput" type="file" style="display:none" onchange="handleFileSelect(event)" />
+        <div id="uploadZoneText">Click to browse or drag & drop</div>
+        <div id="filePreviewWrap" style="display:none;margin-top:10px"></div>
+      </div>
+      <div class="field"><label>Evidence Name</label><input id="ev_name" /></div>
+      <div class="field"><label>Case Link</label><select id="ev_caseLink"></select></div>
+      <div class="field"><label>Type</label><select id="ev_type"><option value="document">Document</option><option value="image">Image</option><option value="video">Video</option><option value="audio">Audio</option><option value="writeup">Writeup</option></select></div>
+      <div class="field"><label>Collector</label><input id="ev_collector" /></div>
+      <div class="field"><label>Date Collected</label><input id="ev_date" type="date" /></div>
+      <div class="field"><label>Notes</label><textarea id="ev_notes"></textarea></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn" onclick="closeModal('uploadEvidenceModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitEvidence()">Save Evidence</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="newOfficerModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head"><h3>Add Officer</h3><button class="btn" onclick="closeModal('newOfficerModal')">Close</button></div>
+      <div class="field"><label>Name</label><input id="of_name" /></div>
+      <div class="field"><label>Badge</label><input id="of_badge" /></div>
+      <div class="field"><label>Rank</label><input id="of_rank" /></div>
+      <div class="field"><label>State</label><input id="of_state" /></div>
+      <div class="field"><label>Unit</label><input id="of_unit" /></div>
+      <div class="field"><label>Status</label><select id="of_status"><option value="active">Active</option><option value="standby">Standby</option><option value="suspended">Suspended</option><option value="retired">Retired</option></select></div>
+      <div class="field"><label>Notes</label><textarea id="of_notes"></textarea></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" onclick="closeModal('newOfficerModal')">Cancel</button><button class="btn btn-primary" onclick="submitOfficer()">Save Officer</button></div>
+    </div>
+  </div>
+
+  <div id="newOpModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head"><h3>Log Operation</h3><button class="btn" onclick="closeModal('newOpModal')">Close</button></div>
+      <div class="field"><label>Name</label><input id="op_name" /></div>
+      <div class="field"><label>Status</label><select id="op_status"><option value="ongoing">Ongoing</option><option value="successful">Successful</option><option value="failed">Failed</option><option value="cancelled">Cancelled</option></select></div>
+      <div class="field"><label>Date</label><input id="op_date" type="date" /></div>
+      <div class="field"><label>Location</label><input id="op_location" /></div>
+      <div class="field"><label>Officers</label><input id="op_officers" /></div>
+      <div class="field"><label>Linked Case</label><select id="op_caseLink"></select></div>
+      <div class="field"><label>Report</label><textarea id="op_report"></textarea></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" onclick="closeModal('newOpModal')">Cancel</button><button class="btn btn-primary" onclick="submitOperation()">Save Operation</button></div>
+    </div>
+  </div>
+
+  <div id="passwordModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head"><h3>Confirm Admin Action</h3><button class="btn" onclick="closeModal('passwordModal')">Close</button></div>
+      <div class="field"><label>Password</label><input id="adminPwdInput" type="password" /></div>
+      <div id="pwdError" class="card" style="display:none;color:#ffb4b4">Incorrect password.</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" onclick="closeModal('passwordModal')">Cancel</button><button class="btn btn-danger" onclick="confirmAdminAction()">Confirm Delete</button></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.supabase = window.supabase || window.supabase;
+  </script>
+  <script src="intelligence.js"></script>
+</body>
+</html>

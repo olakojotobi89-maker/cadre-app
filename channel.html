@@ -1193,24 +1193,7 @@ async function resolveChannelSession() {
   }
 
   if (!uid && !sessionUser) {
-    console.warn("channel.html: no session found initially. Retrying Supabase session restore...");
-    // Give Supabase auth a moment to restore from storage.
-    try {
-      const start = Date.now();
-      while (!uid && Date.now() - start < 2000) {
-        const { data: { session } } = await sbClient.auth.getSession();
-        uid = session?.user?.id || uid;
-        if (uid) {
-          localStorage.setItem("cadre_uid", uid);
-          break;
-        }
-        await new Promise(r => setTimeout(r, 150));
-      }
-    } catch (err) {}
-  }
-
-  if (!uid && !sessionUser) {
-    console.warn("channel.html: still no session after retry. localStorage keys:", Object.keys(localStorage));
+    console.warn("channel.html: no session found. localStorage keys:", Object.keys(localStorage));
     window.location.href = "index.html";
     return false;
   }
@@ -1254,6 +1237,8 @@ let CHANNELS = [
 ];
 
 const channelState = {};
+const listenState = {};
+const muteState = {};
 CHANNELS.forEach(ch => {
   channelState[ch.key] = { officers: 0, status: 'quiet', activity: 0 };
 });
@@ -1387,10 +1372,17 @@ function getFallbackChannels() {
 }
 
 async function loadChannels() {
-  const [channelsRes, assignmentsRes] = await Promise.all([
-    sbClient.from('channels').select('*').order('created_at', { ascending: true }),
-    sbClient.from('officer_assignments').select('channel_id,status')
-  ]);
+  let channelsRes = { data: [], error: null };
+  let assignmentsRes = { data: [], error: null };
+
+  try {
+    [channelsRes, assignmentsRes] = await Promise.all([
+      sbClient.from('channels').select('*').order('created_at', { ascending: true }),
+      sbClient.from('officer_assignments').select('channel_id,status')
+    ]);
+  } catch (error) {
+    console.warn('Supabase channels load failed:', error);
+  }
 
   if (channelsRes.error) {
     console.warn('Supabase channels load failed:', channelsRes.error);

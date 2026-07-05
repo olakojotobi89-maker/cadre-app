@@ -1,0 +1,860 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CADRE — Command Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void: #000000;
+  --deep: #050505;
+  --panel: #080808;
+  --card: #0a0a0a;
+  --card2: #0d0d0d;
+  --hover: #111111;
+  --red: #cc1a1a;
+  --red-bright: #ff2222;
+  --red-dim: rgba(204,26,26,0.6);
+  --red-glow: rgba(204,26,26,0.15);
+  --red-trace: rgba(204,26,26,0.08);
+  --gold: #c8960a;
+  --gold-bright: #f0b80a;
+  --gold-dim: rgba(200,150,10,0.6);
+  --gold-glow: rgba(200,150,10,0.12);
+  --green: #1aaa44;
+  --green-bright: #22dd55;
+  --amber: #cc7700;
+  --amber-bright: #ffaa00;
+  --border-dim: rgba(204,26,26,0.1);
+  --border-mid: rgba(204,26,26,0.25);
+  --border-bright: rgba(204,26,26,0.5);
+  --gold-border: rgba(200,150,10,0.2);
+  --text-bright: #f0e8d8;
+  --text-mid: #9a8878;
+  --text-dim: #4a3838;
+  --font-hud: 'Orbitron', sans-serif;
+  --font-ui: 'Rajdhani', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+  background: var(--void);
+  color: var(--text-bright);
+  font-family: var(--font-ui);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── BACKGROUND ── */
+body {
+  background-color: #000;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(180,10,10,0.12) 0%, transparent 60%),
+    linear-gradient(0deg, rgba(204,26,26,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(204,26,26,0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px, 28px 28px;
+}
+
+/* SCANLINES */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.12) 3px, rgba(0,0,0,0.12) 4px);
+  pointer-events:none; z-index:9999;
+}
+
+/* CORNER ACCENTS on panels */
+.panel { position:relative; }
+.panel::after, .panel::before { content:''; position:absolute; width:10px; height:10px; }
+.panel::before { top:-1px; left:-1px; border-top:2px solid var(--red); border-left:2px solid var(--red); }
+.panel::after  { bottom:-1px; right:-1px; border-bottom:2px solid var(--gold); border-right:2px solid var(--gold); }
+
+/* ── HEADER ── */
+.header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 20px; height:58px;
+  background: linear-gradient(180deg, #100000 0%, #050000 100%);
+  border-bottom:1px solid var(--border-bright);
+  position:sticky; top:0; z-index:200;
+  box-shadow: 0 2px 40px rgba(204,26,26,0.2), 0 0 80px rgba(204,26,26,0.05);
+}
+
+.header-logo { display:flex; align-items:center; gap:12px; }
+
+.logo-img {
+  height:40px; width:auto;
+  filter: drop-shadow(0 0 8px rgba(204,26,26,0.6)) drop-shadow(0 0 20px rgba(200,150,10,0.3));
+}
+
+.logo-text-wrap { display:flex; flex-direction:column; }
+
+.logo-name {
+  font-family:var(--font-hud); font-size:20px; font-weight:800;
+  letter-spacing:8px; color:var(--red-bright);
+  text-shadow:0 0 20px rgba(204,26,26,0.8), 0 0 40px rgba(204,26,26,0.3);
+}
+
+.logo-sub {
+  font-family:var(--font-mono); font-size:8px; letter-spacing:4px;
+  color:var(--gold-dim); margin-top:1px;
+}
+
+.header-nav { display:flex; gap:1px; }
+
+.nav-item {
+  font-family:var(--font-hud); font-size:9px; font-weight:600;
+  letter-spacing:2px; color:var(--text-dim); padding:6px 14px;
+  border:1px solid transparent; cursor:pointer;
+  transition:all 0.2s; text-transform:uppercase;
+  background:transparent; text-decoration:none; display:inline-flex; align-items:center;
+}
+.nav-item:hover { color:var(--text-bright); border-color:var(--border-mid); background:var(--red-trace); }
+.nav-item.active { color:var(--red-bright); border-color:var(--border-bright); background:var(--red-trace);
+  text-shadow:0 0 8px rgba(204,26,26,0.5); }
+
+.header-right { display:flex; align-items:center; gap:14px; }
+
+.live-tag {
+  display:flex; align-items:center; gap:6px;
+  font-family:var(--font-mono); font-size:9px; letter-spacing:2px;
+  color:var(--green-bright);
+}
+.live-dot { width:6px; height:6px; border-radius:50%; background:var(--green-bright);
+  box-shadow:0 0 6px var(--green-bright); animation:blink 1.2s ease-in-out infinite; }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+.header-clock {
+  font-family:var(--font-hud); font-size:13px; font-weight:600;
+  color:var(--red-bright); letter-spacing:2px;
+  text-shadow:0 0 10px rgba(204,26,26,0.5);
+}
+
+.admin-chip {
+  font-family:var(--font-hud); font-size:8px; font-weight:700;
+  letter-spacing:2px; color:var(--gold-bright);
+  border:1px solid var(--gold-border); padding:4px 10px;
+  background:var(--gold-glow);
+  text-shadow:0 0 8px var(--gold-dim);
+}
+
+/* ── LAYOUT ── */
+.layout {
+  display:grid;
+  grid-template-columns:260px 1fr 280px;
+  gap:0;
+  min-height:calc(100vh - 58px);
+  border-top:1px solid var(--border-dim);
+}
+
+.col {
+  padding:12px; display:flex; flex-direction:column; gap:10px;
+  border-right:1px solid var(--border-dim);
+}
+.col-main { padding:12px; overflow:auto; }
+
+/* ── PANEL ── */
+.panel {
+  background: linear-gradient(135deg, #0d0000 0%, #050000 100%);
+  border:1px solid var(--border-mid);
+  overflow:hidden;
+}
+
+.panel-head {
+  padding:8px 12px;
+  background:linear-gradient(90deg, rgba(204,26,26,0.12) 0%, transparent 100%);
+  border-bottom:1px solid var(--border-dim);
+  display:flex; align-items:center; justify-content:space-between;
+  gap:8px;
+}
+
+.panel-title {
+  font-family:var(--font-hud); font-size:9px; font-weight:700;
+  letter-spacing:3px; color:var(--red-bright); text-transform:uppercase;
+  text-shadow:0 0 8px rgba(204,26,26,0.4);
+}
+
+.panel-badge {
+  font-family:var(--font-mono); font-size:8px;
+  color:var(--gold-bright); border:1px solid var(--gold-border);
+  padding:2px 6px; background:var(--gold-glow); letter-spacing:1px;
+}
+
+.panel-badge.green { color:var(--green-bright); border-color:rgba(26,170,68,0.3); background:rgba(26,170,68,0.07); }
+.panel-badge.red { color:var(--red-bright); border-color:var(--border-mid); background:var(--red-trace); }
+
+.panel-body { padding:10px 12px; }
+
+/* ── STATS ── */
+.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+
+.stat-card {
+  background:var(--card); border:1px solid var(--border-dim);
+  padding:10px; cursor:default; transition:border-color 0.2s;
+  position:relative; overflow:hidden;
+}
+.stat-card::before {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, var(--red-dim), transparent);
+}
+.stat-card:hover { border-color:var(--border-mid); }
+
+.stat-val {
+  font-family:var(--font-hud); font-size:26px; font-weight:800;
+  color:var(--red-bright); line-height:1;
+  text-shadow:0 0 14px rgba(204,26,26,0.6);
+}
+.stat-val.gold { color:var(--gold-bright); text-shadow:0 0 14px rgba(200,150,10,0.5); }
+.stat-val.grn  { color:var(--green-bright); text-shadow:0 0 14px rgba(26,170,68,0.5); }
+.stat-val.amb  { color:var(--amber-bright); text-shadow:0 0 14px rgba(204,119,0,0.5); }
+
+.stat-label {
+  font-family:var(--font-ui); font-size:9px; font-weight:600;
+  letter-spacing:2px; color:var(--text-dim); text-transform:uppercase;
+  margin-top:3px;
+}
+
+/* ── CHANNELS ── */
+.channels-list { display:flex; flex-direction:column; gap:4px; }
+
+.ch-row {
+  display:grid; grid-template-columns:30px 1fr auto;
+  align-items:center; gap:8px;
+  background:var(--card); border:1px solid var(--border-dim);
+  padding:8px 10px; transition:all 0.15s; cursor:default;
+}
+.ch-row:hover { border-color:var(--border-mid); background:var(--hover); }
+.ch-row.active { border-left:2px solid var(--red); }
+
+.ch-code {
+  font-family:var(--font-hud); font-size:10px; font-weight:700;
+  color:var(--red-bright); letter-spacing:1px;
+}
+
+.ch-name {
+  font-family:var(--font-ui); font-size:13px; font-weight:600;
+  color:var(--text-bright); letter-spacing:0.5px;
+}
+
+.ch-meta {
+  font-family:var(--font-mono); font-size:8px; color:var(--text-dim);
+  letter-spacing:0.5px; display:flex; gap:6px; align-items:center;
+}
+
+.ch-dot { width:5px; height:5px; border-radius:50%;
+  background:var(--green-bright); box-shadow:0 0 4px var(--green-bright); animation:blink 2s infinite; }
+.ch-dot.idle { background:var(--amber-bright); box-shadow:0 0 4px var(--amber-bright); animation:none; }
+.ch-dot.off  { background:var(--text-dim); box-shadow:none; animation:none; }
+
+.ch-btns { display:flex; gap:3px; }
+
+/* ── BUTTONS ── */
+.btn {
+  font-family:var(--font-mono); font-size:8px; letter-spacing:1px;
+  border:1px solid; padding:3px 7px; cursor:pointer;
+  transition:all 0.15s; background:transparent; text-transform:uppercase;
+}
+.btn-red   { color:var(--red-bright); border-color:var(--border-mid); }
+.btn-red:hover { background:var(--red-glow); border-color:var(--red-bright); box-shadow:0 0 8px rgba(204,26,26,0.2); }
+
+.btn-gold  { color:var(--gold-bright); border-color:var(--gold-border); }
+.btn-gold:hover { background:var(--gold-glow); border-color:var(--gold-bright); }
+
+.btn-green { color:var(--green-bright); border-color:rgba(26,170,68,0.3); }
+.btn-green:hover { background:rgba(26,170,68,0.1); border-color:var(--green-bright); }
+
+.btn-ghost { color:var(--text-dim); border-color:rgba(80,40,40,0.3); }
+.btn-ghost:hover { color:var(--text-mid); border-color:var(--border-dim); }
+
+.btn-amber { color:var(--amber-bright); border-color:rgba(204,119,0,0.3); }
+.btn-amber:hover { background:rgba(204,119,0,0.1); border-color:var(--amber-bright); }
+
+.btn-lg { padding:9px 18px; font-size:10px; letter-spacing:2px; }
+.btn-full { width:100%; text-align:center; display:block; }
+
+/* ── PTT ── */
+.ptt-wrap { display:flex; flex-direction:column; align-items:center; gap:14px; padding:16px; }
+
+.ptt-modes { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+
+.ptt-btn {
+  width:168px; height:168px; border-radius:50%;
+  border:3px solid var(--red);
+  background:radial-gradient(circle at 40% 35%, rgba(204,26,26,0.2), rgba(0,0,0,0.9));
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  cursor:pointer; user-select:none; transition:all 0.1s;
+  box-shadow: 0 0 30px rgba(204,26,26,0.15), 0 0 60px rgba(204,26,26,0.05), inset 0 0 40px rgba(0,0,0,0.7);
+  position:relative; overflow:hidden;
+}
+.ptt-btn::before {
+  content:''; position:absolute; inset:6px; border-radius:50%;
+  border:1px solid rgba(204,26,26,0.2);
+}
+.ptt-btn::after {
+  content:''; position:absolute; inset:12px; border-radius:50%;
+  border:1px dashed rgba(200,150,10,0.1);
+  animation:spinSlow 20s linear infinite;
+}
+@keyframes spinSlow { to { transform:rotate(360deg); } }
+
+.ptt-btn:hover {
+  box-shadow:0 0 50px rgba(204,26,26,0.3), 0 0 100px rgba(204,26,26,0.1), inset 0 0 40px rgba(204,26,26,0.05);
+  transform:scale(1.02);
+}
+.ptt-btn:active, .ptt-btn.tx {
+  background:radial-gradient(circle at 40% 35%, rgba(204,26,26,0.4), rgba(80,0,0,0.8));
+  box-shadow:0 0 80px rgba(204,26,26,0.6), 0 0 150px rgba(204,26,26,0.2), inset 0 0 40px rgba(204,26,26,0.1);
+  transform:scale(0.97); border-color:var(--red-bright);
+}
+
+.ptt-icon { font-size:36px; margin-bottom:6px; filter:drop-shadow(0 0 6px rgba(204,26,26,0.6)); }
+.ptt-label { font-family:var(--font-hud); font-size:9px; font-weight:700; letter-spacing:3px; color:var(--red-bright); text-align:center; line-height:1.4; }
+
+.ptt-wave { display:flex; gap:3px; align-items:center; height:18px; margin-top:6px; opacity:0; transition:opacity 0.2s; }
+.ptt-btn.tx .ptt-wave { opacity:1; }
+.ptt-wave span { width:3px; background:var(--red-bright); border-radius:2px; animation:wv 0.5s ease-in-out infinite; }
+.ptt-wave span:nth-child(2){animation-delay:.1s}
+.ptt-wave span:nth-child(3){animation-delay:.2s}
+.ptt-wave span:nth-child(4){animation-delay:.1s}
+.ptt-wave span:nth-child(5){animation-delay:0s}
+@keyframes wv { 0%,100%{height:3px} 50%{height:14px} }
+
+.ptt-status { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); letter-spacing:2px; }
+
+/* ── EMERGENCY GRID ── */
+.emg-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+
+.emg-btn {
+  font-family:var(--font-hud); font-size:9px; font-weight:700;
+  letter-spacing:2px; text-transform:uppercase;
+  border:1px solid; padding:12px 8px; cursor:pointer;
+  transition:all 0.15s; background:transparent; text-align:center;
+}
+
+.emg-primary { grid-column:1/-1; color:var(--red-bright); border-color:var(--border-bright);
+  background:rgba(204,26,26,0.06); font-size:11px; padding:16px;
+  text-shadow:0 0 8px rgba(204,26,26,0.4);
+}
+.emg-primary:hover { background:rgba(204,26,26,0.14); box-shadow:0 0 20px rgba(204,26,26,0.2); }
+
+.emg-gold { color:var(--gold-bright); border-color:var(--gold-border); }
+.emg-gold:hover { background:var(--gold-glow); border-color:var(--gold-bright); }
+
+.emg-red  { color:var(--red-bright); border-color:var(--border-mid); }
+.emg-red:hover  { background:var(--red-glow); border-color:var(--red-bright); }
+
+/* ── BROADCAST ── */
+.bc-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+
+/* ── OFFICERS ── */
+.officer-list { display:flex; flex-direction:column; gap:5px; }
+
+.officer-card {
+  display:flex; align-items:center; gap:10px;
+  background:var(--card); border:1px solid var(--border-dim);
+  padding:8px 10px; transition:border-color 0.2s;
+}
+.officer-card:hover { border-color:var(--border-mid); }
+
+.officer-av {
+  width:34px; height:34px; border-radius:50%;
+  border:1.5px solid var(--border-mid);
+  background:linear-gradient(135deg, #200000, #0a0000);
+  display:grid; place-items:center;
+  font-family:var(--font-hud); font-size:11px; font-weight:700; color:var(--red-bright);
+  flex-shrink:0;
+}
+
+.officer-name { font-family:var(--font-ui); font-size:12px; font-weight:600; color:var(--text-bright); }
+.officer-rank { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); letter-spacing:1px; }
+.officer-ch   { font-family:var(--font-mono); font-size:8px; color:var(--gold-dim); margin-top:1px; }
+
+.st-online  { font-family:var(--font-mono); font-size:8px; letter-spacing:1px; color:var(--green-bright); }
+.st-away    { font-family:var(--font-mono); font-size:8px; letter-spacing:1px; color:var(--amber-bright); }
+.st-offline { font-family:var(--font-mono); font-size:8px; letter-spacing:1px; color:var(--text-dim); }
+.last-seen  { font-family:var(--font-mono); font-size:7px; color:var(--text-dim); }
+
+/* ── FEED ── */
+.feed-list { display:flex; flex-direction:column; max-height:260px; overflow-y:auto; }
+.feed-item { padding:7px 12px; border-bottom:1px solid var(--border-dim); display:flex; gap:10px; align-items:flex-start; animation:fi 0.3s ease; }
+@keyframes fi { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
+.feed-time { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); white-space:nowrap; margin-top:2px; flex-shrink:0; }
+.feed-dot { width:5px; height:5px; border-radius:50%; background:var(--gold-bright); box-shadow:0 0 4px var(--gold-bright); margin-top:4px; flex-shrink:0; }
+.feed-dot.alert { background:var(--red-bright); box-shadow:0 0 4px var(--red-bright); }
+.feed-dot.join  { background:var(--green-bright); box-shadow:0 0 4px var(--green-bright); }
+.feed-dot.warn  { background:var(--amber-bright); box-shadow:0 0 4px var(--amber-bright); }
+.feed-text { font-family:var(--font-ui); font-size:10px; color:var(--text-mid); line-height:1.4; }
+
+/* ── DISTRESS ── */
+.distress-card {
+  background:rgba(204,26,26,0.04); border:1px solid rgba(204,26,26,0.3);
+  padding:10px 12px; position:relative; overflow:hidden; margin-bottom:6px;
+}
+.distress-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, var(--red-bright), transparent);
+  animation:scan 2s linear infinite;
+}
+@keyframes scan { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+.distress-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.distress-name { font-family:var(--font-hud); font-size:11px; font-weight:700; color:var(--red-bright); letter-spacing:1px; }
+.distress-time { font-family:var(--font-mono); font-size:8px; color:var(--red-dim); }
+.distress-gps  { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); margin-bottom:8px; }
+.distress-acts { display:flex; gap:5px; }
+
+/* ── AUDIO ── */
+.audio-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.audio-row {
+  background:var(--card); border:1px solid var(--border-dim);
+  padding:7px 9px; display:flex; align-items:center; justify-content:space-between;
+}
+.audio-ch { font-family:var(--font-mono); font-size:9px; color:var(--text-mid); letter-spacing:1px; }
+
+/* ── TOGGLE ── */
+.toggle { width:30px; height:15px; border-radius:8px; background:var(--card2); border:1px solid var(--border-dim); position:relative; cursor:pointer; transition:background 0.2s; }
+.toggle.on { background:rgba(204,26,26,0.2); border-color:var(--red); }
+.toggle::after { content:''; position:absolute; width:9px; height:9px; border-radius:50%; background:var(--text-dim); top:2px; left:2px; transition:all 0.2s; }
+.toggle.on::after { left:17px; background:var(--red-bright); box-shadow:0 0 5px var(--red-bright); }
+
+/* ── HEALTH ── */
+.health-list { display:flex; flex-direction:column; gap:4px; }
+.health-row { display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-dim); }
+.health-lbl { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); letter-spacing:1px; }
+.health-val { font-family:var(--font-mono); font-size:8px; }
+.h-on  { color:var(--green-bright); }
+.h-off { color:var(--red-bright); }
+.h-red { color:var(--red-bright); }
+.h-gold{ color:var(--gold-bright); }
+
+/* ── PERMISSIONS ── */
+.perm-role { background:var(--card); border:1px solid var(--border-dim); padding:8px 10px; margin-bottom:5px; }
+.perm-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+.perm-name { font-family:var(--font-hud); font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; }
+.perm-super   { color:var(--red-bright); }
+.perm-cmd     { color:var(--gold-bright); }
+.perm-ops     { color:var(--amber-bright); }
+.perm-patrol  { color:var(--green-bright); }
+.perm-tags { display:flex; flex-wrap:wrap; gap:3px; }
+.perm-tag { font-family:var(--font-mono); font-size:7px; letter-spacing:1px; padding:2px 5px; border:1px solid var(--border-dim); color:var(--text-dim); }
+.perm-tag.on { border-color:var(--border-mid); color:var(--red-dim); }
+
+/* ── SECTION DIVIDER ── */
+.divider {
+  font-family:var(--font-mono); font-size:8px; letter-spacing:3px; color:var(--text-dim);
+  text-transform:uppercase; border-top:1px solid var(--border-dim); padding-top:6px;
+  margin:8px 0 5px; display:flex; align-items:center; gap:8px;
+}
+.divider::after { content:''; flex:1; height:1px; background:var(--border-dim); }
+
+/* ── NOTIF DOT ── */
+.notif { width:7px; height:7px; border-radius:50%; background:var(--red-bright); box-shadow:0 0 6px var(--red-bright); animation:blink 0.8s ease-in-out infinite; flex-shrink:0; }
+
+/* ── MAP ── */
+.map-ph {
+  background:var(--card); border:1px solid var(--border-dim);
+  height:190px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:8px;
+  position:relative; overflow:hidden;
+}
+.map-grid-bg {
+  position:absolute; inset:0;
+  background-image: linear-gradient(rgba(204,26,26,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(204,26,26,0.04) 1px, transparent 1px);
+  background-size:22px 22px;
+}
+.map-lbl { font-family:var(--font-hud); font-size:11px; font-weight:600; letter-spacing:4px; color:var(--text-dim); position:relative; }
+.map-sub { font-family:var(--font-mono); font-size:8px; color:#3a2020; position:relative; letter-spacing:2px; }
+.future-tag { font-family:var(--font-mono); font-size:7px; color:var(--text-dim); border:1px dashed var(--border-dim); padding:2px 6px; letter-spacing:1px; }
+
+/* ── RECORDING ── */
+.rec-row { display:flex; gap:6px; justify-content:center; padding:6px 0; }
+.rec-btn { display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 16px; background:var(--card); border:1px solid var(--border-dim); cursor:pointer; transition:all 0.15s; font-family:var(--font-mono); font-size:8px; color:var(--text-dim); letter-spacing:1px; }
+.rec-btn:hover { border-color:var(--border-mid); color:var(--text-mid); }
+.rec-ico { font-size:16px; }
+
+/* ── ASSIGN ── */
+.assign-select {
+  background:var(--card); border:1px solid var(--border-mid);
+  color:var(--text-mid); font-family:var(--font-mono); font-size:9px;
+  padding:7px 8px; outline:none; cursor:pointer; flex:1; letter-spacing:1px;
+}
+.assign-select:focus { border-color:var(--red); }
+.assign-select option { background:var(--deep); }
+
+.text-input {
+  background:var(--card); border:1px solid var(--border-mid);
+  color:var(--text-mid); font-family:var(--font-mono); font-size:9px;
+  padding:7px 8px; width:100%; outline:none; letter-spacing:1px;
+}
+.text-input:focus { border-color:var(--red); color:var(--text-bright); }
+.text-input::placeholder { color:var(--text-dim); }
+
+/* ── CH MGMT ── */
+.mgmt-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; }
+
+/* ── MAIN GRID ── */
+.main-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.span-full { grid-column:1/-1; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width:3px; }
+::-webkit-scrollbar-track { background:var(--void); }
+::-webkit-scrollbar-thumb { background:var(--border-mid); }
+
+/* ── PULSE RING on active channel ── */
+@keyframes pulseRing {
+  0%   { box-shadow:0 0 0 0 rgba(204,26,26,0.3); }
+  70%  { box-shadow:0 0 0 6px rgba(204,26,26,0); }
+  100% { box-shadow:0 0 0 0 rgba(204,26,26,0); }
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+<script src="cadre-common.js"></script>
+<script src="cadre-admin.js"></script>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-logo">
+    <img src="Cadre logo png.jpg" alt="CADRE" class="logo-img">
+    <div class="logo-text-wrap">
+      <div class="logo-name">CADRE</div>
+      <div class="logo-sub">COMMAND CENTER // DISPATCH ADMIN</div>
+    </div>
+  </div>
+
+  <nav class="header-nav">
+    <button class="nav-item active">Overview</button>
+    <a class="nav-item" href="intelligence.html">Intelligence</a>
+    <button class="nav-item" id="navSurveillanceBtn" data-nav="/surveillance">Surveillance</button>
+<script>
+(function(){
+  var btn = document.getElementById('navSurveillanceBtn');
+  if(!btn) return;
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    if(window.router && typeof window.router.navigate === 'function'){
+      window.router.navigate('/surveillance');
+      return;
+    }
+    // legacy fallback
+    window.location.hash = '#/surveillance';
+  });
+})();
+</script>
+
+
+    <button class="nav-item">Operations</button>
+    <button class="nav-item">Data Link</button>
+    <button class="nav-item">Systems</button>
+  </nav>
+
+  <div class="header-right">
+    <div class="live-tag"><div class="live-dot"></div>LIVE</div>
+    <div class="header-clock" id="hClock">00:00:00</div>
+    <div class="admin-chip">◈ SUPER ADMIN</div>
+  </div>
+</header>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+<!-- ══════════════ LEFT COL ══════════════ -->
+<div class="col">
+
+  <!-- DASHBOARD -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Command Dashboard</span>
+      <span class="panel-badge green">LIVE</span>
+    </div>
+    <div class="panel-body">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-val grn" id="s-online">12</div>
+          <div class="stat-label">Officers Online</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val gold" id="s-ch">9</div>
+          <div class="stat-label">Active Channels</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val amb" id="s-field">8</div>
+          <div class="stat-label">In The Field</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val gold" id="s-inc">3</div>
+          <div class="stat-label">Active Incidents</div>
+        </div>
+        <div class="stat-card" style="grid-column:1/-1">
+          <div class="stat-val" id="s-alerts">1</div>
+          <div class="stat-label">Emergency Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SYSTEM HEALTH -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">System Integrity</span>
+    </div>
+    <div class="panel-body">
+      <div class="health-list">
+        <div class="health-row"><span class="health-lbl">AGORA CONNECTION</span><span class="health-val h-on">● CONNECTED</span></div>
+        <div class="health-row"><span class="health-lbl">SUPABASE</span><span class="health-val h-on">● CONNECTED</span></div>
+        <div class="health-row"><span class="health-lbl">ACTIVE USERS</span><span class="health-val h-gold">12</span></div>
+        <div class="health-row"><span class="health-lbl">VOICE SESSIONS</span><span class="health-val h-gold">7</span></div>
+        <div class="health-row"><span class="health-lbl">SERVER STATUS</span><span class="health-val h-on">● OPERATIONAL</span></div>
+        <div class="health-row"><span class="health-lbl">ENCRYPTION</span><span class="health-val h-on">AES-256 ACTIVE</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERMISSIONS -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Permissions Panel</span>
+    </div>
+    <div class="panel-body" style="padding-top:8px;">
+      <div class="perm-role">
+        <div class="perm-head"><span class="perm-name perm-super">Super Admin</span><button class="btn btn-ghost" style="font-size:7px;padding:2px 5px;">EDIT</button></div>
+        <div class="perm-tags">
+          <span class="perm-tag on">BROADCAST</span><span class="perm-tag on">CREATE CH</span><span class="perm-tag on">MANAGE</span><span class="perm-tag on">RECORDINGS</span>
+        </div>
+      </div>
+      <div class="perm-role">
+        <div class="perm-head"><span class="perm-name perm-cmd">Command Officer</span><button class="btn btn-ghost" style="font-size:7px;padding:2px 5px;">EDIT</button></div>
+        <div class="perm-tags">
+          <span class="perm-tag on">BROADCAST</span><span class="perm-tag on">CREATE CH</span><span class="perm-tag">MANAGE</span><span class="perm-tag on">RECORDINGS</span>
+        </div>
+      </div>
+      <div class="perm-role">
+        <div class="perm-head"><span class="perm-name perm-ops">Operations Officer</span><button class="btn btn-ghost" style="font-size:7px;padding:2px 5px;">EDIT</button></div>
+        <div class="perm-tags">
+          <span class="perm-tag on">BROADCAST</span><span class="perm-tag">CREATE CH</span><span class="perm-tag">MANAGE</span><span class="perm-tag">RECORDINGS</span>
+        </div>
+      </div>
+      <div class="perm-role">
+        <div class="perm-head"><span class="perm-name perm-patrol">Patrol Officer</span><button class="btn btn-ghost" style="font-size:7px;padding:2px 5px;">EDIT</button></div>
+        <div class="perm-tags">
+          <span class="perm-tag">BROADCAST</span><span class="perm-tag">CREATE CH</span><span class="perm-tag">MANAGE</span><span class="perm-tag">RECORDINGS</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- END LEFT -->
+
+<!-- ══════════════ MAIN COL ══════════════ -->
+<div class="col-main">
+<div class="main-grid">
+
+  <!-- CHANNEL MONITORING -->
+  <div class="panel span-full">
+    <div class="panel-head">
+      <span class="panel-title">Channel Monitoring Panel</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span class="panel-badge green">9 ACTIVE</span>
+        <button class="btn btn-red" style="font-size:7px;padding:2px 7px;">REFRESH</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="channels-list" id="chGrid"></div>
+    </div>
+  </div>
+
+  <!-- PTT CONSOLE -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Push-To-Talk Console</span>
+      <span class="panel-badge">READY</span>
+    </div>
+    <div class="ptt-wrap">
+      <div class="ptt-modes">
+        <button class="btn btn-ghost" id="pttAll" onclick="setPTT('all')">ALL CHANNELS</button>
+        <button class="btn btn-gold" id="pttSel" onclick="setPTT('selected')">SELECTED</button>
+        <button class="btn btn-red" id="pttEmg" onclick="setPTT('emergency')">EMERGENCY</button>
+      </div>
+      <div class="ptt-btn" id="pttBtn" onmousedown="txStart()" onmouseup="txStop()" ontouchstart="txStart()" ontouchend="txStop()">
+        <div class="ptt-icon">🎙</div>
+        <div class="ptt-label">HOLD TO<br>TRANSMIT</div>
+        <div class="ptt-wave"><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+      <div class="ptt-status" id="pttStat">MODE: ALL CHANNELS — STANDBY</div>
+    </div>
+  </div>
+
+  <!-- EMERGENCY BROADCAST -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Emergency Broadcast</span>
+      <div class="notif"></div>
+    </div>
+    <div class="panel-body">
+      <div class="emg-grid">
+        <button class="emg-btn emg-primary" onclick="addFeed('EMERGENCY BROADCAST activated','alert')">⚠ EMERGENCY BROADCAST</button>
+        <button class="emg-btn emg-gold" onclick="addFeed('OFFICER RECALL initiated','warn')">OFFICER RECALL</button>
+        <button class="emg-btn emg-gold" onclick="addFeed('STANDBY ALERT issued','warn')">STANDBY ALERT</button>
+        <button class="emg-btn emg-red"  onclick="addFeed('EVACUATION ALERT dispatched','alert')">EVACUATION ALERT</button>
+        <button class="emg-btn emg-gold" onclick="addFeed('PRIORITY MESSAGE sent','warn')">PRIORITY MESSAGE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BROADCAST CONTROLS -->
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Broadcast Controls</span></div>
+    <div class="panel-body">
+      <div class="bc-grid" id="bcGrid"></div>
+    </div>
+  </div>
+
+  <!-- AUDIO CONTROLS -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Channel Audio Controls</span>
+      <span style="font-family:var(--font-mono);font-size:7px;color:var(--text-dim)">ADMIN LOCAL</span>
+    </div>
+    <div class="panel-body">
+      <div class="divider">Listen</div>
+      <div class="audio-grid" id="listenGrid"></div>
+      <div class="divider" style="margin-top:10px;">Mute</div>
+      <div class="audio-grid" id="muteGrid"></div>
+    </div>
+  </div>
+
+  <!-- INCIDENT FEED -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Incident Feed</span>
+      <span class="panel-badge green">REAL-TIME</span>
+    </div>
+    <div class="panel-body" style="padding:0;">
+      <div class="feed-list" id="feedList"></div>
+    </div>
+  </div>
+
+  <!-- CHANNEL MANAGEMENT -->
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Channel Management</span></div>
+    <div class="panel-body">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input id="channel-create-name" type="text" class="text-input" placeholder="New channel name..." style="flex:1;">
+        <button id="channel-create-btn" class="btn btn-red btn-lg">CREATE</button>
+      </div>
+      <div class="divider">Select Channel</div>
+      <select id="channel-select" class="assign-select" style="width:100%;margin-bottom:8px;">
+        <option value="">Select Channel...</option>
+      </select>
+      <div class="mgmt-grid">
+        <button id="channel-rename-btn" class="btn btn-gold btn-full">RENAME</button>
+        <button id="channel-disable-btn" class="btn btn-amber btn-full">DISABLE</button>
+        <button id="channel-lock-btn" class="btn btn-amber btn-full">LOCK</button>
+        <button id="channel-delete-btn" class="btn btn-red btn-full">DELETE</button>
+        <button id="channel-archive-btn" class="btn btn-ghost btn-full" style="grid-column:1/-1;">ARCHIVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECORDING CONTROLS -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Recording Controls</span>
+      <span class="future-tag">FUTURE FEATURE</span>
+    </div>
+    <div class="panel-body">
+      <div class="rec-row">
+        <button class="rec-btn" onclick="addFeed('Recording started','warn')"><span class="rec-ico">⏺</span>START</button>
+        <button class="rec-btn" onclick="addFeed('Recording stopped','')"><span class="rec-ico">⏹</span>STOP</button>
+        <button class="rec-btn" onclick="addFeed('Playback initiated','')"><span class="rec-ico">▶</span>PLAYBACK</button>
+        <button class="rec-btn" onclick="addFeed('Recording download','')"><span class="rec-ico">⬇</span>DOWNLOAD</button>
+      </div>
+      <div style="text-align:center;font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:4px;letter-spacing:1px;">NO ACTIVE RECORDING SESSION</div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="panel span-full">
+    <div class="panel-head">
+      <span class="panel-title">Command Center Map</span>
+      <span class="future-tag">FUTURE FEATURE</span>
+    </div>
+    <div class="panel-body" style="padding:0;">
+      <div class="map-ph">
+        <div class="map-grid-bg"></div>
+        <div class="map-lbl">🗺 TACTICAL MAP — COMING SOON</div>
+        <div class="map-sub">OFFICER LOCATIONS · DISTRESS ZONES · PATROL AREAS · ACTIVE INCIDENTS</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end main-grid -->
+</div><!-- end col-main -->
+
+<!-- ══════════════ RIGHT COL ══════════════ -->
+<div class="col" style="border-right:none; border-left:1px solid var(--border-dim);">
+
+  <!-- OFFICER PRESENCE -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Officer Presence</span>
+      <span class="panel-badge green">12 ONLINE</span>
+    </div>
+    <div class="panel-body" style="padding:6px;max-height:380px;overflow-y:auto;">
+      <div class="officer-list" id="officerList"></div>
+    </div>
+  </div>
+
+  <!-- DISTRESS MONITOR -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Distress Monitor</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="notif"></div>
+        <span class="panel-badge red">1 ACTIVE</span>
+      </div>
+    </div>
+<div class="panel-body" id="distressContainer">
+        <div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);text-align:center;letter-spacing:1px;">Loading distress signals...</div>
+      </div>
+  </div>
+
+  <!-- OFFICER ASSIGNMENT -->
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Officer Assignment</span></div>
+    <div class="panel-body">
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <select id="officer-select" class="assign-select">
+          <option value="">Select Officer...</option>
+        </select>
+        <div style="display:flex;gap:6px;">
+          <select id="channel-assign-select" class="assign-select">
+            <option value="">Assign to Channel...</option>
+          </select>
+          <button id="channel-move-btn" class="btn btn-red btn-lg">MOVE</button>
+        </div>
+        <div class="divider">Patrol Groups</div>
+        <select id="patrol-officer-select" class="assign-select">
+          <option value="">Select officer...</option>
+        </select>
+        <input id="group-name-input" type="text" class="text-input" placeholder="Group / Team name...">
+        <div style="display:flex;gap:5px;">
+          <button id="assign-group-btn" class="btn btn-gold btn-full">ASSIGN GROUP</button>
+          <button id="remove-group-btn" class="btn btn-red btn-full">REMOVE</button>
+        </div>
+        <button class="btn btn-amber btn-full" onclick="addFeed('Temp team created','')">＋ CREATE TEMP TEAM</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- END RIGHT -->
+
+</div><!-- END LAYOUT -->
+
+</body>
+</html>
