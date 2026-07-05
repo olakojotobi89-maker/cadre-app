@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>CADRE // Tactical Command Map</title>
+
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="map.css">
+
+</head>
+
+<body>
+
+<div class="map-system">
+
+<!-- ===================================== -->
+<!-- HEADER -->
+<!-- ===================================== -->
+
+<header class="map-header">
+
+<div class="map-logo">
+
+<span class="logo-dot"></span>
+
+CADRE // TACTICAL COMMAND
+
+</div>
+
+<nav class="top-menu">
+
+<button class="top-btn active">
+MAP
+</button>
+
+<button class="top-btn">
+MISSIONS
+</button>
+
+<button class="top-btn">
+INTELLIGENCE
+</button>
+
+<button class="top-btn">
+UNITS
+</button>
+
+<button class="top-btn">
+SETTINGS
+</button>
+
+</nav>
+
+<div class="header-right">
+
+<span id="network-status">
+ONLINE
+</span>
+
+<span id="system-clock">
+
+00:00:00
+
+</span>
+
+</div>
+
+</header>
+
+<!-- ===================================== -->
+<!-- MAIN -->
+<!-- ===================================== -->
+
+<div class="map-main">
+
+<!-- ===================================== -->
+<!-- LEFT PANEL -->
+<!-- ===================================== -->
+
+<aside class="left-panel">
+
+<h3>MISSION FILTERS</h3>
+
+<input
+type="text"
+placeholder="Search mission...">
+
+<select>
+
+<option>All Regions</option>
+
+<option>North</option>
+
+<option>South</option>
+
+<option>East</option>
+
+<option>West</option>
+
+</select>
+
+<select>
+
+<option>Priority</option>
+
+<option>High</option>
+
+<option>Medium</option>
+
+<option>Low</option>
+
+</select>
+
+<select>
+
+<option>Status</option>
+
+<option>Active</option>
+
+<option>Completed</option>
+
+<option>Pending</option>
+
+</select>
+
+<button class="new-mission">
+
++ NEW MISSION
+
+</button>
+
+<hr>
+
+<h3>ACTIVE UNITS</h3>
+
+<div class="unit-card">
+
+🟢 Alpha Team
+
+</div>
+
+<div class="unit-card">
+
+🟢 Bravo Team
+
+</div>
+
+<div class="unit-card">
+
+🟡 Charlie Team
+
+</div>
+
+<div class="unit-card">
+
+🔴 Delta Team
+
+</div>
+
+</aside>
+
+<!-- ===================================== -->
+<!-- MAP AREA -->
+<!-- ===================================== -->
+
+<section class="map-view">
+
+<div class="grid-layer"></div>
+
+<div class="scan-lines"></div>
+
+<div class="radar-circle"></div>
+
+<div class="radar-sweep"></div>
+
+<div class="crosshair"></div>
+
+<div class="coordinate-label">
+
+GRID:
+12QX-2299
+
+</div>
+
+<!-- Friendly -->
+
+<div class="marker friendly"
+style="top:30%;left:40%;">
+
+</div>
+
+<div class="marker friendly"
+style="top:55%;left:60%;">
+
+</div>
+
+<!-- Enemy -->
+
+<div class="marker enemy"
+style="top:65%;left:22%;">
+
+</div>
+
+<!-- SOS -->
+
+<div class="marker sos"
+style="top:18%;left:72%;">
+
+</div>
+
+<!-- HQ -->
+
+<div class="marker hq"
+style="top:48%;left:48%;">
+
+</div>
+
+<!-- Drone -->
+
+<div class="marker drone"
+style="top:25%;left:15%;">
+
+</div>
+
+<!-- Floating Controls -->
+
+<div class="map-controls">
+
+<button>＋</button>
+
+<button>－</button>
+
+<button>🧭</button>
+
+<button>📡</button>
+
+<button>🎯</button>
+
+<button>⚙</button>
+
+</div>
+
+</section>
+
+<!-- ===================================== -->
+<!-- RIGHT PANEL -->
+<!-- ===================================== -->
+
+<aside class="right-panel">
+
+<h3>
+
+MISSION INTEL
+
+</h3>
+
+<div class="intel-box">
+
+Select a unit.
+
+</div>
+
+<h3>
+
+GPS DATA
+
+</h3>
+
+<div class="intel-box">
+
+Latitude
+
+<br>
+
+6.5244
+
+<br><br>
+
+Longitude
+
+<br>
+
+3.3792
+
+</div>
+
+<h3>
+
+UNIT STATUS
+
+</h3>
+
+<div class="intel-box">
+
+Battery
+
+95%
+
+<br><br>
+
+Radio
+
+Encrypted
+
+<br><br>
+
+Signal
+
+Excellent
+
+</div>
+
+<h3>
+
+LIVE EVENTS
+
+</h3>
+
+<div class="intel-box">
+
+Waiting...
+
+</div>
+
+</aside>
+
+</div>
+
+<!-- ===================================== -->
+<!-- BOTTOM HUD -->
+<!-- ===================================== -->
+
+<footer class="bottom-hud">
+
+<div>
+
+GRID
+
+<span>
+
+12QX-2299
+
+</span>
+
+</div>
+
+<div>
+
+LAT
+
+<span>
+
+6.5244
+
+</span>
+
+</div>
+
+<div>
+
+LON
+
+<span>
+
+3.3792
+
+</span>
+
+</div>
+
+<div>
+
+GPS
+
+<span>
+
+LOCKED
+
+</span>
+
+</div>
+
+<div>
+
+NETWORK
+
+<span>
+
+ONLINE
+
+</span>
+
+</div>
+
+<div>
+
+SAT
+
+<span>
+
+12
+
+</span>
+
+</div>
+
+<div>
+
+COMPASS
+
+<span>
+
+NW
+
+</span>
+
+</div>
+
+<div>
+
+ZOOM
+
+<span>
+
+5X
+
+</span>
+
+</div>
+
+</footer>
+
+</div>
+
+<script src="map.js"></script>
+
+</body>
+</html>
