@@ -134,6 +134,7 @@ placeholder="Search mission...">
 </button>
 
 <hr>
+<svg id="route-layer" class="route-layer"></svg>
 
 <h3>ACTIVE UNITS</h3>
 
@@ -169,8 +170,10 @@ placeholder="Search mission...">
 
 <section class="map-view">
 
-<div class="grid-layer"></div>
+<div id="tactical-grid" class="grid-layer"></div>
 
+<div id="grid-crosshair-x" class="crosshair-x"></div>
+<div id="grid-crosshair-y" class="crosshair-y"></div>
 <div class="scan-lines"></div>
 
 <div class="radar-circle"></div>
@@ -186,46 +189,17 @@ GRID:
 
 </div>
 
-<!-- Friendly -->
+<div id="alpha-unit" class="unit-marker alpha"></div>
 
-<div class="marker friendly"
-style="top:30%;left:40%;">
+<div id="bravo-unit" class="unit-marker bravo"></div>
 
-</div>
+<div id="charlie-unit" class="unit-marker charlie"></div>
 
-<div class="marker friendly"
-style="top:55%;left:60%;">
+<div id="delta-unit" class="unit-marker delta"></div>
 
-</div>
+<div id="hq-unit" class="unit-marker hq-marker"></div>
 
-<!-- Enemy -->
-
-<div class="marker enemy"
-style="top:65%;left:22%;">
-
-</div>
-
-<!-- SOS -->
-
-<div class="marker sos"
-style="top:18%;left:72%;">
-
-</div>
-
-<!-- HQ -->
-
-<div class="marker hq"
-style="top:48%;left:48%;">
-
-</div>
-
-<!-- Drone -->
-
-<div class="marker drone"
-style="top:25%;left:15%;">
-
-</div>
-
+<div id="drone-unit" class="unit-marker drone-marker"></div>
 <!-- Floating Controls -->
 
 <div class="map-controls">

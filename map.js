@@ -311,7 +311,29 @@ hud[2].innerHTML=
 (3.3792+(Math.random()/500)).toFixed(5);
 
 },3000);
+function createTrail(unit){
 
+const trail=document.createElement("div");
+
+trail.className="trail";
+
+trail.style.left=unit.x+"%";
+
+trail.style.top=unit.y+"%";
+
+trail.style.background=unit.color;
+
+trail.style.boxShadow=`0 0 10px ${unit.color}`;
+
+document.querySelector(".map-grid").appendChild(trail);
+
+setTimeout(()=>{
+
+trail.remove();
+
+},4000);
+
+}
 /* ============================================
    RANDOM ALERTS
 ============================================ */
@@ -377,3 +399,334 @@ map.style.transform="scale(1)";
 ============================================ */
 
 console.log("CADRE Tactical Command Map Loaded");
+/*=========================================
+TACTICAL GRID ENGINE
+=========================================*/
+
+const grid=document.getElementById("tactical-grid");
+
+const letters="ABCDEFGHIJKLMNOPQRST";
+
+for(let row=0;row<20;row++){
+
+    for(let col=0;col<20;col++){
+
+        const cell=document.createElement("div");
+
+        cell.className="grid-cell";
+
+        cell.dataset.grid=letters[row]+String(col+1).padStart(2,"0");
+
+        cell.innerHTML=cell.dataset.grid;
+
+        cell.onclick=()=>selectGrid(cell);
+
+        grid.appendChild(cell);
+
+    }
+
+}
+
+function selectGrid(cell){
+
+document.querySelectorAll(".grid-cell.active")
+
+.forEach(c=>c.classList.remove("active"));
+
+cell.classList.add("active");
+
+const gridRef=cell.dataset.grid;
+
+const lat=(6.50+Math.random()/10).toFixed(5);
+
+const lon=(3.30+Math.random()/10).toFixed(5);
+
+const terrain=["Urban","Forest","River","High Ground","Open Field"];
+
+const risk=["LOW","MEDIUM","HIGH"];
+
+const intel=document.querySelectorAll(".intel-box");
+
+intel[0].innerHTML=`
+
+<h2>${gridRef}</h2>
+
+<br>
+
+Latitude : ${lat}
+
+<br><br>
+
+Longitude : ${lon}
+
+<br><br>
+
+Terrain : ${terrain[Math.floor(Math.random()*terrain.length)]}
+
+<br><br>
+
+Threat : ${risk[Math.floor(Math.random()*risk.length)]}
+
+<br><br>
+
+${new Date().toLocaleTimeString()}
+
+`;
+
+}
+/*====================================
+LIVE UNIT ENGINE
+====================================*/
+
+const units={
+
+
+
+const: units=[
+   {
+
+id:"alpha-unit",
+
+name:"ALPHA",
+
+route:[
+
+{x:15,y:20},
+
+{x:30,y:25},
+
+{x:45,y:40},
+
+{x:60,y:35},
+
+{x:80,y:50}
+
+],
+
+index:0,
+
+color:"#00ff66"
+
+},
+
+{
+
+id:"bravo-unit",
+
+name:"BRAVO",
+
+route:[
+
+{x:70,y:15},
+
+{x:60,y:30},
+
+{x:55,y:50},
+
+{x:72,y:70}
+
+],
+
+index:0,
+
+color:"#00ccff"
+
+},
+
+{
+
+id:"charlie-unit",
+
+name:"CHARLIE",
+
+route:[
+
+{x:15,y:70},
+
+{x:30,y:65},
+
+{x:45,y:55},
+
+{x:55,y:40}
+
+],
+
+index:0,
+
+color:"#ffff00"
+
+}
+
+], 
+}
+units.forEach(unit=>{
+
+const marker=document.getElementById(unit.id);
+
+marker.dataset.name=unit.name;
+
+const angle=Math.random()*360;
+
+marker.style.left=unit.x+"%";
+
+marker.style.top=unit.y+"%";
+
+marker.style.transform=`rotate(${angle}deg)`;
+
+});
+
+
+
+units.forEach(unit=>{
+
+createTrail(unit);
+
+unit.x+=(Math.random()*6)-3;
+
+unit.y+=(Math.random()*6)-3;
+
+setInterval(patrolUnits,1200);
+units.forEach(unit=>{
+
+document.getElementById(unit.id)
+
+.addEventListener("click",()=>{
+
+const intel=document.querySelectorAll(".intel-box");
+
+intel[0].innerHTML=`
+
+<h2>${unit.name}</h2>
+
+<br>
+
+STATUS : ACTIVE
+
+<br><br>
+
+GRID :
+
+${String.fromCharCode(65+Math.floor(unit.y/5))}${Math.floor(unit.x)}
+
+<br><br>
+
+SPEED :
+
+${10+Math.floor(Math.random()*40)} km/h
+
+<br><br>
+
+HEADING :
+
+${Math.floor(Math.random()*360)}°
+
+<br><br>
+
+BATTERY :
+
+${70+Math.floor(Math.random()*30)}%
+
+`;
+
+});
+
+});
+/*=========================================
+TACTICAL CROSSHAIR
+=========================================*/
+
+const crossX=document.getElementById("grid-crosshair-x");
+
+const crossY=document.getElementById("grid-crosshair-y");
+
+map.addEventListener("mousemove",(e)=>{
+
+const rect=map.getBoundingClientRect();
+
+crossX.style.top=(e.clientY-rect.top)+"px";
+
+crossY.style.left=(e.clientX-rect.left)+"px";
+
+});
+})
+function radarPing(){
+
+units.forEach(unit=>{
+
+const marker=document.getElementById(unit.id);
+
+marker.animate(
+
+[
+
+{
+
+boxShadow:`0 0 15px ${unit.color}`
+
+},
+
+{
+
+boxShadow:`0 0 45px white`
+
+},
+
+{
+
+boxShadow:`0 0 15px ${unit.color}`
+
+}
+
+],
+
+{
+
+duration:700
+
+});
+
+});
+
+}
+
+setInterval(radarPing,5000);
+const radarAudio=new Audio("audio/radar.mp3");
+
+radarAudio.volume=.2;
+
+setInterval(()=>{
+
+radarAudio.currentTime=0;
+
+radarAudio.play().catch(()=>{});
+
+},5000);
+const missions=[
+
+"PATROLLING",
+
+"SEARCHING",
+
+"ESCORT",
+
+"SURVEILLANCE",
+
+"RECON",
+
+"RESPONDING"
+
+];
+
+function updateMission(){
+
+units.forEach(unit=>{
+
+unit.mission=
+
+missions[Math.floor(Math.random()*missions.length)];
+
+});
+
+}
+
+setInterval(updateMission,8000);
