@@ -6,6 +6,7 @@
     <title>CADRE - Tactical Distress Portal</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtc-sdk-ng/AgoraRTC_N-production.js"></script>
     <style>
         :root {
             --hud-crimson: #ff3333;
@@ -126,12 +127,10 @@
     </nav>
 </div>
 
-<script src=""></script>
-<script src=""></script>
-
 <script>
 /* ════════════════════════════════════════════════
-   CADRE EMERGENCY — CORE LOGIC
+   CADRE EMERGENCY — CORE LOGIC (unchanged from your original,
+   except that CADRE_SOS_AUDIO is now Agora-backed under the hood)
 ════════════════════════════════════════════════ */
 const sbClient = (typeof window !== 'undefined' && window.CADRE_SB) ? window.CADRE_SB : (typeof supabase !== 'undefined' && supabase.createClient ? supabase.createClient('https://ihroattnnnsckvvbosfz.supabase.co', 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX', { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null);
 
@@ -175,7 +174,6 @@ function logToConsole(message, statusClass) {
     }
     if (!uid) {
         logToConsole('NO SESSION — attempting Supabase session restore...', 'status-error');
-        // Give Supabase auth time to restore session from storage.
         try {
             const start = Date.now();
             while (!uid && Date.now() - start < 2000) {
@@ -278,7 +276,7 @@ async function requestSecureDeactivation() {
     isAlertActive = false;
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     if (micIntervalId) { clearInterval(micIntervalId); micIntervalId = null; }
-    CADRE_SOS_AUDIO.stopStreaming();
+    await CADRE_SOS_AUDIO.stopStreaming();
     const { error } = await sbClient.from("distress_signals").delete().eq("user_id", currentUser.id);
     if (error) logToConsole('STAND DOWN SYNC ERROR: ' + error.message, 'status-error');
     document.getElementById("sos-container").classList.remove("active-alert");
@@ -306,241 +304,219 @@ function trackLiveLocation() {
         { enableHighAccuracy: true }
     );
 }
+
+/* Best-effort cleanup if the officer closes/reloads the tab mid-stream */
+window.addEventListener('pagehide', function() {
+    try { CADRE_SOS_AUDIO.cleanupEmergencyAudio(); } catch(e) {}
+});
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     MODULE: CADRE_SOS_AUDIO  — FULLY REBUILT
-     
-     KEY FIXES vs previous version:
-     1. Re-announce on a 10-second heartbeat so admins that open
-        the page AFTER the SOS fires can still pick up the stream.
-     2. Announcement channel uses { self: true } so the send
-        callback can confirm delivery without relying on the
-        default self-suppress behaviour.
-     3. Both sigChannel and annChannel are fully separate Supabase
-        channel instances to avoid internal routing conflicts.
-     4. Offer is sent ONLY after admin_join arrives — no race
-        condition from sending into an empty room.
+     MODULE: CADRE_SOS_AUDIO — Agora RTC edition
+
+     Replaces the previous raw-WebRTC/Supabase-broadcast signaling
+     with Agora's global RTC infrastructure, per the emergency
+     audio fix spec. Channel name is deterministic
+     ("sos_<officerId>") so admin.html can join without any
+     separate signaling handshake — Supabase Realtime is used only
+     to notify admins that a session started/ended and to persist
+     the emergency record, exactly as before.
+
+     Public functions requested in the spec:
+       initializeEmergencyAudio()
+       startEmergencyAudio()
+       publishMicrophone()
+       stopEmergencyAudio()
+       cleanupEmergencyAudio()
+     (subscribeToEmergencyAudio lives in admin.html)
 ═══════════════════════════════════════════════════════════════════ -->
 <script>
 (function() {
     'use strict';
 
-    const _SB_URL = 'https://ihroattnnnsckvvbosfz.supabase.co';
-    const _SB_KEY = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    /* Use a fresh Supabase client so broadcast routing is independent */
-    const _sb = supabase.createClient(_SB_URL, _SB_KEY);
+    const AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
 
-    let _officerId    = null;
-    let _officerName  = null;
-    let _sessionId    = null;
-    let _localStream  = null;
-    let _peerConns    = {};       /* adminId → RTCPeerConnection */
-    let _sigChannel   = null;     /* 'sos_sig_<officerId>'  — offer/answer/ICE */
-    let _annChannel   = null;     /* 'sos_announcements'    — presence beacon  */
-    let _heartbeatId  = null;     /* re-announce timer                         */
-    let _streaming    = false;
-    let _statusEl     = null;
-
-    const _ICE = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-    };
+    let _officerId   = null;
+    let _officerName = null;
+    let _channelName = null;
+    let _client      = null;
+    let _micTrack    = null;
+    let _joined      = false;
+    let _publishing  = false;
+    let _streaming   = false;
+    let _reconnecting = false;
+    let _statusEl    = null;
+    let _handlersAttached = false;
 
     window.CADRE_SOS_AUDIO = {
-        init:           _init,
-        startStreaming: _startStreaming,
-        stopStreaming:  _stopStreaming
+        /* spec-named functions */
+        initializeEmergencyAudio: initializeEmergencyAudio,
+        startEmergencyAudio: startEmergencyAudio,
+        publishMicrophone: publishMicrophone,
+        stopEmergencyAudio: stopEmergencyAudio,
+        cleanupEmergencyAudio: cleanupEmergencyAudio,
+        /* aliases so the existing core script (init/startStreaming/stopStreaming) keeps working untouched */
+        init: initializeEmergencyAudio,
+        startStreaming: startEmergencyAudio,
+        stopStreaming: stopEmergencyAudio
     };
 
-    /* ── init ── */
-    function _init(officerId, officerName) {
-        _officerId  = officerId;
+    function initializeEmergencyAudio(officerId, officerName) {
+        _officerId   = officerId;
         _officerName = officerName;
-        _statusEl   = document.getElementById('sos-audio-status');
-        console.log('[SOS_AUDIO] init — officer:', officerName, officerId);
+        _channelName = 'sos_' + officerId;
+        _statusEl    = document.getElementById('sos-audio-status');
+
+        if (typeof AgoraRTC !== 'undefined' && AgoraRTC.checkSystemRequirements && !AgoraRTC.checkSystemRequirements()) {
+            console.warn('[SOS_AUDIO] Browser may not fully support Agora Web RTC. Proceeding anyway.');
+        }
+        console.log('[SOS_AUDIO] initialized — officer:', officerName, officerId, 'channel:', _channelName);
     }
 
-    /* ── startStreaming ── */
-    async function _startStreaming() {
-        if (_streaming) return;
+    async function startEmergencyAudio() {
+        if (_streaming) { console.log('[SOS_AUDIO] startEmergencyAudio — already streaming, skip'); return; }
         _streaming = true;
-        _sessionId = _officerId + '_' + Date.now();
-        console.log('[SOS_AUDIO] startStreaming — session:', _sessionId);
-
-        /* 1 ── Capture mic */
         try {
-            _localStream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
-                video: false
-            });
-            console.log('[SOS_AUDIO] mic captured');
+            _ensureClient();
+            await _joinChannel();
+            await publishMicrophone();
+            _persistChannelInfo(); // best-effort, non-blocking
+            _showStreamingStatus(true);
+            console.log('[SOS_AUDIO] LIVE on channel:', _channelName);
         } catch (err) {
-            console.error('[SOS_AUDIO] mic capture FAILED:', err);
+            console.error('[SOS_AUDIO] startEmergencyAudio FAILED:', err);
             _streaming = false;
-            return;
-        }
-
-        /* 2 ── Open signaling channel (receives admin_join, admin_answer, admin_ice) */
-        _sigChannel = _sb.channel('sos_sig_' + _officerId, {
-            config: { broadcast: { ack: false } }
-        });
-
-        _sigChannel
-            .on('broadcast', { event: 'admin_join' }, async function(msg) {
-                const adminId = (msg.payload || {}).adminId;
-                if (!adminId) return;
-                console.log('[SOS_AUDIO] admin_join from:', adminId);
-                await _createOfferForAdmin(adminId);
-            })
-            .on('broadcast', { event: 'admin_answer' }, async function(msg) {
-                const { adminId, sdp } = msg.payload || {};
-                if (!adminId || !sdp) return;
-                const pc = _peerConns[adminId];
-                if (!pc) return;
-                console.log('[SOS_AUDIO] admin_answer from:', adminId);
-                try { await pc.setRemoteDescription({ type: 'answer', sdp }); }
-                catch(e) { console.warn('[SOS_AUDIO] setRemoteDescription err:', e); }
-            })
-            .on('broadcast', { event: 'admin_ice' }, async function(msg) {
-                const { adminId, candidate } = msg.payload || {};
-                if (!adminId || !candidate) return;
-                const pc = _peerConns[adminId];
-                if (!pc) return;
-                try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
-            });
-
-        await new Promise(function(resolve) {
-            _sigChannel.subscribe(function(status) {
-                console.log('[SOS_AUDIO] sigChannel status:', status);
-                if (status === 'SUBSCRIBED') resolve();
-            });
-        });
-
-        /* 3 ── Open announcement channel and start heartbeat */
-        await _openAnnouncementChannel();
-    }
-
-    /* ── open announcement channel + heartbeat ── */
-    async function _openAnnouncementChannel() {
-        _annChannel = _sb.channel('sos_announcements', {
-            config: { broadcast: { self: false } }
-        });
-
-        await new Promise(function(resolve) {
-            _annChannel.subscribe(function(status) {
-                console.log('[SOS_AUDIO] annChannel status:', status);
-                if (status === 'SUBSCRIBED') resolve();
-            });
-        });
-
-        /* Send first announcement immediately */
-        await _sendAnnouncement();
-        _showStreamingStatus(true);
-
-        /* Re-announce every 8 seconds so late-opening admin pages catch it */
-        _heartbeatId = setInterval(_sendAnnouncement, 8000);
-    }
-
-    async function _sendAnnouncement() {
-        if (!_annChannel || !_streaming) return;
-        try {
-            await _annChannel.send({
-                type: 'broadcast',
-                event: 'sos_announce',
-                payload: {
-                    officerId:   _officerId,
-                    officerName: _officerName,
-                    sessionId:   _sessionId,
-                    timestamp:   new Date().toISOString()
+            logToConsoleSafe('AUDIO START FAILED — RETRYING', 'status-error');
+            setTimeout(function() {
+                if (!_streaming && isAlertActive) {
+                    console.log('[SOS_AUDIO] retrying startEmergencyAudio...');
+                    startEmergencyAudio();
                 }
-            });
-            console.log('[SOS_AUDIO] announcement sent');
-        } catch(e) { console.warn('[SOS_AUDIO] announcement send err:', e); }
+            }, 3000);
+        }
     }
 
-    /* ── create WebRTC offer for one admin ── */
-    async function _createOfferForAdmin(adminId) {
-        /* Close stale connection */
-        if (_peerConns[adminId]) {
-            try { _peerConns[adminId].close(); } catch(e) {}
-            delete _peerConns[adminId];
-        }
+    function _ensureClient() {
+        if (_client) return;
+        if (typeof AgoraRTC === 'undefined') throw new Error('AgoraRTC SDK failed to load');
+        AgoraRTC.setLogLevel(2);
+        _client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        _attachHandlers();
+    }
 
-        const pc = new RTCPeerConnection(_ICE);
-        _peerConns[adminId] = pc;
+    function _attachHandlers() {
+        if (_handlersAttached || !_client) return;
+        _handlersAttached = true;
 
-        _localStream.getTracks().forEach(function(t) { pc.addTrack(t, _localStream); });
-
-        pc.onicecandidate = async function(evt) {
-            if (!evt.candidate || !_sigChannel) return;
-            try {
-                await _sigChannel.send({
-                    type: 'broadcast', event: 'officer_ice',
-                    payload: { officerId: _officerId, adminId, candidate: evt.candidate.toJSON() }
-                });
-            } catch(e) {}
-        };
-
-        pc.onconnectionstatechange = function() {
-            console.log('[SOS_AUDIO] peer state → ' + pc.connectionState + ' (admin:' + adminId + ')');
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        await _sigChannel.send({
-            type: 'broadcast', event: 'officer_offer',
-            payload: {
-                officerId:   _officerId,
-                officerName: _officerName,
-                sessionId:   _sessionId,
-                adminId,
-                sdp: offer.sdp
+        _client.on('connection-state-change', function(curState, prevState, reason) {
+            console.log('[SOS_AUDIO] connection-state-change:', prevState, '→', curState, reason || '');
+            if (curState === 'DISCONNECTED' && _streaming && !_reconnecting) {
+                _handleDisconnect();
             }
         });
-        console.log('[SOS_AUDIO] offer sent to admin:', adminId);
+
+        _client.on('exception', function(evt) {
+            console.warn('[SOS_AUDIO] Agora exception:', evt);
+        });
     }
 
-    /* ── stopStreaming ── */
-    function _stopStreaming() {
+    async function _handleDisconnect() {
+        if (_reconnecting) return;
+        _reconnecting = true;
+        _joined = false;
+        _publishing = false;
+        console.warn('[SOS_AUDIO] connection lost — attempting to reconnect + republish...');
+        logToConsoleSafe('AUDIO LINK LOST — RECONNECTING', 'status-error');
+        _showStreamingStatus(false);
+
+        let attempt = 0;
+        while (_streaming && attempt < 20) {
+            attempt++;
+            try {
+                await _joinChannel();
+                await publishMicrophone();
+                _showStreamingStatus(true);
+                logToConsoleSafe('AUDIO LINK RESTORED', 'status-resolved');
+                console.log('[SOS_AUDIO] reconnected on attempt', attempt);
+                break;
+            } catch (e) {
+                console.warn('[SOS_AUDIO] reconnect attempt', attempt, 'failed:', e);
+                await new Promise(function(r) { setTimeout(r, Math.min(1000 * attempt, 8000)); });
+            }
+        }
+        _reconnecting = false;
+    }
+
+    async function _joinChannel() {
+        if (_joined) return;
+        /* App-ID-only project: token is null */
+        await _client.join(AGORA_APP_ID, _channelName, null, null);
+        _joined = true;
+        console.log('[SOS_AUDIO] joined Agora channel:', _channelName);
+    }
+
+    async function publishMicrophone() {
+        if (_publishing && _micTrack) { console.log('[SOS_AUDIO] mic already publishing — skip duplicate'); return; }
+        if (!_micTrack) {
+            _micTrack = await AgoraRTC.createMicrophoneAudioTrack({
+                AEC: true, ANS: true, AGC: true
+            });
+            console.log('[SOS_AUDIO] microphone track created');
+        }
+        await _client.publish([_micTrack]);
+        _publishing = true;
+        console.log('[SOS_AUDIO] microphone published on channel:', _channelName);
+    }
+
+    async function _persistChannelInfo() {
+        if (typeof sbClient === 'undefined' || !_officerId) return;
+        try {
+            const { error } = await sbClient.from('distress_signals')
+                .update({ agora_channel: _channelName })
+                .eq('user_id', _officerId);
+            if (error && error.code === 'PGRST204') {
+                console.warn('[SOS_AUDIO] "agora_channel" column not found on distress_signals — add it to persist channel name (not required, admin derives the same name automatically).');
+            } else if (error) {
+                console.warn('[SOS_AUDIO] could not persist agora_channel:', error.message);
+            }
+        } catch (e) { console.warn('[SOS_AUDIO] persist channel info error:', e); }
+    }
+
+    async function stopEmergencyAudio() {
         if (!_streaming) return;
         _streaming = false;
-
-        /* Cancel heartbeat */
-        if (_heartbeatId) { clearInterval(_heartbeatId); _heartbeatId = null; }
-
-        /* Notify command stream is over */
-        if (_annChannel) {
-            _annChannel.send({
-                type: 'broadcast', event: 'sos_ended',
-                payload: { officerId: _officerId, sessionId: _sessionId }
-            }).catch(function(){}).finally(function() {
-                _annChannel.unsubscribe(); _annChannel = null;
-            });
-        }
-        if (_sigChannel) { _sigChannel.unsubscribe(); _sigChannel = null; }
-
-        /* Close all peer connections */
-        Object.values(_peerConns).forEach(function(pc) { try { pc.close(); } catch(e) {} });
-        _peerConns = {};
-
-        /* Stop mic */
-        if (_localStream) {
-            _localStream.getTracks().forEach(function(t) { t.stop(); });
-            _localStream = null;
-        }
-
+        await cleanupEmergencyAudio();
         _showStreamingStatus(false);
-        console.log('[SOS_AUDIO] stream stopped');
+        console.log('[SOS_AUDIO] emergency audio stopped');
+    }
+
+    async function cleanupEmergencyAudio() {
+        try {
+            if (_micTrack) {
+                _micTrack.stop();
+                _micTrack.close();
+                _micTrack = null;
+            }
+        } catch (e) { console.warn('[SOS_AUDIO] mic cleanup error:', e); }
+
+        try {
+            if (_client && _joined) {
+                await _client.leave();
+            }
+        } catch (e) { console.warn('[SOS_AUDIO] leave channel error:', e); }
+
+        _joined = false;
+        _publishing = false;
     }
 
     function _showStreamingStatus(active) {
         if (!_statusEl) return;
-        if (active) { _statusEl.classList.add('streaming'); }
-        else        { _statusEl.classList.remove('streaming'); }
+        if (active) _statusEl.classList.add('streaming');
+        else _statusEl.classList.remove('streaming');
+    }
+
+    function logToConsoleSafe(msg, cls) {
+        try { if (typeof logToConsole === 'function') logToConsole(msg, cls); } catch (e) {}
     }
 
 })();

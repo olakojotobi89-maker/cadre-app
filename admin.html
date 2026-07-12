@@ -6,6 +6,7 @@
     <title>CADRE - Tactical Command Center</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtc-sdk-ng/AgoraRTC_N-production.js"></script>
     <style>
         :root {
             --hud-crimson: #ff3333;
@@ -254,7 +255,7 @@
                     <span>Surveillance Audio Wire Intercept</span>
                     <span id="audio-status-tag" style="color:#64748b;font-family:var(--tech-font);">STANDBY_DISPATCH</span>
                 </div>
-                <p style="font-size:0.8rem;color:#64748b;margin-top:0;line-height:1.4;">Automated 7-second audio data loops route directly here upon emergency beacon triggers.</p>
+                <p style="font-size:0.8rem;color:#64748b;margin-top:0;line-height:1.4;">Live Agora audio streams route directly here upon emergency beacon triggers.</p>
                 <div class="audio-intercept-container" id="audio-container-wrapper">
                     <div class="audio-wave-sim">
                         <div style="height:15%"></div><div style="height:35%"></div>
@@ -348,22 +349,24 @@ window.addEventListener('DOMContentLoaded', function() {
     subscribeToDistressSignals();
     refreshDistressSignals();
 
-    /* ── Start audio monitor subscription IMMEDIATELY on load
-       so we never miss an SOS announcement regardless of
-       when the admin clicks the init button ── */
+    /* Start Agora audio monitor immediately on load so we never miss
+       an SOS, and pick up any already-active sessions right away. */
     CADRE_AUDIO_MONITOR.startListening();
 
     document.getElementById('initialize-audio-btn').addEventListener('click', async function() {
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            /* FIX: await resume so context is truly running before alarm plays */
             if (audioCtx.state === 'suspended') await audioCtx.resume();
         } catch(e) { console.warn('AudioContext failed:', e); }
 
         document.getElementById('audio-lock-overlay').style.display = 'none';
         addTerminalLog('[SYS] Audio matrix initialized and armed.', 'ok');
 
-        /* FIX: Fire any queued alarm now that AudioContext is ready */
+        /* This click is also the browser "user gesture" that unlocks
+           autoplay for Agora remote audio tracks — retry any streams
+           that arrived before the operator clicked through. */
+        CADRE_AUDIO_MONITOR.retryPendingPlayback();
+
         if (_alarmQueued || Object.keys(activeSignals).length > 0) {
             _alarmQueued = false;
             startAlarm();
@@ -403,7 +406,6 @@ function playAlarmCycle() {
 }
 
 function startAlarm() {
-    /* Queue alarm if AudioContext not ready yet */
     if (!audioCtx) { _alarmQueued = true; return; }
     if (alarmInterval) return;
     alarmMuted = false;
@@ -442,14 +444,21 @@ function subscribeToDistressSignals() {
         .on('postgres_changes', { event:'INSERT', schema:'public', table:'distress_signals' }, function(p) {
             addTerminalLog('[🚨 SOS] NEW DISTRESS — ' + (p.new.officer_name || 'Unknown'), 'crit');
             refreshDistressSignals();
+            /* Agora channel name is deterministic (sos_<user_id>) so we can
+               subscribe immediately without waiting for agora_channel to persist. */
+            CADRE_AUDIO_MONITOR.subscribeToEmergencyAudio(p.new.user_id, p.new.officer_name, p.new.agora_channel);
         })
         .on('postgres_changes', { event:'UPDATE', schema:'public', table:'distress_signals' }, function(p) {
             if (p.new && p.new.lat && p.new.lng) { updateCoordsOnCard(p.new); }
             else { addTerminalLog('[UPDATE] Telemetry from ' + (p.new.officer_name || 'Unknown'), 'ok'); refreshDistressSignals(); }
+            if (p.new && p.new.active) {
+                CADRE_AUDIO_MONITOR.subscribeToEmergencyAudio(p.new.user_id, p.new.officer_name, p.new.agora_channel);
+            }
         })
         .on('postgres_changes', { event:'DELETE', schema:'public', table:'distress_signals' }, function(p) {
             addTerminalLog('[✅ CLEAR] Signal stood down — ' + (p.old.officer_name || 'Unknown'), 'ok');
             refreshDistressSignals();
+            CADRE_AUDIO_MONITOR.unsubscribeFromEmergencyAudio(p.old.user_id);
         })
         .subscribe(function(status) { addTerminalLog('[SYS] Realtime: ' + status, 'ok'); });
 }
@@ -583,234 +592,181 @@ function addTerminalLog(msg, type) {
 </script>
 
 <!-- ══════════════════════════════════════════════════
-     MODULE: CADRE_AUDIO_MONITOR — FULLY REBUILT
-     
-     KEY FIXES vs previous version:
-     1. startListening() called immediately on page load —
-        NOT gated behind the init button — so SOS announces
-        are never missed.
-     2. Listens on 'sos_sig_<officerId>' (matches emergency.html).
-     3. On sos_announce, subscribes to 'sos_sig_<officerId>' and
-        immediately sends admin_join so officer creates the offer.
-     4. Handles repeat announcements (heartbeat) without creating
-        duplicate peer connections.
-     5. All onclick methods exposed on window.CADRE_AUDIO_MONITOR
-        before IIFE closes.
+     MODULE: CADRE_AUDIO_MONITOR — Agora RTC edition
+
+     Replaces the previous raw-WebRTC/Supabase-broadcast signaling.
+     Each officer streams on a deterministic Agora channel
+     ("sos_<officerId>"). Admin joins that channel directly as
+     soon as a distress_signals row appears — no separate
+     signaling handshake needed. Supports multiple simultaneous
+     SOS streams (one Agora client per officer), auto-subscribes,
+     auto-plays audio (no manual Play button), and supports
+     per-stream recording into the Evidence Vault.
 ══════════════════════════════════════════════════ -->
 <script>
 (function() {
     'use strict';
 
-    const _SB_URL  = 'https://ihroattnnnsckvvbosfz.supabase.co';
-    const _SB_KEY  = 'sb_publishable_M0wwGKR9he08sEfHhZQQxA_vmnXS2eX';
-    /* Fresh Supabase client — independent WS connection */
-    const _sb      = supabase.createClient(_SB_URL, _SB_KEY);
-    const _adminId = 'admin_' + Math.random().toString(36).substr(2, 9);
+    const AGORA_APP_ID = '8f88034e0a9545868b55af604b268e1e';
 
-    const _ICE = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-    };
-
-    /* officerId → { pc, stream, audioEl, mediaRecorder, isRecording, sessionId, officerName, paused } */
-    let _streams      = {};
-    /* officerId → Supabase channel */
-    let _sigChannels  = {};
-    let _annChannel   = null;
-    let _recordings   = [];
+    /* officerId → { client, remoteAudioTrack, mediaRecorder, isRecording,
+                     officerName, channelName, joined, playbackBlocked } */
+    let _streams    = {};
+    let _recordings = [];
     let _recIdCounter = 0;
 
-    /* Declare public object immediately so onclick handlers always find it */
     window.CADRE_AUDIO_MONITOR = {
-        startListening:  _startListening,
-        _listenStream:   _listenStream,
-        _pauseStream:    _pauseStream,
+        startListening: _startListening,
+        subscribeToEmergencyAudio: _subscribeToEmergencyAudio,
+        unsubscribeFromEmergencyAudio: _removeStream,
+        retryPendingPlayback: _retryPendingPlayback,
+        _toggleMute: _toggleMute,
         _startRecording: _startRecording,
-        _stopRecording:  _stopRecording,
-        _deleteRecording:_deleteRecording
+        _stopRecording: _stopRecording,
+        _deleteRecording: _deleteRecording
     };
 
-    /* ── startListening — called on DOMContentLoaded (before init button) ── */
+    /* ── startListening — called immediately on DOMContentLoaded ── */
     function _startListening() {
-        console.log('[AUDIO_MONITOR] startListening — admin:', _adminId);
-        _subscribeAnnouncements();
-        addTerminalLog('[AUDIO] Broadcast intercept channel armed. Admin: ' + _adminId, 'ok');
+        if (typeof AgoraRTC === 'undefined') {
+            console.error('[AUDIO_MONITOR] AgoraRTC SDK failed to load — live audio will not work.');
+            addTerminalLog('[AUDIO] AgoraRTC SDK failed to load.', 'crit');
+            return;
+        }
+        if (AgoraRTC.checkSystemRequirements && !AgoraRTC.checkSystemRequirements()) {
+            console.warn('[AUDIO_MONITOR] Browser may not fully support Agora Web RTC.');
+            addTerminalLog('[AUDIO] Browser compatibility warning — see console.', 'crit');
+        }
+        addTerminalLog('[AUDIO] Agora audio monitor armed and listening.', 'ok');
+        console.log('[AUDIO_MONITOR] startListening (Agora mode)');
+        _syncActiveSignals();
     }
 
-    /* ── Subscribe to shared announcement channel ── */
-    function _subscribeAnnouncements() {
-        _annChannel = _sb.channel('sos_announcements', {
-            config: { broadcast: { self: false } }
-        });
-
-        _annChannel
-            .on('broadcast', { event: 'sos_announce' }, function(msg) {
-                const { officerId, officerName, sessionId } = msg.payload || {};
-                if (!officerId) return;
-                console.log('[AUDIO_MONITOR] sos_announce from:', officerName, officerId);
-                addTerminalLog('[🎧 AUDIO] SOS stream incoming — ' + (officerName || officerId), 'crit');
-                /* Join the officer's signaling channel (idempotent) */
-                _joinOfficerChannel(officerId, officerName, sessionId);
-            })
-            .on('broadcast', { event: 'sos_ended' }, function(msg) {
-                const { officerId } = msg.payload || {};
-                if (!officerId) return;
-                console.log('[AUDIO_MONITOR] sos_ended for:', officerId);
-                addTerminalLog('[AUDIO] Stream ended — ' + officerId, 'ok');
-                _removeStream(officerId);
+    /* Pick up any already-active SOS sessions (covers admin opening the
+       page after an SOS already fired) instead of waiting for INSERT. */
+    async function _syncActiveSignals() {
+        try {
+            const { data, error } = await sbClient.from('distress_signals').select('*').eq('active', true);
+            if (error || !data) return;
+            data.forEach(function(s) {
+                _subscribeToEmergencyAudio(s.user_id, s.officer_name, s.agora_channel);
             });
-
-        _annChannel.subscribe(function(status) {
-            console.log('[AUDIO_MONITOR] annChannel status:', status);
-        });
+        } catch (e) { console.warn('[AUDIO_MONITOR] initial sync error:', e); }
     }
 
-    /* ── Join officer's signaling channel, send admin_join ── */
-    function _joinOfficerChannel(officerId, officerName, sessionId) {
-        /* If already have a peer connection for this officer, skip */
-        if (_streams[officerId] && _streams[officerId].pc) {
-            const state = _streams[officerId].connectionState;
-            if (state !== 'failed' && state !== 'disconnected' && state !== 'closed') {
-                console.log('[AUDIO_MONITOR] Already have stream for:', officerId);
-                return;
-            }
+    /* ── subscribeToEmergencyAudio — join officer's Agora channel ── */
+    async function _subscribeToEmergencyAudio(officerId, officerName, channelName) {
+        if (!officerId) return;
+        channelName = channelName || ('sos_' + officerId);
+
+        if (_streams[officerId] && _streams[officerId].joined) {
+            console.log('[AUDIO_MONITOR] already subscribed to', officerId, '— skip duplicate join');
+            return;
+        }
+        if (typeof AgoraRTC === 'undefined') {
+            console.error('[AUDIO_MONITOR] AgoraRTC SDK not available');
+            return;
         }
 
-        /* Subscribe to signaling channel if not already */
-        if (!_sigChannels[officerId]) {
-            const ch = _sb.channel('sos_sig_' + officerId, {
-                config: { broadcast: { ack: false } }
-            });
+        console.log('[AUDIO_MONITOR] subscribing to emergency audio —', officerId, channelName);
 
-            ch.on('broadcast', { event: 'officer_offer' }, async function(msg) {
-                const { sdp, adminId: tgt } = msg.payload || {};
-                /* Accept if directed to us or no specific target */
-                if (tgt && tgt !== _adminId) return;
-                if (!sdp) return;
-                console.log('[AUDIO_MONITOR] officer_offer received from:', officerId);
-                await _handleOffer(officerId, officerName, sessionId, sdp, ch);
-            });
-
-            ch.on('broadcast', { event: 'officer_ice' }, async function(msg) {
-                const { candidate, adminId: tgt } = msg.payload || {};
-                if (tgt && tgt !== _adminId) return;
-                if (!candidate) return;
-                const state = _streams[officerId];
-                if (!state || !state.pc) return;
-                try { await state.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
-            });
-
-            _sigChannels[officerId] = ch;
-
-            ch.subscribe(async function(status) {
-                if (status !== 'SUBSCRIBED') return;
-                console.log('[AUDIO_MONITOR] Subscribed to sig channel for:', officerId);
-                /* Tell officer we are here — triggers offer creation */
-                await ch.send({
-                    type: 'broadcast', event: 'admin_join',
-                    payload: { adminId: _adminId }
-                });
-                console.log('[AUDIO_MONITOR] admin_join sent to officer:', officerId);
-            });
-        } else {
-            /* Already subscribed — just re-send admin_join in case officer missed it */
-            _sigChannels[officerId].send({
-                type: 'broadcast', event: 'admin_join',
-                payload: { adminId: _adminId }
-            }).catch(function(){});
-        }
-    }
-
-    /* ── Handle incoming WebRTC offer ── */
-    async function _handleOffer(officerId, officerName, sessionId, sdp, sigChannel) {
-        /* Close existing PC if any */
-        if (_streams[officerId] && _streams[officerId].pc) {
-            try { _streams[officerId].pc.close(); } catch(e) {}
-        }
-
-        const pc = new RTCPeerConnection(_ICE);
+        const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
         _streams[officerId] = {
-            pc: pc, stream: null, audioEl: null,
-            mediaRecorder: null, isRecording: false,
-            sessionId: sessionId || officerId,
-            officerName: officerName || officerId,
-            paused: false
+            client: client, remoteAudioTrack: null, mediaRecorder: null,
+            isRecording: false, officerName: officerName || officerId,
+            channelName: channelName, joined: false, muted: false, playbackBlocked: false
         };
 
-        pc.onicecandidate = async function(evt) {
-            if (!evt.candidate) return;
+        client.on('user-published', async function(user, mediaType) {
+            if (mediaType !== 'audio') return;
             try {
-                await sigChannel.send({
-                    type: 'broadcast', event: 'admin_ice',
-                    payload: { adminId: _adminId, candidate: evt.candidate.toJSON() }
-                });
-            } catch(e) {}
-        };
-
-        pc.ontrack = function(evt) {
-            console.log('[AUDIO_MONITOR] ontrack fired for officer:', officerId);
-            addTerminalLog('[AUDIO] Live stream active — ' + (officerName || officerId), 'ok');
-
-            const stream  = evt.streams[0];
-            _streams[officerId].stream = stream;
-
-            const audioEl = new Audio();
-            audioEl.srcObject = stream;
-            audioEl.autoplay  = false;
-            _streams[officerId].audioEl = audioEl;
-
-            _renderStreamCard(officerId, officerName, sessionId);
-        };
-
-        pc.onconnectionstatechange = function() {
-            console.log('[AUDIO_MONITOR] peer state:', pc.connectionState, '— officer:', officerId);
-            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                _removeStream(officerId);
+                await client.subscribe(user, mediaType);
+                const remoteAudioTrack = user.audioTrack;
+                _streams[officerId].remoteAudioTrack = remoteAudioTrack;
+                console.log('[AUDIO_MONITOR] subscribed to remote audio — officer:', officerId);
+                addTerminalLog('[🎧 AUDIO] Live stream connected — ' + (officerName || officerId), 'crit');
+                _renderStreamCard(officerId, officerName, channelName);
+                _autoPlay(officerId);
+            } catch (e) {
+                console.error('[AUDIO_MONITOR] subscribe error:', e);
+                addTerminalLog('[AUDIO] Subscribe failed for ' + (officerName || officerId) + ': ' + e.message, 'crit');
             }
-        };
-
-        await pc.setRemoteDescription({ type: 'offer', sdp });
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        await sigChannel.send({
-            type: 'broadcast', event: 'admin_answer',
-            payload: { adminId: _adminId, sdp: answer.sdp }
         });
-        console.log('[AUDIO_MONITOR] answer sent to officer:', officerId);
+
+        client.on('user-unpublished', function() {
+            console.log('[AUDIO_MONITOR] user-unpublished — officer:', officerId);
+        });
+
+        client.on('connection-state-change', function(curState, prevState, reason) {
+            console.log('[AUDIO_MONITOR] client state', officerId, prevState, '→', curState, reason || '');
+            if (curState === 'DISCONNECTED') {
+                addTerminalLog('[AUDIO] Stream disconnected — ' + (officerName || officerId), 'crit');
+            }
+        });
+
+        try {
+            await client.join(AGORA_APP_ID, channelName, null, null);
+            _streams[officerId].joined = true;
+            console.log('[AUDIO_MONITOR] joined channel for officer:', officerId, channelName);
+        } catch (e) {
+            console.error('[AUDIO_MONITOR] join FAILED for', officerId, e);
+            addTerminalLog('[AUDIO] Failed to join stream for ' + (officerName || officerId) + ': ' + e.message, 'crit');
+            delete _streams[officerId];
+        }
+    }
+
+    /* ── Auto-play the moment the remote track is available — no manual Play button ── */
+    function _autoPlay(officerId) {
+        const state = _streams[officerId];
+        if (!state || !state.remoteAudioTrack) return;
+        try {
+            state.remoteAudioTrack.play();
+            state.playbackBlocked = false;
+            var st = document.getElementById('stream-status-' + officerId);
+            if (st) { st.textContent = '● LIVE — AUTO-MONITORING'; st.className = 'stream-status-tag rec-active'; }
+        } catch (e) {
+            /* Autoplay restriction — will retry once the admin clicks "INITIALIZE AUDIO MATRIX" */
+            console.warn('[AUDIO_MONITOR] autoplay blocked for', officerId, e);
+            state.playbackBlocked = true;
+            var st2 = document.getElementById('stream-status-' + officerId);
+            if (st2) { st2.textContent = '⚠ AUTOPLAY BLOCKED — click INITIALIZE AUDIO MATRIX'; st2.className = 'stream-status-tag'; }
+        }
+    }
+
+    /* Called after the admin's gesture on the "INITIALIZE AUDIO MATRIX" button */
+    function _retryPendingPlayback() {
+        Object.keys(_streams).forEach(function(officerId) {
+            if (_streams[officerId].playbackBlocked) _autoPlay(officerId);
+        });
     }
 
     /* ── Render stream card ── */
-    function _renderStreamCard(officerId, officerName, sessionId) {
+    function _renderStreamCard(officerId, officerName, channelName) {
         const container = document.getElementById('audio-streams-container');
         const emptyEl   = document.getElementById('audio-streams-empty');
         const countTag  = document.getElementById('live-streams-count');
         if (emptyEl) emptyEl.style.display = 'none';
 
-        /* Remove stale card */
         const old = document.getElementById('stream-card-' + officerId);
         if (old) old.remove();
 
         const card = document.createElement('div');
         card.className = 'live-stream-card';
         card.id        = 'stream-card-' + officerId;
-        const ts = new Date().toLocaleTimeString();
-        const sid = (sessionId || '—').substring(0, 16);
+        const ts  = new Date().toLocaleTimeString();
+        const cid = (channelName || '—').substring(0, 24);
 
         card.innerHTML =
             '<div class="stream-officer-name">' +
                 '<span class="live-dot"></span>' +
                 '🚨 ' + (officerName || officerId).toUpperCase() +
-                '<span style="font-size:0.65rem;color:#475569;margin-left:auto;">SESSION: ' + sid + '</span>' +
+                '<span style="font-size:0.65rem;color:#475569;margin-left:auto;">CHANNEL: ' + cid + '</span>' +
             '</div>' +
             '<div style="color:#475569;font-size:0.7rem;font-family:var(--tech-font);">STREAM CONNECTED: ' + ts + '</div>' +
-            '<div class="stream-status-tag" id="stream-status-' + officerId + '">● LIVE — NOT MONITORING</div>' +
+            '<div class="stream-status-tag rec-active" id="stream-status-' + officerId + '">● LIVE — AUTO-MONITORING</div>' +
             '<div class="stream-controls">' +
-                '<button class="stream-btn btn-listen"   id="btn-listen-'  + officerId + '" onclick="CADRE_AUDIO_MONITOR._listenStream(\''   + officerId + '\')">▶ LISTEN</button>' +
-                '<button class="stream-btn btn-pause"    id="btn-pause-'   + officerId + '" onclick="CADRE_AUDIO_MONITOR._pauseStream(\''    + officerId + '\')" style="display:none">⏸ PAUSE</button>' +
+                '<button class="stream-btn btn-listen"   id="btn-mute-'    + officerId + '" onclick="CADRE_AUDIO_MONITOR._toggleMute(\''   + officerId + '\')">🔇 MUTE</button>' +
                 '<button class="stream-btn btn-record"   id="btn-rec-'     + officerId + '" onclick="CADRE_AUDIO_MONITOR._startRecording(\'' + officerId + '\')">⏺ RECORD</button>' +
                 '<button class="stream-btn btn-stop-rec" id="btn-stoprec-' + officerId + '" onclick="CADRE_AUDIO_MONITOR._stopRecording(\''  + officerId + '\')" style="display:none">⏹ STOP REC</button>' +
             '</div>';
@@ -819,66 +775,63 @@ function addTerminalLog(msg, type) {
         countTag.textContent = Object.keys(_streams).length + ' STREAM' + (Object.keys(_streams).length !== 1 ? 'S' : '');
     }
 
-    /* ── Remove stream ── */
-    function _removeStream(officerId) {
+    /* ── Remove stream (SOS ended / disconnected) ── */
+    async function _removeStream(officerId) {
         const state = _streams[officerId];
         if (state) {
             if (state.isRecording && state.mediaRecorder) { try { state.mediaRecorder.stop(); } catch(e) {} }
-            if (state.audioEl) { state.audioEl.pause(); state.audioEl.srcObject = null; }
-            if (state.pc) { try { state.pc.close(); } catch(e) {} }
+            if (state.remoteAudioTrack) { try { state.remoteAudioTrack.stop(); } catch(e) {} }
+            if (state.client) { try { await state.client.leave(); } catch(e) {} }
             delete _streams[officerId];
         }
-        if (_sigChannels[officerId]) { _sigChannels[officerId].unsubscribe(); delete _sigChannels[officerId]; }
         const card = document.getElementById('stream-card-' + officerId);
         if (card) card.remove();
         const remaining = Object.keys(_streams).length;
-        document.getElementById('live-streams-count').textContent = remaining + ' STREAM' + (remaining !== 1 ? 'S' : '');
+        const countTag = document.getElementById('live-streams-count');
+        if (countTag) countTag.textContent = remaining + ' STREAM' + (remaining !== 1 ? 'S' : '');
         if (remaining === 0) { const e = document.getElementById('audio-streams-empty'); if (e) e.style.display = 'block'; }
     }
 
-    /* ══ PLAYBACK ══ */
-    function _listenStream(officerId) {
+    /* ══ MUTE / UNMUTE (audio auto-plays by default; this is an operator override) ══ */
+    function _toggleMute(officerId) {
         const state = _streams[officerId];
-        if (!state || !state.audioEl) return;
-        state.paused = false;
-        state.audioEl.play().then(function() {
-            addTerminalLog('[AUDIO] Monitoring live — ' + (state.officerName || officerId), 'ok');
-            var st = document.getElementById('stream-status-' + officerId);
-            var lb = document.getElementById('btn-listen-' + officerId);
-            var pb = document.getElementById('btn-pause-' + officerId);
-            if (st) { st.textContent = '● LIVE — MONITORING ACTIVE'; st.className = 'stream-status-tag rec-active'; }
-            if (lb) { lb.classList.add('active'); lb.style.display = 'none'; }
-            if (pb) { pb.style.display = 'inline-block'; }
-        }).catch(function(e) { addTerminalLog('[AUDIO] Playback error: ' + e.message, 'crit'); });
-    }
-
-    function _pauseStream(officerId) {
-        const state = _streams[officerId];
-        if (!state || !state.audioEl) return;
-        state.audioEl.pause(); state.paused = true;
-        var st = document.getElementById('stream-status-' + officerId);
-        var lb = document.getElementById('btn-listen-' + officerId);
-        var pb = document.getElementById('btn-pause-' + officerId);
-        if (st) { st.textContent = '⏸ PAUSED'; st.className = 'stream-status-tag'; }
-        if (lb) { lb.classList.remove('active'); lb.style.display = 'inline-block'; }
-        if (pb) { pb.style.display = 'none'; }
+        if (!state || !state.remoteAudioTrack) return;
+        const btn = document.getElementById('btn-mute-' + officerId);
+        const st  = document.getElementById('stream-status-' + officerId);
+        if (!state.muted) {
+            state.remoteAudioTrack.stop();
+            state.muted = true;
+            if (btn) btn.textContent = '🔊 UNMUTE';
+            if (st) { st.textContent = '⏸ MUTED BY OPERATOR'; st.className = 'stream-status-tag'; }
+            addTerminalLog('[AUDIO] Muted — ' + (state.officerName || officerId), 'ok');
+        } else {
+            state.remoteAudioTrack.play();
+            state.muted = false;
+            if (btn) btn.textContent = '🔇 MUTE';
+            if (st) { st.textContent = '● LIVE — AUTO-MONITORING'; st.className = 'stream-status-tag rec-active'; }
+            addTerminalLog('[AUDIO] Unmuted — ' + (state.officerName || officerId), 'ok');
+        }
     }
 
     /* ══ RECORDING ══ */
     function _startRecording(officerId) {
         const state = _streams[officerId];
-        if (!state || !state.stream || state.isRecording) return;
+        if (!state || !state.remoteAudioTrack || state.isRecording) return;
+
+        const mediaStreamTrack = state.remoteAudioTrack.getMediaStreamTrack();
+        const mediaStream = new MediaStream([mediaStreamTrack]);
+
         let mimeType = 'audio/webm;codecs=opus';
         if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = MediaRecorder.isTypeSupported('audio/ogg') ? 'audio/ogg' : '';
         const chunks = [];
-        const mr = mimeType ? new MediaRecorder(state.stream, { mimeType }) : new MediaRecorder(state.stream);
+        const mr = mimeType ? new MediaRecorder(mediaStream, { mimeType }) : new MediaRecorder(mediaStream);
         mr.ondataavailable = function(e) { if (e.data && e.data.size > 0) chunks.push(e.data); };
         mr.onstop = function() {
             const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
             const url  = URL.createObjectURL(blob);
             const recId = 'rec_' + (++_recIdCounter) + '_' + Date.now();
             addTerminalLog('[⏺ REC] Saved — ' + (state.officerName||officerId) + ' (' + (blob.size/1024).toFixed(1) + 'KB)', 'ok');
-            _recordings.push({ id: recId, officerId, officerName: state.officerName||officerId, sessionId: state.sessionId, blob, url, timestamp: new Date().toLocaleString() });
+            _recordings.push({ id: recId, officerId, officerName: state.officerName||officerId, channelName: state.channelName, blob, url, timestamp: new Date().toLocaleString() });
             _renderRecordingCard(recId);
             _updateRecordingsCount();
         };
@@ -900,7 +853,7 @@ function addTerminalLog(msg, type) {
         var st = document.getElementById('stream-status-' + officerId);
         var rb = document.getElementById('btn-rec-' + officerId);
         var sb = document.getElementById('btn-stoprec-' + officerId);
-        if (st) { st.textContent = '● LIVE — MONITORING ACTIVE'; st.className = 'stream-status-tag'; }
+        if (st) { st.textContent = '● LIVE — AUTO-MONITORING'; st.className = 'stream-status-tag rec-active'; }
         if (rb) { rb.classList.remove('recording'); rb.style.display = 'inline-block'; }
         if (sb) { sb.style.display = 'none'; }
     }
@@ -921,7 +874,7 @@ function addTerminalLog(msg, type) {
             '</div>' +
             '<audio controls src="' + rec.url + '"></audio>' +
             '<div class="rec-footer">' +
-                '<span class="rec-session-id">SESSION: ' + rec.sessionId.substring(0,20) + '</span>' +
+                '<span class="rec-session-id">CHANNEL: ' + rec.channelName.substring(0,24) + '</span>' +
                 '<button class="btn-delete-rec" onclick="CADRE_AUDIO_MONITOR._deleteRecording(\'' + recId + '\')">🗑 DELETE</button>' +
             '</div>';
         container.insertBefore(card, container.firstChild);
