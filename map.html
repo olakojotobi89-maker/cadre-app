@@ -1,416 +1,863 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <meta name="description" content="Cadre Special Tactical Platform - Tactical Operations Map" />
+    <meta name="theme-color" content="#0B0F14" />
+    <title>CSTP // Tactical Operations Map</title>
 
-<meta charset="UTF-8">
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0">
+    <!-- Leaflet Core -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 
-<title>CADRE // Tactical Command Map</title>
+    <!-- Leaflet Draw -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
 
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="map.css">
+    <!-- Leaflet Minimap -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-minimap/3.6.1/Control.MiniMap.min.css" />
 
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Application CSS -->
+    <link rel="stylesheet" href="map.css" />
 </head>
-
-<body>
-
-<div class="map-system">
-
-<!-- ===================================== -->
-<!-- HEADER -->
-<!-- ===================================== -->
-
-<header class="map-header">
-
-<div class="map-logo">
-
-<span class="logo-dot"></span>
-
-CADRE // TACTICAL COMMAND
-
-</div>
-
-<nav class="top-menu">
-
-<button class="top-btn active">
-MAP
-</button>
-
-<button class="top-btn">
-MISSIONS
-</button>
-
-<button class="top-btn">
-INTELLIGENCE
-</button>
-
-<button class="top-btn">
-UNITS
-</button>
-
-<button class="top-btn">
-SETTINGS
-</button>
-
-</nav>
-
-<div class="header-right">
-
-<span id="network-status">
-ONLINE
-</span>
-
-<span id="system-clock">
-
-00:00:00
-
-</span>
-
-</div>
-
-</header>
-
-<!-- ===================================== -->
-<!-- MAIN -->
-<!-- ===================================== -->
-
-<div class="map-main">
-
-<!-- ===================================== -->
-<!-- LEFT PANEL -->
-<!-- ===================================== -->
-
-<aside class="left-panel">
-
-<h3>MISSION FILTERS</h3>
-
-<input
-type="text"
-placeholder="Search mission...">
-
-<select>
-
-<option>All Regions</option>
-
-<option>North</option>
-
-<option>South</option>
-
-<option>East</option>
-
-<option>West</option>
-
-</select>
-
-<select>
-
-<option>Priority</option>
-
-<option>High</option>
-
-<option>Medium</option>
-
-<option>Low</option>
-
-</select>
-
-<select>
-
-<option>Status</option>
-
-<option>Active</option>
-
-<option>Completed</option>
-
-<option>Pending</option>
-
-</select>
-
-<button class="new-mission">
-
-+ NEW MISSION
-
-</button>
-
-<hr>
-<svg id="route-layer" class="route-layer"></svg>
-
-<h3>ACTIVE UNITS</h3>
-
-<div class="unit-card">
-
-🟢 Alpha Team
-
-</div>
-
-<div class="unit-card">
-
-🟢 Bravo Team
-
-</div>
-
-<div class="unit-card">
-
-🟡 Charlie Team
-
-</div>
-
-<div class="unit-card">
-
-🔴 Delta Team
-
-</div>
-
-</aside>
-
-<!-- ===================================== -->
-<!-- MAP AREA -->
-<!-- ===================================== -->
-
-<section class="map-view">
-
-<div id="tactical-grid" class="grid-layer"></div>
-
-<div id="grid-crosshair-x" class="crosshair-x"></div>
-<div id="grid-crosshair-y" class="crosshair-y"></div>
-<div class="scan-lines"></div>
-
-<div class="radar-circle"></div>
-
-<div class="radar-sweep"></div>
-
-<div class="crosshair"></div>
-
-<div class="coordinate-label">
-
-GRID:
-12QX-2299
-
-</div>
-
-<div id="alpha-unit" class="unit-marker alpha"></div>
-
-<div id="bravo-unit" class="unit-marker bravo"></div>
-
-<div id="charlie-unit" class="unit-marker charlie"></div>
-
-<div id="delta-unit" class="unit-marker delta"></div>
-
-<div id="hq-unit" class="unit-marker hq-marker"></div>
-
-<div id="drone-unit" class="unit-marker drone-marker"></div>
-<!-- Floating Controls -->
-
-<div class="map-controls">
-
-<button>＋</button>
-
-<button>－</button>
-
-<button>🧭</button>
-
-<button>📡</button>
-
-<button>🎯</button>
-
-<button>⚙</button>
-
-</div>
-
-</section>
-
-<!-- ===================================== -->
-<!-- RIGHT PANEL -->
-<!-- ===================================== -->
-
-<aside class="right-panel">
-
-<h3>
-
-MISSION INTEL
-
-</h3>
-
-<div class="intel-box">
-
-Select a unit.
-
-</div>
-
-<h3>
-
-GPS DATA
-
-</h3>
-
-<div class="intel-box">
-
-Latitude
-
-<br>
-
-6.5244
-
-<br><br>
-
-Longitude
-
-<br>
-
-3.3792
-
-</div>
-
-<h3>
-
-UNIT STATUS
-
-</h3>
-
-<div class="intel-box">
-
-Battery
-
-95%
-
-<br><br>
-
-Radio
-
-Encrypted
-
-<br><br>
-
-Signal
-
-Excellent
-
-</div>
-
-<h3>
-
-LIVE EVENTS
-
-</h3>
-
-<div class="intel-box">
-
-Waiting...
-
-</div>
-
-</aside>
-
-</div>
-
-<!-- ===================================== -->
-<!-- BOTTOM HUD -->
-<!-- ===================================== -->
-
-<footer class="bottom-hud">
-
-<div>
-
-GRID
-
-<span>
-
-12QX-2299
-
-</span>
-
-</div>
-
-<div>
-
-LAT
-
-<span>
-
-6.5244
-
-</span>
-
-</div>
-
-<div>
-
-LON
-
-<span>
-
-3.3792
-
-</span>
-
-</div>
-
-<div>
-
-GPS
-
-<span>
-
-LOCKED
-
-</span>
-
-</div>
-
-<div>
-
-NETWORK
-
-<span>
-
-ONLINE
-
-</span>
-
-</div>
-
-<div>
-
-SAT
-
-<span>
-
-12
-
-</span>
-
-</div>
-
-<div>
-
-COMPASS
-
-<span>
-
-NW
-
-</span>
-
-</div>
-
-<div>
-
-ZOOM
-
-<span>
-
-5X
-
-</span>
-
-</div>
-
-</footer>
-
-</div>
-
-<script src="map.js"></script>
-
+<body class="cstp-body">
+
+    <!-- ===================== LOADING SCREEN ===================== -->
+    <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
+        <div class="loading-core">
+            <div class="loading-logo">
+                <div class="loading-hex">
+                    <svg viewBox="0 0 100 100" class="hex-svg">
+                        <polygon points="50,5 90,27 90,73 50,95 10,73 10,27" class="hex-border"/>
+                        <polygon points="50,15 82,33 82,67 50,85 18,67 18,33" class="hex-inner"/>
+                    </svg>
+                    <div class="loading-pulse"></div>
+                </div>
+                <div class="loading-title">CSTP</div>
+                <div class="loading-subtitle">CADRE SPECIAL TACTICAL PLATFORM</div>
+            </div>
+            <div class="loading-status">
+                <div class="status-line"><span class="status-label">INITIALIZING SECURE CHANNEL</span><span class="status-value" id="load-status-1">[ OK ]</span></div>
+                <div class="status-line"><span class="status-label">LOADING TACTICAL ASSETS</span><span class="status-value" id="load-status-2">[ OK ]</span></div>
+                <div class="status-line"><span class="status-label">ESTABLISHING SATELLITE LINK</span><span class="status-value" id="load-status-3">[ OK ]</span></div>
+                <div class="status-line"><span class="status-label">SYNCING OPERATOR FEED</span><span class="status-value" id="load-status-4">[ OK ]</span></div>
+                <div class="status-line"><span class="status-label">THREAT ANALYSIS ONLINE</span><span class="status-value" id="load-status-5">[ OK ]</span></div>
+            </div>
+            <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+            <div class="loading-footer">CLEARANCE: ALPHA-7 // SESSION ENCRYPTED</div>
+        </div>
+    </div>
+
+    <!-- ===================== MAIN APPLICATION ===================== -->
+    <div id="app" class="cstp-app">
+
+        <!-- ===================== TOP NAVIGATION ===================== -->
+        <header class="top-nav" role="banner">
+            <div class="nav-left">
+                <button class="nav-icon-btn mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle sidebar">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <line x1="3" y1="12" x2="21" y2="12"/>
+                        <line x1="3" y1="18" x2="21" y2="18"/>
+                    </svg>
+                </button>
+                <div class="brand">
+                    <div class="brand-logo">
+                        <svg viewBox="0 0 40 40" class="brand-svg">
+                            <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" class="brand-hex"/>
+                            <text x="20" y="25" text-anchor="middle" class="brand-text">C</text>
+                        </svg>
+                    </div>
+                    <div class="brand-info">
+                        <div class="brand-title">CSTP</div>
+                        <div class="brand-sub">TACTICAL OPS // SECTOR 7</div>
+                    </div>
+                </div>
+                <div class="mission-badge">
+                    <span class="mission-label">MISSION</span>
+                    <span class="mission-name" id="mission-name">OPERATION IRON SENTINEL</span>
+                </div>
+            </div>
+
+            <div class="nav-center">
+                <div class="clock-widget">
+                    <div class="clock-time" id="clock-time">00:00:00</div>
+                    <div class="clock-date" id="clock-date">-- --- ----</div>
+                </div>
+                <div class="threat-widget">
+                    <span class="threat-label">THREAT LEVEL</span>
+                    <div class="threat-indicator" id="threat-indicator">
+                        <span class="threat-dot"></span>
+                        <span class="threat-text" id="threat-text">ELEVATED</span>
+                    </div>
+                </div>
+                <div class="status-widget">
+                    <span class="status-label">SYSTEM</span>
+                    <div class="status-indicator status-online">
+                        <span class="status-dot"></span>
+                        <span>OPERATIONAL</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-right">
+                <div class="commander-widget">
+                    <div class="commander-avatar">
+                        <svg viewBox="0 0 32 32" fill="currentColor">
+                            <circle cx="16" cy="12" r="5"/>
+                            <path d="M6 28 Q6 20 16 20 Q26 20 26 28 Z"/>
+                        </svg>
+                    </div>
+                    <div class="commander-info">
+                        <div class="commander-name">COL. J. HAWTHORNE</div>
+                        <div class="commander-role">COMMANDER // ALPHA-7</div>
+                    </div>
+                </div>
+                <button class="nav-icon-btn" id="btn-notifications" aria-label="Notifications">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    <span class="notif-badge" id="notif-badge">3</span>
+                </button>
+                <button class="nav-icon-btn" id="btn-settings" aria-label="Settings">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
+                <button class="nav-icon-btn" id="btn-fullscreen" aria-label="Fullscreen">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                    </svg>
+                </button>
+                <button class="nav-icon-btn" id="btn-theme" aria-label="Toggle theme">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- ===================== MAIN LAYOUT ===================== -->
+        <div class="main-layout">
+
+            <!-- ===================== LEFT SIDEBAR ===================== -->
+            <aside class="left-sidebar" id="left-sidebar" role="navigation" aria-label="Tactical navigation">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">TACTICAL NAV</div>
+                    <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" aria-label="Collapse sidebar">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="sidebar-search">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="sidebar-search-input" placeholder="Quick search..." aria-label="Quick search" />
+                </div>
+
+                <nav class="sidebar-menu" id="sidebar-menu">
+                    <!-- Menu items populated by JS -->
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div class="sidebar-version">CSTP v2.4.1 // BUILD 2026.07.13</div>
+                    <div class="sidebar-encryption">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <span>AES-256 ENCRYPTED</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ===================== MAP CONTAINER ===================== -->
+            <main class="map-container" role="main">
+
+                <!-- Tactical Toolbar -->
+                <div class="tactical-toolbar" id="tactical-toolbar">
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" data-action="locate-officer" title="Locate Officer">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="10" r="3"/>
+                                <path d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8z"/>
+                            </svg>
+                            <span class="toolbar-label">LOCATE</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="locate-me" title="Locate Me">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <circle cx="12" cy="12" r="3"/>
+                                <line x1="12" y1="2" x2="12" y2="4"/>
+                                <line x1="12" y1="20" x2="12" y2="22"/>
+                                <line x1="2" y1="12" x2="4" y2="12"/>
+                                <line x1="20" y1="12" x2="22" y2="12"/>
+                            </svg>
+                            <span class="toolbar-label">MY POS</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="zoom-emergency" title="Zoom to Emergency">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <span class="toolbar-label">SOS</span>
+                        </button>
+                    </div>
+
+                    <div class="toolbar-sep"></div>
+
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" data-action="draw-patrol" title="Draw Patrol Route">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 17 9 11 13 15 21 7"/>
+                                <polyline points="14 7 21 7 21 14"/>
+                            </svg>
+                            <span class="toolbar-label">PATROL</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="restricted-zone" title="Create Restricted Zone">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                <line x1="3" y1="3" x2="21" y2="21"/>
+                            </svg>
+                            <span class="toolbar-label">RESTRICT</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="safe-zone" title="Create Safe Zone">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                            <span class="toolbar-label">SAFE</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="danger-zone" title="Create Danger Zone">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            </svg>
+                            <span class="toolbar-label">DANGER</span>
+                        </button>
+                    </div>
+
+                    <div class="toolbar-sep"></div>
+
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" data-action="checkpoint" title="Checkpoint">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                                <line x1="4" y1="22" x2="4" y2="15"/>
+                            </svg>
+                            <span class="toolbar-label">CP</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="roadblock" title="Road Block">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="4" rx="1"/>
+                                <line x1="6" y1="11" x2="6" y2="7"/>
+                                <line x1="18" y1="11" x2="18" y2="7"/>
+                            </svg>
+                            <span class="toolbar-label">BLOCK</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="landing-zone" title="Landing Zone">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor" stroke="none">H</text>
+                            </svg>
+                            <span class="toolbar-label">LZ</span>
+                        </button>
+                    </div>
+
+                    <div class="toolbar-sep"></div>
+
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" data-action="measure" title="Measure Distance">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M2 12h20M2 12l4-4M2 12l4 4M22 12l-4-4M22 12l-4 4"/>
+                            </svg>
+                            <span class="toolbar-label">MEASURE</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="compass" title="Compass">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                            </svg>
+                            <span class="toolbar-label">COMPASS</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="layers" title="Mission Layers">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                                <polyline points="2 17 12 22 22 17"/>
+                                <polyline points="2 12 12 17 22 12"/>
+                            </svg>
+                            <span class="toolbar-label">LAYERS</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="grid" title="Grid Overlay">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18"/>
+                                <line x1="3" y1="9" x2="21" y2="9"/>
+                                <line x1="3" y1="15" x2="21" y2="15"/>
+                                <line x1="9" y1="3" x2="9" y2="21"/>
+                                <line x1="15" y1="3" x2="15" y2="21"/>
+                            </svg>
+                            <span class="toolbar-label">GRID</span>
+                        </button>
+                    </div>
+
+                    <div class="toolbar-sep"></div>
+
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" data-action="export" title="Export">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            <span class="toolbar-label">EXPORT</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="print" title="Print">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 6 2 18 2 18 9"/>
+                                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                                <rect x="6" y="14" width="12" height="8"/>
+                            </svg>
+                            <span class="toolbar-label">PRINT</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="mission-settings" title="Mission Settings">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                            </svg>
+                            <span class="toolbar-label">OPS</span>
+                        </button>
+                        <button class="toolbar-btn" data-action="fullscreen" title="Fullscreen">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                            </svg>
+                            <span class="toolbar-label">FULL</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Map -->
+                <div id="tactical-map" class="tactical-map"></div>
+
+                <!-- Map Layer Switcher -->
+                <div class="layer-switcher" id="layer-switcher">
+                    <button class="layer-btn active" data-layer="dark">DARK TACTICAL</button>
+                    <button class="layer-btn" data-layer="street">STREET</button>
+                    <button class="layer-btn" data-layer="satellite">SATELLITE</button>
+                    <button class="layer-btn" data-layer="terrain">TERRAIN</button>
+                    <button class="layer-btn" data-layer="hybrid">HYBRID</button>
+                </div>
+
+                <!-- Compass Rose -->
+                <div class="compass-rose" id="compass-rose">
+                    <svg viewBox="0 0 100 100" class="compass-svg">
+                        <circle cx="50" cy="50" r="48" class="compass-ring"/>
+                        <circle cx="50" cy="50" r="38" class="compass-ring-inner"/>
+                        <g class="compass-ticks">
+                            <line x1="50" y1="5" x2="50" y2="12"/>
+                            <line x1="50" y1="88" x2="50" y2="95"/>
+                            <line x1="5" y1="50" x2="12" y2="50"/>
+                            <line x1="88" y1="50" x2="95" y2="50"/>
+                        </g>
+                        <text x="50" y="20" text-anchor="middle" class="compass-n">N</text>
+                        <text x="50" y="90" text-anchor="middle" class="compass-s">S</text>
+                        <text x="15" y="55" text-anchor="middle" class="compass-w">W</text>
+                        <text x="85" y="55" text-anchor="middle" class="compass-e">E</text>
+                        <polygon points="50,25 45,50 50,45 55,50" class="compass-needle-n"/>
+                        <polygon points="50,75 45,50 50,55 55,50" class="compass-needle-s"/>
+                        <circle cx="50" cy="50" r="3" class="compass-center"/>
+                    </svg>
+                </div>
+
+                <!-- Mini Map Toggle -->
+                <div class="minimap-toggle" id="minimap-toggle">
+                    <button class="minimap-btn" id="minimap-btn" aria-label="Toggle minimap">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <rect x="12" y="12" width="7" height="7"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Coordinates Display -->
+                <div class="coords-display" id="coords-display">
+                    <span class="coords-label">LAT</span><span class="coords-value" id="coord-lat">--.------</span>
+                    <span class="coords-sep">|</span>
+                    <span class="coords-label">LON</span><span class="coords-value" id="coord-lon">--.------</span>
+                    <span class="coords-sep">|</span>
+                    <span class="coords-label">ZOOM</span><span class="coords-value" id="coord-zoom">--</span>
+                    <span class="coords-sep">|</span>
+                    <span class="coords-label">MGRS</span><span class="coords-value" id="coord-mgrs">--</span>
+                </div>
+
+            </main>
+
+            <!-- ===================== RIGHT INFO PANEL ===================== -->
+            <aside class="right-panel" id="right-panel" role="complementary" aria-label="Tactical information">
+                <div class="panel-header">
+                    <div class="panel-title">SITUATION REPORT</div>
+                    <button class="panel-collapse-btn" id="panel-collapse-btn" aria-label="Collapse panel">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="panel-tabs" id="panel-tabs">
+                    <button class="panel-tab active" data-tab="units">UNITS</button>
+                    <button class="panel-tab" data-tab="missions">MISSIONS</button>
+                    <button class="panel-tab" data-tab="systems">SYSTEMS</button>
+                </div>
+
+                <div class="panel-content">
+                    <!-- Units Tab -->
+                    <div class="panel-tab-content active" data-tab-content="units">
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-officers">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                        <circle cx="9" cy="7" r="4"/>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">ACTIVE OFFICERS</span>
+                            </div>
+                            <div class="info-value" id="stat-officers">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-officers"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-units">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                        <path d="M9 9h6v6H9z"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">UNITS ONLINE</span>
+                            </div>
+                            <div class="info-value" id="stat-units">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-units"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-vehicles">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M5 17h14M7 10l2-5h6l2 5M5 17v-7h14v7M7 17a2 2 0 1 0 4 0M13 17a2 2 0 1 0 4 0"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">VEHICLES</span>
+                            </div>
+                            <div class="info-value" id="stat-vehicles">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-vehicles"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-medical">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2v20M2 12h20"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">MEDICAL TEAMS</span>
+                            </div>
+                            <div class="info-value" id="stat-medical">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-medical"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-fire">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-2 1-3 1-3s-3 2-3 6a6 6 0 0 0 12 0c0-6-6-11-6-11z"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">FIRE TEAMS</span>
+                            </div>
+                            <div class="info-value" id="stat-fire">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-fire"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-police">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2L4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">POLICE UNITS</span>
+                            </div>
+                            <div class="info-value" id="stat-police">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-police"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-military">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">MILITARY UNITS</span>
+                            </div>
+                            <div class="info-value" id="stat-military">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-military"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-drone">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="6" height="6"/>
+                                        <circle cx="5" cy="5" r="2"/>
+                                        <circle cx="19" cy="5" r="2"/>
+                                        <circle cx="5" cy="19" r="2"/>
+                                        <circle cx="19" cy="19" r="2"/>
+                                        <line x1="7" y1="7" x2="9" y2="9"/>
+                                        <line x1="17" y1="7" x2="15" y2="9"/>
+                                        <line x1="7" y1="17" x2="9" y2="15"/>
+                                        <line x1="17" y1="17" x2="15" y2="15"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">DRONE UNITS</span>
+                            </div>
+                            <div class="info-value" id="stat-drones">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-drones"></div></div>
+                        </div>
+                    </div>
+
+                    <!-- Missions Tab -->
+                    <div class="panel-tab-content" data-tab-content="missions">
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-mission">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <circle cx="12" cy="12" r="6"/>
+                                        <circle cx="12" cy="12" r="2"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">CURRENT MISSIONS</span>
+                            </div>
+                            <div class="info-value" id="stat-missions">0</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-missions"></div></div>
+                        </div>
+
+                        <div class="info-card info-card-alert">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-emergency">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                        <line x1="12" y1="9" x2="12" y2="13"/>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">ACTIVE EMERGENCIES</span>
+                            </div>
+                            <div class="info-value" id="stat-emergencies">0</div>
+                            <div class="info-bar"><div class="info-bar-fill bar-danger" id="bar-emergencies"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-threat">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">THREAT LEVEL</span>
+                            </div>
+                            <div class="info-value threat-value" id="stat-threat">ELEVATED</div>
+                            <div class="info-bar"><div class="info-bar-fill bar-warning" id="bar-threat"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-weather">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">WEATHER</span>
+                            </div>
+                            <div class="info-value weather-value" id="stat-weather">18°C / CLEAR</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-weather"></div></div>
+                        </div>
+                    </div>
+
+                    <!-- Systems Tab -->
+                    <div class="panel-tab-content" data-tab-content="systems">
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-radio">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9M19.1 4.9c3.9 3.9 3.9 10.3 0 14.2M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/>
+                                        <circle cx="12" cy="12" r="2"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">RADIO STATUS</span>
+                            </div>
+                            <div class="info-value" id="stat-radio">ONLINE</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-radio"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-gps">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">GPS STATUS</span>
+                            </div>
+                            <div class="info-value" id="stat-gps">LOCKED (12 SAT)</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-gps"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-server">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="2" y="2" width="20" height="8" rx="2"/>
+                                        <rect x="2" y="14" width="20" height="8" rx="2"/>
+                                        <line x1="6" y1="6" x2="6.01" y2="6"/>
+                                        <line x1="6" y1="18" x2="6.01" y2="18"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">SERVER STATUS</span>
+                            </div>
+                            <div class="info-value" id="stat-server">OPERATIONAL</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-server"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-battery">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="1" y="6" width="18" height="12" rx="2"/>
+                                        <line x1="23" y1="10" x2="23" y2="14"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">BATTERY</span>
+                            </div>
+                            <div class="info-value" id="stat-battery">87%</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-battery"></div></div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header">
+                                <span class="info-icon icon-network">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+                                    </svg>
+                                </span>
+                                <span class="info-label">NETWORK</span>
+                            </div>
+                            <div class="info-value" id="stat-network">SECURE // 42ms</div>
+                            <div class="info-bar"><div class="info-bar-fill" id="bar-network"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ===================== BOTTOM EVENT FEED ===================== -->
+        <section class="event-feed" id="event-feed" role="log" aria-live="polite" aria-label="Tactical event feed">
+            <div class="feed-header">
+                <div class="feed-title">
+                    <span class="feed-dot"></span>
+                    <span>LIVE TACTICAL FEED</span>
+                </div>
+                <div class="feed-controls">
+                    <button class="feed-btn" id="feed-pause" aria-label="Pause feed">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                            <rect x="6" y="4" width="4" height="16"/>
+                            <rect x="14" y="4" width="4" height="16"/>
+                        </svg>
+                    </button>
+                    <button class="feed-btn" id="feed-clear" aria-label="Clear feed">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-2 14H7L5 6"/>
+                        </svg>
+                    </button>
+                    <button class="feed-btn" id="feed-expand" aria-label="Expand feed">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="feed-body" id="feed-body">
+                <!-- Events populated by JS -->
+            </div>
+        </section>
+
+        <!-- ===================== SEARCH MODAL ===================== -->
+        <div class="search-modal" id="search-modal" role="dialog" aria-modal="true" aria-label="Tactical search">
+            <div class="search-modal-content">
+                <div class="search-modal-header">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search officers, vehicles, missions, incidents..." autocomplete="off" />
+                    <button class="search-close" id="search-close" aria-label="Close search">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="search-filters" id="search-filters">
+                    <button class="filter-chip active" data-filter="all">ALL</button>
+                    <button class="filter-chip" data-filter="officer">OFFICERS</button>
+                    <button class="filter-chip" data-filter="vehicle">VEHICLES</button>
+                    <button class="filter-chip" data-filter="mission">MISSIONS</button>
+                    <button class="filter-chip" data-filter="incident">INCIDENTS</button>
+                    <button class="filter-chip" data-filter="unit">UNITS</button>
+                </div>
+                <div class="search-results" id="search-results">
+                    <div class="search-empty">Start typing to search tactical assets...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TACTICAL FILTERS ===================== -->
+        <div class="tactical-filters" id="tactical-filters">
+            <button class="filter-btn active" data-filter="all">ALL</button>
+            <button class="filter-btn" data-filter="online">ONLINE</button>
+            <button class="filter-btn" data-filter="offline">OFFLINE</button>
+            <button class="filter-btn" data-filter="emergency">EMERGENCY</button>
+            <button class="filter-btn" data-filter="police">POLICE</button>
+            <button class="filter-btn" data-filter="military">MILITARY</button>
+            <button class="filter-btn" data-filter="medical">MEDICAL</button>
+            <button class="filter-btn" data-filter="fire">FIRE</button>
+            <button class="filter-btn" data-filter="vehicles">VEHICLES</button>
+            <button class="filter-btn" data-filter="drones">DRONES</button>
+            <button class="filter-btn" data-filter="command">COMMAND</button>
+        </div>
+
+        <!-- ===================== NOTIFICATIONS CONTAINER ===================== -->
+        <div class="notifications-container" id="notifications-container" aria-live="polite" aria-atomic="true"></div>
+
+        <!-- ===================== DRAWING MODAL ===================== -->
+        <div class="drawing-modal" id="drawing-modal" role="dialog" aria-modal="true" aria-label="Drawing tools">
+            <div class="drawing-modal-content">
+                <div class="drawing-modal-header">
+                    <div class="drawing-modal-title">TACTICAL DRAWING TOOLS</div>
+                    <button class="drawing-modal-close" id="drawing-modal-close" aria-label="Close">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="drawing-tools-grid">
+                    <button class="drawing-tool" data-draw="polygon">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 22 8.5 18 20 6 20 2 8.5"/>
+                        </svg>
+                        <span>POLYGON</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="circle">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        <span>CIRCLE</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="rectangle">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="5" width="18" height="14" rx="1"/>
+                        </svg>
+                        <span>RECTANGLE</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="patrol">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 17 9 11 13 15 21 7"/>
+                        </svg>
+                        <span>PATROL ROUTE</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="search">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <span>SEARCH AREA</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="restricted">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                        </svg>
+                        <span>RESTRICTED</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="danger">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        </svg>
+                        <span>DANGER ZONE</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="safe">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        <span>SAFE ZONE</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="landing">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor" stroke="none">H</text>
+                        </svg>
+                        <span>LANDING ZONE</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="checkpoint">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                            <line x1="4" y1="22" x2="4" y2="15"/>
+                        </svg>
+                        <span>CHECKPOINT</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="roadblock">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="4" rx="1"/>
+                            <line x1="6" y1="11" x2="6" y2="7"/>
+                            <line x1="18" y1="11" x2="18" y2="7"/>
+                        </svg>
+                        <span>ROAD BLOCK</span>
+                    </button>
+                    <button class="drawing-tool" data-draw="clear">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-2 14H7L5 6"/>
+                        </svg>
+                        <span>CLEAR ALL</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===================== SCRIPTS ===================== -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-minimap/3.6.1/Control.MiniMap.min.js"></script>
+
+    <script src="map.js"></script>
 </body>
 </html>
